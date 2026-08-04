@@ -1,5 +1,7 @@
 #import "FMFontPackageImportSession.h"
 
+#import "FMLocalization.h"
+
 #import <errno.h>
 #import <sys/stat.h>
 #import <unistd.h>
@@ -47,7 +49,7 @@ static BOOL FMEnsureImportSessionsRoot(NSString **rootPath, NSError **error) {
     if (root.length == 0) {
         return FMImportSessionFail(error,
                                    FMFontPackageImportSessionErrorTemporaryStorage,
-                                   @"字体包临时目录不可用。", nil);
+                                   FMLocalized(@"字体包临时目录不可用。"), nil);
     }
     struct stat info = {0};
     if (lstat(root.fileSystemRepresentation, &info) != 0) {
@@ -57,7 +59,7 @@ static BOOL FMEnsureImportSessionsRoot(NSString **rootPath, NSError **error) {
                                                    userInfo:nil];
             return FMImportSessionFail(error,
                                        FMFontPackageImportSessionErrorTemporaryStorage,
-                                       @"无法检查字体包临时目录。", underlying);
+                                       FMLocalized(@"无法检查字体包临时目录。"), underlying);
         }
         NSError *directoryError = nil;
         if (![NSFileManager.defaultManager createDirectoryAtPath:root
@@ -69,13 +71,13 @@ static BOOL FMEnsureImportSessionsRoot(NSString **rootPath, NSError **error) {
             lstat(root.fileSystemRepresentation, &info) != 0) {
             return FMImportSessionFail(error,
                                        FMFontPackageImportSessionErrorTemporaryStorage,
-                                       @"无法创建字体包临时目录。", directoryError);
+                                       FMLocalized(@"无法创建字体包临时目录。"), directoryError);
         }
     }
     if (lstat(root.fileSystemRepresentation, &info) != 0 || !S_ISDIR(info.st_mode)) {
         return FMImportSessionFail(error,
                                    FMFontPackageImportSessionErrorTemporaryStorage,
-                                   @"字体包临时位置不是普通目录。", nil);
+                                   FMLocalized(@"字体包临时位置不是普通目录。"), nil);
     }
     if (chmod(root.fileSystemRepresentation, 0700) != 0) {
         NSError *underlying = [NSError errorWithDomain:NSPOSIXErrorDomain
@@ -83,7 +85,7 @@ static BOOL FMEnsureImportSessionsRoot(NSString **rootPath, NSError **error) {
                                                userInfo:nil];
         return FMImportSessionFail(error,
                                    FMFontPackageImportSessionErrorTemporaryStorage,
-                                   @"无法保护字体包临时目录。", underlying);
+                                   FMLocalized(@"无法保护字体包临时目录。"), underlying);
     }
     if (rootPath != NULL) *rootPath = root;
     return YES;
@@ -114,7 +116,7 @@ static BOOL FMRemoveSessionDirectoryAtPath(NSString *path,
     if (![[path stringByDeletingLastPathComponent] isEqual:root] ||
         !FMIsSessionDirectoryName(path.lastPathComponent)) {
         return FMImportSessionFail(error, FMFontPackageImportSessionErrorCleanup,
-                                   @"拒绝清理不属于 Font Manager 的路径。", nil);
+                                   FMLocalized(@"拒绝清理不属于 Font Manager 的路径。"), nil);
     }
     struct stat info = {0};
     if (lstat(path.fileSystemRepresentation, &info) != 0) {
@@ -123,16 +125,16 @@ static BOOL FMRemoveSessionDirectoryAtPath(NSString *path,
                                                    code:errno
                                                userInfo:nil];
         return FMImportSessionFail(error, FMFontPackageImportSessionErrorCleanup,
-                                   @"无法检查字体包临时会话。", underlying);
+                                   FMLocalized(@"无法检查字体包临时会话。"), underlying);
     }
     if (!S_ISDIR(info.st_mode)) {
         return FMImportSessionFail(error, FMFontPackageImportSessionErrorCleanup,
-                                   @"字体包临时会话不是普通目录。", nil);
+                                   FMLocalized(@"字体包临时会话不是普通目录。"), nil);
     }
     NSError *removeError = nil;
     if (![NSFileManager.defaultManager removeItemAtPath:path error:&removeError]) {
         return FMImportSessionFail(error, FMFontPackageImportSessionErrorCleanup,
-                                   @"无法清理字体包临时副本。", removeError);
+                                   FMLocalized(@"无法清理字体包临时副本。"), removeError);
     }
     return YES;
 }
@@ -160,7 +162,7 @@ static BOOL FMRemoveSessionDirectoryAtPath(NSString *path,
     if (![sourceURL isKindOfClass:NSURL.class] || !sourceURL.isFileURL ||
         !FMIsSupportedImportFileName(sourceURL.lastPathComponent)) {
         FMImportSessionFail(error, FMFontPackageImportSessionErrorInvalidSource,
-                            @"请选择 ZIP、TTF、TTC 或 OTF 文件。", nil);
+                            FMLocalized(@"请选择 ZIP、TTF、TTC 或 OTF 文件。"), nil);
         return nil;
     }
 
@@ -177,7 +179,7 @@ static BOOL FMRemoveSessionDirectoryAtPath(NSString *path,
                                                    }
                                                         error:&directoryError]) {
         FMImportSessionFail(error, FMFontPackageImportSessionErrorTemporaryStorage,
-                            @"无法创建字体包临时会话。", directoryError);
+                            FMLocalized(@"无法创建字体包临时会话。"), directoryError);
         return nil;
     }
 
@@ -204,7 +206,7 @@ static BOOL FMRemoveSessionDirectoryAtPath(NSString *path,
                                              code:savedError
                                          userInfo:@{
                                              NSLocalizedDescriptionKey :
-                                                 @"所选字体包不是大小有效的普通文件。"
+                                                 FMLocalized(@"所选字体包不是大小有效的普通文件。")
                                          }];
             return;
         }
@@ -231,7 +233,7 @@ static BOOL FMRemoveSessionDirectoryAtPath(NSString *path,
                                              code:savedError
                                          userInfo:@{
                                              NSLocalizedDescriptionKey :
-                                                 @"字体包临时副本不完整。"
+                                                 FMLocalized(@"字体包临时副本不完整。")
                                          }];
         }
     }];
@@ -240,7 +242,7 @@ static BOOL FMRemoveSessionDirectoryAtPath(NSString *path,
     if (coordinationError != nil || copyError != nil) {
         [NSFileManager.defaultManager removeItemAtPath:sessionPath error:nil];
         FMImportSessionFail(error, FMFontPackageImportSessionErrorCoordination,
-                            @"无法安全读取所选字体包。",
+                            FMLocalized(@"无法安全读取所选字体包。"),
                             copyError ?: coordinationError);
         return nil;
     }
@@ -254,7 +256,7 @@ static BOOL FMRemoveSessionDirectoryAtPath(NSString *path,
     if (root.length == 0) {
         return FMImportSessionFail(error,
                                    FMFontPackageImportSessionErrorTemporaryStorage,
-                                   @"字体包临时目录不可用。", nil);
+                                   FMLocalized(@"字体包临时目录不可用。"), nil);
     }
     struct stat rootInfo = {0};
     if (lstat(root.fileSystemRepresentation, &rootInfo) != 0) {
@@ -263,11 +265,11 @@ static BOOL FMRemoveSessionDirectoryAtPath(NSString *path,
                                                    code:errno
                                                userInfo:nil];
         return FMImportSessionFail(error, FMFontPackageImportSessionErrorCleanup,
-                                   @"无法检查遗留的字体包临时目录。", underlying);
+                                   FMLocalized(@"无法检查遗留的字体包临时目录。"), underlying);
     }
     if (!S_ISDIR(rootInfo.st_mode)) {
         return FMImportSessionFail(error, FMFontPackageImportSessionErrorCleanup,
-                                   @"字体包临时位置不是普通目录。", nil);
+                                   FMLocalized(@"字体包临时位置不是普通目录。"), nil);
     }
     NSError *contentsError = nil;
     NSArray<NSString *> *entries =
@@ -275,7 +277,7 @@ static BOOL FMRemoveSessionDirectoryAtPath(NSString *path,
                                                            error:&contentsError];
     if (entries == nil) {
         return FMImportSessionFail(error, FMFontPackageImportSessionErrorCleanup,
-                                   @"无法读取遗留的字体包临时目录。", contentsError);
+                                   FMLocalized(@"无法读取遗留的字体包临时目录。"), contentsError);
     }
     for (NSString *entry in entries) {
         if (!FMIsSessionDirectoryName(entry)) continue;
@@ -291,7 +293,7 @@ static BOOL FMRemoveSessionDirectoryAtPath(NSString *path,
     NSString *root = FMImportSessionsRootPath();
     if (root.length == 0) {
         return FMImportSessionFail(error, FMFontPackageImportSessionErrorCleanup,
-                                   @"字体包临时目录不可用。", nil);
+                                   FMLocalized(@"字体包临时目录不可用。"), nil);
     }
     return FMRemoveSessionDirectoryAtPath(self.sessionDirectoryURL.path, root, error);
 }

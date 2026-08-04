@@ -1,5 +1,7 @@
 #import "FMDeviceProfileWorkspace.h"
 
+#import "FMLocalization.h"
+
 #import <roothide.h>
 
 #import "FMFontPackageAnalyzer.h"
@@ -73,7 +75,7 @@ static BOOL FMDeviceWorkspaceFail(NSError **error,
     self.catalogPreview = FMFetchFontCatalogFromHelper(systemBuild, &catalogError);
     if (self.catalogPreview == nil) {
         return FMDeviceWorkspaceFail(error, FMDeviceProfileWorkspaceErrorEnvironment,
-                                     @"暂时无法读取本机系统字体清单。", catalogError);
+                                     FMLocalized(@"暂时无法读取本机系统字体清单。"), catalogError);
     }
     return YES;
 }
@@ -111,20 +113,20 @@ static BOOL FMDeviceWorkspaceFail(NSError **error,
         -self.lastStatusDate.timeIntervalSinceNow < 1.0) {
         if ([self.status[@"engineState"] isEqual:@"ready"]) return YES;
         return FMDeviceWorkspaceFail(error, FMDeviceProfileWorkspaceErrorEnvironment,
-                                     @"字体引擎尚未准备好。", nil);
+                                     FMLocalized(@"字体引擎尚未准备好。"), nil);
     }
 
     NSError *statusError = nil;
     NSDictionary *status = FMFetchStatusFromHelper(&statusError);
     if (status == nil) {
         return FMDeviceWorkspaceFail(error, FMDeviceProfileWorkspaceErrorEnvironment,
-                                     @"暂时无法读取这台设备的字体环境。", statusError);
+                                     FMLocalized(@"暂时无法读取这台设备的字体环境。"), statusError);
     }
     self.status = status;
     self.lastStatusDate = NSDate.date;
     if (![status[@"engineState"] isEqual:@"ready"]) {
         return FMDeviceWorkspaceFail(error, FMDeviceProfileWorkspaceErrorEnvironment,
-                                     @"字体引擎尚未准备好。", nil);
+                                     FMLocalized(@"字体引擎尚未准备好。"), nil);
     }
     NSDictionary *state = [status[@"state"] isKindOfClass:NSDictionary.class]
         ? status[@"state"]
@@ -137,7 +139,7 @@ static BOOL FMDeviceWorkspaceFail(NSError **error,
         if (report == nil) {
             return FMDeviceWorkspaceFail(
                 error, FMDeviceProfileWorkspaceErrorEnvironment,
-                @"暂时无法确认重启后的字体状态，请重新打开 App 后再试。",
+                FMLocalized(@"暂时无法确认重启后的字体状态，请重新打开 App 后再试。"),
                 reconcileError);
         }
         if ([report[@"status"] isEqual:@"reconciled"] ||
@@ -146,7 +148,7 @@ static BOOL FMDeviceWorkspaceFail(NSError **error,
             if (status == nil || ![status[@"engineState"] isEqual:@"ready"]) {
                 return FMDeviceWorkspaceFail(
                     error, FMDeviceProfileWorkspaceErrorEnvironment,
-                    @"字体已重启，但暂时无法刷新当前状态。", reconcileError);
+                    FMLocalized(@"字体已重启，但暂时无法刷新当前状态。"), reconcileError);
             }
             self.status = status;
             self.lastStatusDate = NSDate.date;
@@ -162,7 +164,7 @@ static BOOL FMDeviceWorkspaceFail(NSError **error,
         : nil;
     if (state == nil) {
         FMDeviceWorkspaceFail(error, FMDeviceProfileWorkspaceErrorEnvironment,
-                              @"设备没有返回有效的字体状态。", nil);
+                              FMLocalized(@"设备没有返回有效的字体状态。"), nil);
     }
     return state;
 }
@@ -172,7 +174,7 @@ static BOOL FMDeviceWorkspaceFail(NSError **error,
     NSDictionary *status = FMFetchStatusFromHelper(&statusError);
     if (status == nil) {
         FMDeviceWorkspaceFail(error, FMDeviceProfileWorkspaceErrorEnvironment,
-                              @"暂时无法读取这台设备的运行环境。", statusError);
+                              FMLocalized(@"暂时无法读取这台设备的运行环境。"), statusError);
         return nil;
     }
     self.status = status;
@@ -207,7 +209,7 @@ static BOOL FMDeviceWorkspaceFail(NSError **error,
         NSString *profilesRoot = [self profileStoreRoot];
         if (profilesRoot.length == 0) {
             FMDeviceWorkspaceFail(error, FMDeviceProfileWorkspaceErrorEnvironment,
-                                  @"字体库目录不可用。", nil);
+                                  FMLocalized(@"字体库目录不可用。"), nil);
             return nil;
         }
         return FMFontProfileDetailsAtRoot(profilesRoot, profileID, systemBuild, error);
@@ -226,7 +228,7 @@ static BOOL FMDeviceWorkspaceFail(NSError **error,
     };
     NSMutableDictionary<NSString *, id> *details = [@{
         @"id" : NSNull.null,
-        @"name" : @"系统默认",
+        @"name" : FMLocalized(@"系统默认"),
         @"relativePaths" : self.managedRelativePaths,
     } mutableCopy];
     if (stockRoot != nil) {
@@ -243,7 +245,7 @@ static BOOL FMDeviceWorkspaceFail(NSError **error,
         : nil;
     if (catalog == nil) {
         FMDeviceWorkspaceFail(error, FMDeviceProfileWorkspaceErrorEnvironment,
-                              @"本机系统字体清单无效。", nil);
+                              FMLocalized(@"本机系统字体清单无效。"), nil);
         return nil;
     }
     return FMAnalyzeFontPackageAtPath(sourcePath, catalog, error);
@@ -259,7 +261,7 @@ static BOOL FMDeviceWorkspaceFail(NSError **error,
     NSString *profilesRoot = [self profileStoreRoot];
     if (catalog == nil || profilesRoot.length == 0) {
         FMDeviceWorkspaceFail(error, FMDeviceProfileWorkspaceErrorEnvironment,
-                              @"本机字体目录或字体库位置无效。", nil);
+                              FMLocalized(@"本机字体目录或字体库位置无效。"), nil);
         return nil;
     }
     NSString *profileID = [@"import-" stringByAppendingString:
@@ -271,7 +273,7 @@ static BOOL FMDeviceWorkspaceFail(NSError **error,
 - (BOOL)changesUnavailable:(NSError **)error {
     return FMDeviceWorkspaceFail(
         error, FMDeviceProfileWorkspaceErrorChangesUnavailable,
-        @"这项管理功能暂时不可用。", nil);
+        FMLocalized(@"这项管理功能暂时不可用。"), nil);
 }
 
 - (BOOL)stageProfileID:(NSString *)profileID error:(NSError **)error {
@@ -279,7 +281,7 @@ static BOOL FMDeviceWorkspaceFail(NSError **error,
     if (!self.allowsChanges) {
         return FMDeviceWorkspaceFail(
             error, FMDeviceProfileWorkspaceErrorChangesUnavailable,
-            @"当前还有未完成的字体操作，暂时不能切换。", nil);
+            FMLocalized(@"当前还有未完成的字体操作，暂时不能切换。"), nil);
     }
 
     NSString *systemBuild = self.status[@"system"][@"productBuildVersion"];
@@ -288,7 +290,7 @@ static BOOL FMDeviceWorkspaceFail(NSError **error,
         FMAdoptProfileFromHelper(systemBuild, profileID, &operationError) == nil) {
         return FMDeviceWorkspaceFail(
             error, FMDeviceProfileWorkspaceErrorEnvironment,
-            @"暂时无法准备这款字体，请确认字体方案仍完整。", operationError);
+            FMLocalized(@"暂时无法准备这款字体，请确认字体方案仍完整。"), operationError);
     }
 
     NSDictionary *report = FMStageProfileFromHelper(
@@ -297,8 +299,8 @@ static BOOL FMDeviceWorkspaceFail(NSError **error,
         return FMDeviceWorkspaceFail(
             error, FMDeviceProfileWorkspaceErrorEnvironment,
             profileID != nil
-                ? @"字体切换没有完成，请稍后重试。"
-                : @"系统默认字体恢复没有完成，请稍后重试。",
+                ? FMLocalized(@"字体切换没有完成，请稍后重试。")
+                : FMLocalized(@"系统默认字体恢复没有完成，请稍后重试。"),
             operationError);
     }
 
@@ -312,7 +314,7 @@ static BOOL FMDeviceWorkspaceFail(NSError **error,
     if (!self.allowsRestart) {
         return FMDeviceWorkspaceFail(
             error, FMDeviceProfileWorkspaceErrorChangesUnavailable,
-            @"这台设备当前无法执行 Respring。", nil);
+            FMLocalized(@"这台设备当前无法执行 Respring。"), nil);
     }
     NSDictionary *state = [self currentState:error];
     if (state == nil) return NO;
@@ -320,7 +322,7 @@ static BOOL FMDeviceWorkspaceFail(NSError **error,
         ![state[@"mirrorState"] isEqual:@"clean"]) {
         return FMDeviceWorkspaceFail(
             error, FMDeviceProfileWorkspaceErrorChangesUnavailable,
-            @"当前没有等待 Respring 应用的字体。", nil);
+            FMLocalized(@"当前没有等待 Respring 应用的字体。"), nil);
     }
     NSString *systemBuild = self.status[@"system"][@"productBuildVersion"];
     NSError *restartError = nil;
@@ -329,7 +331,7 @@ static BOOL FMDeviceWorkspaceFail(NSError **error,
     if (report == nil) {
         return FMDeviceWorkspaceFail(
             error, FMDeviceProfileWorkspaceErrorEnvironment,
-            @"暂时无法发起 Respring。",
+            FMLocalized(@"暂时无法发起 Respring。"),
             restartError);
     }
     return [report[@"status"] isEqual:@"armed"];
@@ -348,7 +350,7 @@ static BOOL FMDeviceWorkspaceFail(NSError **error,
         ![state[@"present"] boolValue] || ![state[@"valid"] boolValue]) {
         return FMDeviceWorkspaceFail(
             error, FMDeviceProfileWorkspaceErrorEnvironment,
-            @"当前无法读取自动 Respring 设置。", statusError);
+            FMLocalized(@"当前无法读取自动 Respring 设置。"), statusError);
     }
 
     NSError *policyError = nil;
@@ -357,7 +359,7 @@ static BOOL FMDeviceWorkspaceFail(NSError **error,
     if (report == nil) {
         return FMDeviceWorkspaceFail(
             error, FMDeviceProfileWorkspaceErrorEnvironment,
-            @"自动 Respring 设置没有保存，请稍后重试。", policyError);
+            FMLocalized(@"自动 Respring 设置没有保存，请稍后重试。"), policyError);
     }
 
     NSDictionary *updatedStatus = FMFetchStatusFromHelper(&statusError);
@@ -367,7 +369,7 @@ static BOOL FMDeviceWorkspaceFail(NSError **error,
         [updatedState[@"autoRespring"] boolValue] != enabled) {
         return FMDeviceWorkspaceFail(
             error, FMDeviceProfileWorkspaceErrorEnvironment,
-            @"自动 Respring 设置已写入，但状态确认失败。", statusError);
+            FMLocalized(@"自动 Respring 设置已写入，但状态确认失败。"), statusError);
     }
     self.status = updatedStatus;
     self.lastStatusDate = NSDate.date;
@@ -385,13 +387,13 @@ static BOOL FMDeviceWorkspaceFail(NSError **error,
     if ([state[@"confirmedProfileID"] isEqual:profileID] ||
         [state[@"workingProfileID"] isEqual:profileID]) {
         return FMDeviceWorkspaceFail(error, FMDeviceProfileWorkspaceErrorChangesUnavailable,
-                                     @"这款字体仍在使用，暂时不能删除。", nil);
+                                     FMLocalized(@"这款字体仍在使用，暂时不能删除。"), nil);
     }
     NSString *systemBuild = self.status[@"system"][@"productBuildVersion"];
     NSString *profilesRoot = [self profileStoreRoot];
     if (profilesRoot.length == 0) {
         return FMDeviceWorkspaceFail(error, FMDeviceProfileWorkspaceErrorEnvironment,
-                                     @"字体库目录不可用。", nil);
+                                     FMLocalized(@"字体库目录不可用。"), nil);
     }
     return FMDeleteFontProfileAtRoot(profilesRoot, profileID, systemBuild, error);
 }

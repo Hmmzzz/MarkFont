@@ -8,6 +8,13 @@ static NSString *const FMProjectURLString = @"https://github.com/Hmmzzz/MarkFont
 static NSString *const FMLicenseURLString =
     @"https://github.com/Hmmzzz/MarkFont/blob/main/LICENSE";
 
+typedef NS_ENUM(NSInteger, FMSettingsSection) {
+    FMSettingsSectionGeneral,
+    FMSettingsSectionAutomation,
+    FMSettingsSectionDevice,
+    FMSettingsSectionAbout,
+};
+
 static UIView *FMSettingsSectionHeaderView(NSString *title) {
     UIView *view = [[UIView alloc] initWithFrame:CGRectZero];
     view.backgroundColor = FMCanvasColor();
@@ -175,8 +182,8 @@ static UIView *FMSettingsSectionHeaderView(NSString *title) {
     _toggle.translatesAutoresizingMaskIntoConstraints = NO;
     _toggle.onTintColor = FMAccentColor();
     _toggle.accessibilityIdentifier = @"settings_auto_respring_switch";
-    _toggle.accessibilityLabel = @"自动 Respring";
-    _toggle.accessibilityHint = @"下次重新越狱后，字体挂载完成得较晚时自动刷新界面";
+    _toggle.accessibilityLabel = FMLocalized(@"自动 Respring");
+    _toggle.accessibilityHint = FMLocalized(@"下次重新越狱后，字体挂载完成得较晚时自动刷新界面");
     [self.card addSubview:_toggle];
     [NSLayoutConstraint activateConstraints:@[
         [_toggle.trailingAnchor constraintEqualToAnchor:self.card.trailingAnchor
@@ -195,8 +202,8 @@ static UIView *FMSettingsSectionHeaderView(NSString *title) {
                                  updating:(BOOL)updating
                                     target:(id)target
                                     action:(SEL)action {
-    [self configureWithTitle:@"自动 Respring"
-                    subtitle:@"下次重新越狱若字体挂载较晚，自动执行一次 Respring"
+    [self configureWithTitle:FMLocalized(@"自动 Respring")
+                    subtitle:FMLocalized(@"下次重新越狱若字体挂载较晚，自动执行一次 Respring")
                       symbol:@"arrow.clockwise.circle.fill"
                        color:FMAccentColor()
                   disclosure:NO
@@ -208,7 +215,85 @@ static UIView *FMSettingsSectionHeaderView(NSString *title) {
     self.toggle.enabled = loaded && !updating;
     [self.toggle addTarget:target action:action
             forControlEvents:UIControlEventValueChanged];
-    self.toggle.accessibilityValue = enabled ? @"已开启" : @"已关闭";
+    self.toggle.accessibilityValue = enabled ? FMLocalized(@"已开启") : FMLocalized(@"已关闭");
+}
+
+@end
+
+@interface FMLanguageSelectionViewController : UITableViewController
+@property(nonatomic, copy) NSArray<NSString *> *languagePreferences;
+@end
+
+@implementation FMLanguageSelectionViewController
+
+- (instancetype)init {
+    self = [super initWithStyle:UITableViewStylePlain];
+    if (self != nil) {
+        _languagePreferences = @[ @"system", @"zh-Hans", @"en" ];
+    }
+    return self;
+}
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.title = FMLocalized(@"语言");
+    self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeNever;
+    self.tableView.backgroundColor = FMCanvasColor();
+    self.tableView.separatorStyle = UITableViewCellSeparatorStyleNone;
+    self.tableView.rowHeight = UITableViewAutomaticDimension;
+    self.tableView.estimatedRowHeight = 78;
+    self.tableView.sectionHeaderHeight = 18;
+    self.tableView.sectionFooterHeight = 8;
+    self.tableView.accessibilityIdentifier = @"settings_language_options";
+    [self.tableView registerClass:FMSettingsActionCell.class
+           forCellReuseIdentifier:@"LanguageOptionCell"];
+}
+
+- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
+    (void)tableView;
+    (void)section;
+    return self.languagePreferences.count;
+}
+
+- (FMSettingsActionCell *)tableView:(UITableView *)tableView
+              cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+    NSString *preference = self.languagePreferences[indexPath.row];
+    BOOL selected = [preference isEqualToString:FMLanguagePreference()];
+    NSString *subtitle = [preference isEqualToString:@"system"]
+        ? FMLocalized(@"跟随设备的语言设置")
+        : ([preference isEqualToString:@"zh-Hans"]
+            ? FMLocalized(@"始终使用简体中文")
+            : FMLocalized(@"始终使用英文"));
+    NSString *symbol = [preference isEqualToString:@"system"]
+        ? @"globe" : ([preference isEqualToString:@"zh-Hans"]
+            ? @"character.book.closed.fill" : @"textformat");
+    FMSettingsActionCell *cell =
+        [tableView dequeueReusableCellWithIdentifier:@"LanguageOptionCell"
+                                        forIndexPath:indexPath];
+    [cell configureWithTitle:FMLanguagePreferenceDisplayName(preference)
+                    subtitle:subtitle
+                      symbol:symbol
+                       color:FMAccentColor()
+                  disclosure:YES
+                 destructive:NO];
+    cell.chevron.image = [UIImage systemImageNamed:@"checkmark"];
+    cell.chevron.hidden = !selected;
+    cell.accessibilityTraits = UIAccessibilityTraitButton |
+        (selected ? UIAccessibilityTraitSelected : 0);
+    cell.accessibilityHint = selected ? nil : FMLocalized(@"切换到此语言");
+    cell.accessibilityIdentifier =
+        [@"settings_language_" stringByAppendingString:preference];
+    return cell;
+}
+
+- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
+    [tableView deselectRowAtIndexPath:indexPath animated:NO];
+    NSString *preference = self.languagePreferences[indexPath.row];
+    if (!FMSetLanguagePreference(preference)) {
+        [self.navigationController popViewControllerAnimated:YES];
+        return;
+    }
+    [[[UISelectionFeedbackGenerator alloc] init] selectionChanged];
 }
 
 @end
@@ -225,25 +310,25 @@ static UIView *FMSettingsSectionHeaderView(NSString *title) {
         _credits = @[
             @{
                 @"title" : @"RootHide",
-                @"subtitle" : @"提供 RootHide 架构与兼容基础",
+                @"subtitle" : FMLocalized(@"提供 RootHide 架构与兼容基础"),
                 @"symbol" : @"shield.lefthalf.filled",
                 @"url" : @"https://github.com/roothide/Developer",
             },
             @{
                 @"title" : @"Theos",
-                @"subtitle" : @"提供 iOS 越狱开发与打包工具链",
+                @"subtitle" : FMLocalized(@"提供 iOS 越狱开发与打包工具链"),
                 @"symbol" : @"hammer.fill",
                 @"url" : @"https://theos.dev/",
             },
             @{
                 @"title" : @"mount_bindfs",
-                @"subtitle" : @"赵楠 · 提供字体目录映射依赖",
+                @"subtitle" : FMLocalized(@"赵楠 · 提供字体目录映射依赖"),
                 @"symbol" : @"arrow.triangle.2.circlepath",
                 @"url" : @"https://invalidunit.github.io/repo/",
             },
             @{
                 @"title" : @"Relaxin",
-                @"subtitle" : @"提供本项目当前适配与测试的越狱环境",
+                @"subtitle" : FMLocalized(@"提供本项目当前适配与测试的越狱环境"),
                 @"symbol" : @"sparkles",
                 @"url" : @"https://relaxin.owngoal.dev/",
             },
@@ -254,7 +339,7 @@ static UIView *FMSettingsSectionHeaderView(NSString *title) {
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.title = @"致谢";
+    self.title = FMLocalized(@"致谢");
     self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeNever;
     self.tableView.backgroundColor = FMCanvasColor();
     self.tableView.separatorStyle = UITableViewCellSeparatorStyleNone;
@@ -273,7 +358,7 @@ static UIView *FMSettingsSectionHeaderView(NSString *title) {
     UILabel *label = FMLabel(UIFontTextStyleCaption1, UIFontWeightMedium,
                              UIColor.tertiaryLabelColor);
     label.translatesAutoresizingMaskIntoConstraints = NO;
-    label.text = @"感谢这些项目及其贡献者\n让 MarkFont 得以构建与运行";
+    label.text = FMLocalized(@"感谢这些项目及其贡献者\n让 MarkFont 得以构建与运行");
     label.textAlignment = NSTextAlignmentCenter;
     label.numberOfLines = 0;
     [footer addSubview:label];
@@ -299,7 +384,7 @@ static UIView *FMSettingsSectionHeaderView(NSString *title) {
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
     (void)tableView;
     (void)section;
-    return @"特别感谢";
+    return FMLocalized(@"特别感谢");
 }
 
 - (UIView *)tableView:(UITableView *)tableView viewForHeaderInSection:(NSInteger)section {
@@ -327,7 +412,7 @@ static UIView *FMSettingsSectionHeaderView(NSString *title) {
                  destructive:NO];
     cell.chevron.image = [UIImage systemImageNamed:@"arrow.up.right"];
     cell.accessibilityTraits = UIAccessibilityTraitLink;
-    cell.accessibilityHint = @"打开项目链接";
+    cell.accessibilityHint = FMLocalized(@"打开项目链接");
     cell.accessibilityIdentifier =
         [@"settings_credit_" stringByAppendingString:credit[@"title"].lowercaseString];
     return cell;
@@ -373,7 +458,7 @@ static UIView *FMSettingsSectionHeaderView(NSString *title) {
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.title = @"设置";
+    self.title = FMLocalized(@"设置");
     self.navigationItem.backButtonDisplayMode = UINavigationItemBackButtonDisplayModeMinimal;
     self.navigationController.navigationBar.prefersLargeTitles = NO;
     self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeNever;
@@ -382,7 +467,7 @@ static UIView *FMSettingsSectionHeaderView(NSString *title) {
                                          style:UIBarButtonItemStylePlain
                                         target:self
                                         action:@selector(closeSettings:)];
-    close.accessibilityLabel = @"关闭设置";
+    close.accessibilityLabel = FMLocalized(@"关闭设置");
     close.tintColor = FMAccentColor();
     self.navigationItem.rightBarButtonItem = close;
 
@@ -404,7 +489,8 @@ static UIView *FMSettingsSectionHeaderView(NSString *title) {
 }
 
 - (void)refreshAutomaticRespringCellIfVisible {
-    NSIndexPath *indexPath = [NSIndexPath indexPathForRow:0 inSection:0];
+    NSIndexPath *indexPath =
+        [NSIndexPath indexPathForRow:0 inSection:FMSettingsSectionAutomation];
     FMSettingsToggleCell *cell = (FMSettingsToggleCell *)
         [self.tableView cellForRowAtIndexPath:indexPath];
     if (![cell isKindOfClass:FMSettingsToggleCell.class]) return;
@@ -473,18 +559,18 @@ static UIView *FMSettingsSectionHeaderView(NSString *title) {
             } else {
                 [sender setOn:self.automaticRespringEnabled animated:YES];
                 UIAlertController *alert = [UIAlertController
-                    alertControllerWithTitle:@"设置没有保存"
+                    alertControllerWithTitle:FMLocalized(@"设置没有保存")
                                      message:error.localizedDescription ?:
-                                         @"请稍后重试。"
+                                         FMLocalized(@"请稍后重试。")
                               preferredStyle:UIAlertControllerStyleAlert];
-                [alert addAction:[UIAlertAction actionWithTitle:@"好"
+                [alert addAction:[UIAlertAction actionWithTitle:FMLocalized(@"好")
                                                           style:UIAlertActionStyleDefault
                                                         handler:nil]];
                 [self presentViewController:alert animated:YES completion:nil];
             }
             sender.enabled = self.automaticRespringPolicyLoaded;
             sender.accessibilityValue = self.automaticRespringEnabled
-                ? @"已开启" : @"已关闭";
+                ? FMLocalized(@"已开启") : FMLocalized(@"已关闭");
         });
     });
 }
@@ -496,7 +582,7 @@ static UIView *FMSettingsSectionHeaderView(NSString *title) {
     label.translatesAutoresizingMaskIntoConstraints = NO;
     NSString *version = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
     if (version.length == 0) version = @"0.1.0";
-    label.text = [NSString stringWithFormat:@"MarkFont · 版本 %@\n由 Hmmzzz 设计与开发",
+    label.text = [NSString stringWithFormat:FMLocalized(@"MarkFont · 版本 %@\n由 Hmmzzz 设计与开发"),
                                             version];
     label.textAlignment = NSTextAlignmentCenter;
     label.numberOfLines = 0;
@@ -511,17 +597,18 @@ static UIView *FMSettingsSectionHeaderView(NSString *title) {
 
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
     (void)tableView;
-    return 3;
+    return 4;
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
     (void)tableView;
-    return section == 2 ? 4 : 1;
+    return section == FMSettingsSectionAbout ? 4 : 1;
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
     (void)tableView;
-    return @[ @"自动化", @"设备", @"关于" ][section];
+    return @[ FMLocalized(@"通用"), FMLocalized(@"自动化"),
+              FMLocalized(@"设备"), FMLocalized(@"关于") ][section];
 }
 
 - (UIView *)tableView:(UITableView *)tableView viewForHeaderInSection:(NSInteger)section {
@@ -537,7 +624,7 @@ static UIView *FMSettingsSectionHeaderView(NSString *title) {
 
 - (UITableViewCell *)tableView:(UITableView *)tableView
          cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-    if (indexPath.section == 0) {
+    if (indexPath.section == FMSettingsSectionAutomation) {
         FMSettingsToggleCell *cell =
             [tableView dequeueReusableCellWithIdentifier:@"SettingsToggleCell"
                                             forIndexPath:indexPath];
@@ -555,16 +642,25 @@ static UIView *FMSettingsSectionHeaderView(NSString *title) {
                                         forIndexPath:indexPath];
     cell.chevron.image = [UIImage systemImageNamed:@"chevron.right"];
     cell.accessibilityHint = nil;
-    if (indexPath.section == 1) {
-        [cell configureWithTitle:@"运行环境"
-                        subtitle:@"查看组件、字体连接与恢复准备"
+    if (indexPath.section == FMSettingsSectionGeneral) {
+        [cell configureWithTitle:FMLocalized(@"语言")
+                        subtitle:FMLanguagePreferenceDisplayName(FMLanguagePreference())
+                          symbol:@"globe"
+                           color:FMAccentColor()
+                      disclosure:YES
+                     destructive:NO];
+        cell.accessibilityHint = FMLocalized(@"选择 App 的显示语言");
+        cell.accessibilityIdentifier = @"settings_language";
+    } else if (indexPath.section == FMSettingsSectionDevice) {
+        [cell configureWithTitle:FMLocalized(@"运行环境")
+                        subtitle:FMLocalized(@"查看组件、字体连接与恢复准备")
                           symbol:@"checkmark.shield.fill"
                            color:FMAccentColor()
                       disclosure:YES
                      destructive:NO];
         cell.accessibilityIdentifier = @"settings_environment";
     } else if (indexPath.row == 0) {
-        [cell configureWithTitle:@"作者"
+        [cell configureWithTitle:FMLocalized(@"作者")
                         subtitle:@"Hmmzzz"
                           symbol:@"person.crop.circle.fill"
                            color:FMAccentColor()
@@ -572,7 +668,7 @@ static UIView *FMSettingsSectionHeaderView(NSString *title) {
                      destructive:NO];
         cell.accessibilityIdentifier = @"settings_author";
     } else if (indexPath.row == 1) {
-        [cell configureWithTitle:@"开源项目"
+        [cell configureWithTitle:FMLocalized(@"开源项目")
                         subtitle:@"GitHub · Hmmzzz/MarkFont"
                           symbol:@"chevron.left.forwardslash.chevron.right"
                            color:FMAccentColor()
@@ -580,10 +676,10 @@ static UIView *FMSettingsSectionHeaderView(NSString *title) {
                      destructive:NO];
         cell.chevron.image = [UIImage systemImageNamed:@"arrow.up.right"];
         cell.accessibilityTraits = UIAccessibilityTraitLink;
-        cell.accessibilityHint = @"打开 MarkFont GitHub 项目主页";
+        cell.accessibilityHint = FMLocalized(@"打开 MarkFont GitHub 项目主页");
         cell.accessibilityIdentifier = @"settings_open_source_project";
     } else if (indexPath.row == 2) {
-        [cell configureWithTitle:@"开源许可"
+        [cell configureWithTitle:FMLocalized(@"开源许可")
                         subtitle:@"GNU GPL v3.0 only · GPL-3.0-only"
                           symbol:@"doc.text.fill"
                            color:FMAccentColor()
@@ -591,11 +687,11 @@ static UIView *FMSettingsSectionHeaderView(NSString *title) {
                      destructive:NO];
         cell.chevron.image = [UIImage systemImageNamed:@"arrow.up.right"];
         cell.accessibilityTraits = UIAccessibilityTraitLink;
-        cell.accessibilityHint = @"打开 GNU GPL v3.0 许可全文";
+        cell.accessibilityHint = FMLocalized(@"打开 GNU GPL v3.0 许可全文");
         cell.accessibilityIdentifier = @"settings_open_source_license";
     } else {
-        [cell configureWithTitle:@"致谢"
-                        subtitle:@"感谢开源项目与社区贡献者"
+        [cell configureWithTitle:FMLocalized(@"致谢")
+                        subtitle:FMLocalized(@"感谢开源项目与社区贡献者")
                           symbol:@"heart.fill"
                            color:FMAccentColor()
                       disclosure:YES
@@ -607,14 +703,22 @@ static UIView *FMSettingsSectionHeaderView(NSString *title) {
 
 - (BOOL)tableView:(UITableView *)tableView shouldHighlightRowAtIndexPath:(NSIndexPath *)indexPath {
     (void)tableView;
-    return indexPath.section == 1 ||
-        (indexPath.section == 2 && indexPath.row != 0);
+    return indexPath.section == FMSettingsSectionGeneral ||
+        indexPath.section == FMSettingsSectionDevice ||
+        (indexPath.section == FMSettingsSectionAbout && indexPath.row != 0);
 }
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:NO];
-    if (indexPath.section == 0) return;
-    if (indexPath.section == 2) {
+    if (indexPath.section == FMSettingsSectionAutomation) return;
+    if (indexPath.section == FMSettingsSectionGeneral) {
+        [[[UISelectionFeedbackGenerator alloc] init] selectionChanged];
+        FMLanguageSelectionViewController *languages =
+            [[FMLanguageSelectionViewController alloc] init];
+        [self.navigationController pushViewController:languages animated:YES];
+        return;
+    }
+    if (indexPath.section == FMSettingsSectionAbout) {
         if (indexPath.row == 1 || indexPath.row == 2) {
             NSString *address = indexPath.row == 1
                 ? FMProjectURLString : FMLicenseURLString;
@@ -643,7 +747,7 @@ static UIView *FMSettingsSectionHeaderView(NSString *title) {
                 error = [NSError errorWithDomain:@"com.hmmzzz.fontmanager.environment-ui"
                                              code:1
                                          userInfo:@{
-                    NSLocalizedDescriptionKey : @"当前版本无法读取运行环境。"
+                    NSLocalizedDescriptionKey : FMLocalized(@"当前版本无法读取运行环境。")
                 }];
             }
             completion(status, error);

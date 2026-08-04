@@ -1,6 +1,8 @@
 #import <CoreText/CoreText.h>
 #import <UIKit/UIKit.h>
 
+#import "FMLocalization.h"
+
 // Font Manager's product palette, typography, cards, and Profile visuals.
 
 NS_ASSUME_NONNULL_BEGIN
@@ -124,18 +126,18 @@ static inline UIFont *FMFontWithDesign(CGFloat size, UIFontWeight weight,
 
 static inline NSString *FMFriendlyProfileName(NSString *_Nullable profileID,
                                               NSString *_Nullable storedName) {
-    if (profileID == nil) return @"系统默认";
-    if ([profileID isEqual:@"profile-a"]) return @"柔和圆体";
-    if ([profileID isEqual:@"profile-b"]) return @"醒目黑体";
+    if (profileID == nil) return FMLocalized(@"系统默认");
+    if ([profileID isEqual:@"profile-a"]) return FMLocalized(@"柔和圆体");
+    if ([profileID isEqual:@"profile-b"]) return FMLocalized(@"醒目黑体");
     if (storedName.length > 0) return storedName;
-    return @"自定义字体";
+    return FMLocalized(@"自定义字体");
 }
 
 static inline NSString *FMProfileDescription(NSString *_Nullable profileID) {
-    if (profileID == nil) return @"清晰、克制，熟悉的系统阅读节奏";
-    if ([profileID isEqual:@"profile-a"]) return @"柔和亲切，适合轻松的日常阅读";
-    if ([profileID isEqual:@"profile-b"]) return @"更有分量，让标题和重点脱颖而出";
-    return @"来自你的字体库，为系统界面换一种表达";
+    if (profileID == nil) return FMLocalized(@"清晰、克制，熟悉的系统阅读节奏");
+    if ([profileID isEqual:@"profile-a"]) return FMLocalized(@"柔和亲切，适合轻松的日常阅读");
+    if ([profileID isEqual:@"profile-b"]) return FMLocalized(@"更有分量，让标题和重点脱颖而出");
+    return FMLocalized(@"来自你的字体库，为系统界面换一种表达");
 }
 
 static inline UIFont *FMRepresentativeFont(NSString *_Nullable profileID, CGFloat size,
@@ -269,12 +271,12 @@ static inline UIColor *FMProfileInkColor(NSString *_Nullable profileID,
 
 // These mappings are retained for the secondary diagnostics screens only.
 static inline NSString *FMClassificationTitle(NSString *classification) {
-    if ([classification isEqual:@"initializeEmptyMirror"]) return @"可准备";
-    if ([classification isEqual:@"adoptStockMirror"]) return @"可接管";
-    if ([classification isEqual:@"adoptManualChanges"]) return @"可保留";
-    if ([classification isEqual:@"managedReady"]) return @"正常";
-    if ([classification isEqual:@"unavailable"]) return @"不可用";
-    return @"已暂停";
+    if ([classification isEqual:@"initializeEmptyMirror"]) return FMLocalized(@"可准备");
+    if ([classification isEqual:@"adoptStockMirror"]) return FMLocalized(@"可接管");
+    if ([classification isEqual:@"adoptManualChanges"]) return FMLocalized(@"可保留");
+    if ([classification isEqual:@"managedReady"]) return FMLocalized(@"正常");
+    if ([classification isEqual:@"unavailable"]) return FMLocalized(@"不可用");
+    return FMLocalized(@"已暂停");
 }
 
 static inline UIColor *FMClassificationColor(NSString *classification) {
@@ -296,34 +298,34 @@ static inline NSString *FMClassificationSymbol(NSString *classification) {
 }
 
 static inline NSString *FMActionTitle(NSString *action) {
-    if ([action isEqual:@"none"]) return @"无需操作";
-    if ([action isEqual:@"initializeProvider"]) return @"准备字体环境";
-    if ([action isEqual:@"adoptStockMirror"]) return @"接管现有系统副本";
-    if ([action isEqual:@"importExistingDifferences"]) return @"保存现有字体改动";
-    if ([action isEqual:@"restoreStockWithConfirmation"]) return @"确认后恢复系统字体";
-    if ([action isEqual:@"reviewMirrorDifferences"]) return @"检查现有字体差异";
-    if ([action isEqual:@"repairMirror"]) return @"恢复未完成操作";
-    if ([action isEqual:@"installProvider"]) return @"安装挂载组件";
-    if ([action isEqual:@"updateProviderAdapter"]) return @"更新挂载组件";
-    if ([action isEqual:@"repairRootfsAccess"]) return @"恢复系统字体访问";
+    if ([action isEqual:@"none"]) return FMLocalized(@"无需操作");
+    if ([action isEqual:@"initializeProvider"]) return FMLocalized(@"准备字体环境");
+    if ([action isEqual:@"adoptStockMirror"]) return FMLocalized(@"接管现有系统副本");
+    if ([action isEqual:@"importExistingDifferences"]) return FMLocalized(@"保存现有字体改动");
+    if ([action isEqual:@"restoreStockWithConfirmation"]) return FMLocalized(@"确认后恢复系统字体");
+    if ([action isEqual:@"reviewMirrorDifferences"]) return FMLocalized(@"检查现有字体差异");
+    if ([action isEqual:@"repairMirror"]) return FMLocalized(@"恢复未完成操作");
+    if ([action isEqual:@"installProvider"]) return FMLocalized(@"安装挂载组件");
+    if ([action isEqual:@"updateProviderAdapter"]) return FMLocalized(@"更新挂载组件");
+    if ([action isEqual:@"repairRootfsAccess"]) return FMLocalized(@"恢复系统字体访问");
     return action;
 }
 
 static inline NSString *FMIssueTitle(NSString *issue) {
     NSDictionary<NSString *, NSString *> *titles = @{
-        @"providerUnavailable" : @"挂载组件不可用",
-        @"providerCapabilityMismatch" : @"挂载能力与当前系统不匹配",
-        @"fontSourceUnavailable" : @"无法读取系统字体",
-        @"mirrorOutsideJBRoot" : @"字体镜像位置异常",
-        @"rootfsMirrorAliased" : @"系统字体与镜像路径重叠",
-        @"unexpectedActiveMapping" : @"挂载关系不符合预期",
-        @"manifestBuildMismatch" : @"系统版本与字体基线不匹配",
-        @"stateInvalidOrBuildMismatch" : @"已保存状态无法继续使用",
-        @"repairRequired" : @"上次操作需要恢复",
-        @"managedStateEvidenceMismatch" : @"字体环境状态不一致",
-        @"activeMappingWithoutMirror" : @"已挂载但找不到字体镜像",
-        @"unexpectedEmptyMirrorManifest" : @"空镜像状态不一致",
-        @"mirrorIncompleteOrUnsafe" : @"字体镜像不完整或包含未知内容",
+        @"providerUnavailable" : FMLocalized(@"挂载组件不可用"),
+        @"providerCapabilityMismatch" : FMLocalized(@"挂载能力与当前系统不匹配"),
+        @"fontSourceUnavailable" : FMLocalized(@"无法读取系统字体"),
+        @"mirrorOutsideJBRoot" : FMLocalized(@"字体镜像位置异常"),
+        @"rootfsMirrorAliased" : FMLocalized(@"系统字体与镜像路径重叠"),
+        @"unexpectedActiveMapping" : FMLocalized(@"挂载关系不符合预期"),
+        @"manifestBuildMismatch" : FMLocalized(@"系统版本与字体基线不匹配"),
+        @"stateInvalidOrBuildMismatch" : FMLocalized(@"已保存状态无法继续使用"),
+        @"repairRequired" : FMLocalized(@"上次操作需要恢复"),
+        @"managedStateEvidenceMismatch" : FMLocalized(@"字体环境状态不一致"),
+        @"activeMappingWithoutMirror" : FMLocalized(@"已挂载但找不到字体镜像"),
+        @"unexpectedEmptyMirrorManifest" : FMLocalized(@"空镜像状态不一致"),
+        @"mirrorIncompleteOrUnsafe" : FMLocalized(@"字体镜像不完整或包含未知内容"),
     };
     return titles[issue] ?: issue;
 }

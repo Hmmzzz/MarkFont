@@ -47,7 +47,7 @@ static UIImage *FMCircularDeleteActionImage(UITraitCollection *traits) {
         [trash drawAtPoint:origin];
     }];
     image = [image imageWithRenderingMode:UIImageRenderingModeAlwaysOriginal];
-    image.accessibilityLabel = @"删除";
+    image.accessibilityLabel = FMLocalized(@"删除");
     return image;
 }
 
@@ -166,12 +166,12 @@ static UIImage *FMCircularDeleteActionImage(UITraitCollection *traits) {
     self.swatch.backgroundColor = colors.firstObject;
     self.statusLabel.hidden = status.length == 0;
     self.statusLabel.text = status;
-    BOOL pending = [status isEqual:@"等待 Respring"];
+    BOOL pending = [status isEqual:FMLocalized(@"等待 Respring")];
     UIColor *statusColor = pending ? FMWarnColor() : FMSuccessColor();
     self.statusLabel.textColor = statusColor;
     self.statusLabel.backgroundColor = FMTintedBackground(statusColor);
     self.accessibilityLabel = name;
-    self.accessibilityValue = status.length > 0 ? status : @"轻点查看方案详情";
+    self.accessibilityValue = status.length > 0 ? status : FMLocalized(@"轻点查看方案详情");
     self.isAccessibilityElement = YES;
     self.accessibilityTraits = UIAccessibilityTraitButton;
 }
@@ -179,10 +179,10 @@ static UIImage *FMCircularDeleteActionImage(UITraitCollection *traits) {
 @end
 
 static NSString *FMFriendlyMirrorRole(NSString *relativePath) {
-    if ([relativePath isEqual:@"Core/A.ttf"]) return @"常规文字";
-    if ([relativePath isEqual:@"Core/B.ttf"]) return @"粗体与强调";
-    if ([relativePath isEqual:@"LanguageSupport/C.ttc"]) return @"多语言文字";
-    return @"字体文件";
+    if ([relativePath isEqual:@"Core/A.ttf"]) return FMLocalized(@"常规文字");
+    if ([relativePath isEqual:@"Core/B.ttf"]) return FMLocalized(@"粗体与强调");
+    if ([relativePath isEqual:@"LanguageSupport/C.ttc"]) return FMLocalized(@"多语言文字");
+    return FMLocalized(@"字体文件");
 }
 
 @interface FMFontSchemeDetailViewController : UITableViewController
@@ -258,7 +258,7 @@ static NSString *FMFriendlyMirrorRole(NSString *relativePath) {
 
     UILabel *eyebrow = [[UILabel alloc] initWithFrame:CGRectZero];
     eyebrow.translatesAutoresizingMaskIntoConstraints = NO;
-    eyebrow.text = @"字体样张";
+    eyebrow.text = FMLocalized(@"字体样张");
     eyebrow.font = [UIFont systemFontOfSize:11 weight:UIFontWeightSemibold];
     eyebrow.textColor = [FMProfileInkColor(profileID, self.traitCollection)
         colorWithAlphaComponent:0.62];
@@ -266,14 +266,14 @@ static NSString *FMFriendlyMirrorRole(NSString *relativePath) {
 
     UILabel *specimen = [[UILabel alloc] initWithFrame:CGRectZero];
     specimen.translatesAutoresizingMaskIntoConstraints = NO;
-    specimen.text = @"春风有信，花开有期。";
+    specimen.text = FMLocalized(@"春风有信，花开有期。");
     specimen.font = specimenFont;
     specimen.textColor = FMProfileInkColor(profileID, self.traitCollection);
     specimen.adjustsFontSizeToFitWidth = YES;
     specimen.minimumScaleFactor = 0.72;
     specimen.accessibilityIdentifier = @"scheme_specimen_sample";
-    specimen.accessibilityLabel = [NSString stringWithFormat:@"字体样张：%@", specimen.text];
-    specimen.accessibilityHint = previewFont != nil ? @"使用导入的字体显示" : @"方案样张预览";
+    specimen.accessibilityLabel = [NSString stringWithFormat:FMLocalized(@"字体样张：%@"), specimen.text];
+    specimen.accessibilityHint = previewFont != nil ? FMLocalized(@"使用导入的字体显示") : FMLocalized(@"方案样张预览");
     [card addSubview:specimen];
 
     UILabel *latin = [[UILabel alloc] initWithFrame:CGRectZero];
@@ -312,7 +312,7 @@ static NSString *FMFriendlyMirrorRole(NSString *relativePath) {
 
     UILabel *status = [[UILabel alloc] initWithFrame:CGRectZero];
     status.translatesAutoresizingMaskIntoConstraints = NO;
-    status.text = self.status.length > 0 ? self.status : @"样张";
+    status.text = self.status.length > 0 ? self.status : FMLocalized(@"样张");
     status.font = [UIFont systemFontOfSize:11 weight:UIFontWeightSemibold];
     status.textAlignment = NSTextAlignmentCenter;
     status.textColor = FMProfileInkColor(profileID, self.traitCollection);
@@ -370,38 +370,38 @@ static NSString *FMFriendlyMirrorRole(NSString *relativePath) {
     NSString *profileID = FMLibraryNormalizedProfileID(self.profile[@"id"]);
     NSString *name = FMFriendlyProfileName(profileID, self.profile[@"name"]);
     if (self.loadError.length > 0) {
-        configuration.title = @"方案暂不可用";
+        configuration.title = FMLocalized(@"方案暂不可用");
         configuration.image = [UIImage systemImageNamed:@"exclamationmark.triangle"];
         configuration.baseBackgroundColor = UIColor.tertiarySystemFillColor;
         configuration.baseForegroundColor = UIColor.secondaryLabelColor;
         self.applyButton.enabled = NO;
-    } else if ([self.status isEqual:@"使用中"]) {
-        configuration.title = [NSString stringWithFormat:@"正在使用「%@」", name];
+    } else if ([self.status isEqual:FMLocalized(@"使用中")]) {
+        configuration.title = [NSString stringWithFormat:FMLocalized(@"正在使用「%@」"), name];
         configuration.image = [UIImage systemImageNamed:@"checkmark.circle.fill"];
         configuration.baseBackgroundColor = UIColor.tertiarySystemFillColor;
         configuration.baseForegroundColor = UIColor.secondaryLabelColor;
         self.applyButton.enabled = NO;
-    } else if ([self.status isEqual:@"等待 Respring"]) {
+    } else if ([self.status isEqual:FMLocalized(@"等待 Respring")]) {
         if (self.workspace.allowsRestart) {
             configuration.title = @"Respring";
             configuration.image = [UIImage systemImageNamed:@"arrow.clockwise"];
             configuration.baseBackgroundColor = FMPrimaryActionColor();
             configuration.baseForegroundColor = FMPrimaryActionForegroundColor();
         } else {
-            configuration.title = @"Respring 暂不可用";
+            configuration.title = FMLocalized(@"Respring 暂不可用");
             configuration.image = [UIImage systemImageNamed:@"exclamationmark.triangle"];
             configuration.baseBackgroundColor = UIColor.tertiarySystemFillColor;
             configuration.baseForegroundColor = UIColor.secondaryLabelColor;
             self.applyButton.enabled = NO;
         }
     } else if (!self.workspace.allowsChanges) {
-        configuration.title = @"当前版本仅可查看";
+        configuration.title = FMLocalized(@"当前版本仅可查看");
         configuration.image = [UIImage systemImageNamed:@"eye.fill"];
         configuration.baseBackgroundColor = UIColor.tertiarySystemFillColor;
         configuration.baseForegroundColor = UIColor.secondaryLabelColor;
         self.applyButton.enabled = NO;
     } else {
-        configuration.title = [NSString stringWithFormat:@"应用「%@」", name];
+        configuration.title = [NSString stringWithFormat:FMLocalized(@"应用「%@」"), name];
         configuration.image = [UIImage systemImageNamed:@"arrow.right"];
         configuration.imagePlacement = NSDirectionalRectEdgeTrailing;
         configuration.baseBackgroundColor = FMPrimaryActionColor();
@@ -459,8 +459,8 @@ static NSString *FMFriendlyMirrorRole(NSString *relativePath) {
     (void)section;
     NSUInteger count = [self.details[@"relativePaths"] count];
     return self.loadError.length > 0
-               ? @"方案详情"
-               : [NSString stringWithFormat:@"涉及的镜像文件 · %lu", (unsigned long)count];
+               ? FMLocalized(@"方案详情")
+               : [NSString stringWithFormat:FMLocalized(@"涉及的镜像文件 · %lu"), (unsigned long)count];
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {
@@ -469,9 +469,9 @@ static NSString *FMFriendlyMirrorRole(NSString *relativePath) {
     if (self.loadError.length > 0) return nil;
     NSString *profileID = FMLibraryNormalizedProfileID(self.profile[@"id"]);
     if (profileID == nil) {
-        return @"恢复系统默认时，这些受管理文件会使用本机原始内容。";
+        return FMLocalized(@"恢复系统默认时，这些受管理文件会使用本机原始内容。");
     }
-    return @"未列出的镜像文件保持原样；切换方案时，旧方案多出的差异会恢复为系统内容。";
+    return FMLocalized(@"未列出的镜像文件保持原样；切换方案时，旧方案多出的差异会恢复为系统内容。");
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView
@@ -480,7 +480,7 @@ static NSString *FMFriendlyMirrorRole(NSString *relativePath) {
                                                             forIndexPath:indexPath];
     UIListContentConfiguration *content = [UIListContentConfiguration subtitleCellConfiguration];
     if (self.loadError.length > 0) {
-        content.text = @"无法读取方案文件";
+        content.text = FMLocalized(@"无法读取方案文件");
         content.secondaryText = self.loadError;
         content.image = [UIImage systemImageNamed:@"exclamationmark.triangle.fill"];
         content.imageProperties.tintColor = FMDangerColor();
@@ -509,17 +509,17 @@ static NSString *FMFriendlyMirrorRole(NSString *relativePath) {
 - (void)applyScheme:(id)sender {
     (void)sender;
     NSString *profileID = FMLibraryNormalizedProfileID(self.profile[@"id"]);
-    if ([self.status isEqual:@"等待 Respring"]) {
+    if ([self.status isEqual:FMLocalized(@"等待 Respring")]) {
         if (!self.workspace.allowsRestart) return;
     } else {
         if (!self.workspace.allowsChanges) return;
         NSError *error = nil;
         if (![self.workspace stageProfileID:profileID error:&error]) {
             UIAlertController *alert =
-                [UIAlertController alertControllerWithTitle:@"暂时无法应用"
+                [UIAlertController alertControllerWithTitle:FMLocalized(@"暂时无法应用")
                                                     message:error.localizedDescription
                                              preferredStyle:UIAlertControllerStyleAlert];
-            [alert addAction:[UIAlertAction actionWithTitle:@"好"
+            [alert addAction:[UIAlertAction actionWithTitle:FMLocalized(@"好")
                                                      style:UIAlertActionStyleDefault
                                                    handler:nil]];
             [self presentViewController:alert animated:YES completion:nil];
@@ -593,7 +593,7 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.title = @"匹配结果";
+    self.title = FMLocalized(@"匹配结果");
     self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeNever;
     self.tableView.backgroundColor = FMCanvasColor();
     self.tableView.rowHeight = UITableViewAutomaticDimension;
@@ -604,7 +604,7 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
     self.tableView.tableFooterView = [self makeSafetyFooter];
     [self installFloatingSaveDock];
     self.navigationItem.rightBarButtonItem =
-        [[UIBarButtonItem alloc] initWithTitle:@"完成"
+        [[UIBarButtonItem alloc] initWithTitle:FMLocalized(@"完成")
                                         style:UIBarButtonItemStyleDone
                                        target:self
                                         action:@selector(finishPreview:)];
@@ -697,17 +697,17 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
     UILabel *eyebrow = FMLabel(UIFontTextStyleCaption1, UIFontWeightSemibold,
                                UIColor.secondaryLabelColor);
     eyebrow.translatesAutoresizingMaskIntoConstraints = NO;
-    eyebrow.text = self.preview[@"packageName"] ?: @"字体包";
+    eyebrow.text = self.preview[@"packageName"] ?: FMLocalized(@"字体包");
     eyebrow.numberOfLines = 1;
     [card addSubview:eyebrow];
 
     UILabel *title = FMLabel(UIFontTextStyleTitle2, UIFontWeightBold, UIColor.labelColor);
     title.translatesAutoresizingMaskIntoConstraints = NO;
     title.text = conflicts > 0
-        ? [NSString stringWithFormat:@"发现 %lu 个同名冲突", (unsigned long)conflicts]
+        ? [NSString stringWithFormat:FMLocalized(@"发现 %lu 个同名冲突"), (unsigned long)conflicts]
         : (matched > 0
-               ? [NSString stringWithFormat:@"匹配到 %lu 个系统字体", (unsigned long)matched]
-               : @"没有匹配到本机系统字体");
+               ? [NSString stringWithFormat:FMLocalized(@"匹配到 %lu 个系统字体"), (unsigned long)matched]
+               : FMLocalized(@"没有匹配到本机系统字体"));
     title.numberOfLines = 2;
     [card addSubview:title];
 
@@ -716,26 +716,26 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
     detail.translatesAutoresizingMaskIntoConstraints = NO;
     NSMutableArray<NSString *> *notes = [NSMutableArray array];
     if (unmatched > 0) {
-        [notes addObject:[NSString stringWithFormat:@"%lu 个文件在本机没有同名目标",
+        [notes addObject:[NSString stringWithFormat:FMLocalized(@"%lu 个文件在本机没有同名目标"),
                                                         (unsigned long)unmatched]];
     }
     if (invalid > 0) {
-        [notes addObject:[NSString stringWithFormat:@"%lu 个文件不是有效字体",
+        [notes addObject:[NSString stringWithFormat:FMLocalized(@"%lu 个文件不是有效字体"),
                                                         (unsigned long)invalid]];
     }
     if (deduplicated > 0) {
-        [notes addObject:[NSString stringWithFormat:@"%lu 个相同副本已自动合并",
+        [notes addObject:[NSString stringWithFormat:FMLocalized(@"%lu 个相同副本已自动合并"),
                                                         (unsigned long)deduplicated]];
     }
     detail.text = notes.count > 0
         ? [notes componentsJoinedByString:@" · "]
-        : @"字体包中的文件都能按本机原版文件名对应。";
+        : FMLocalized(@"字体包中的文件都能按本机原版文件名对应。");
     detail.numberOfLines = 3;
     [card addSubview:detail];
 
     UILabel *badge = FMLabel(UIFontTextStyleCaption2, UIFontWeightSemibold, color);
     badge.translatesAutoresizingMaskIntoConstraints = NO;
-    badge.text = [self canSaveProfile] ? @"可以保存" : @"匹配预览";
+    badge.text = [self canSaveProfile] ? FMLocalized(@"可以保存") : FMLocalized(@"匹配预览");
     badge.textAlignment = NSTextAlignmentCenter;
     badge.backgroundColor = [color colorWithAlphaComponent:0.12];
     badge.layer.cornerRadius = 11;
@@ -788,13 +788,13 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
     NSUInteger conflicts = [self.preview[@"conflictTargetCount"] unsignedIntegerValue];
     NSUInteger matched = [self.preview[@"matchedTargetCount"] unsignedIntegerValue];
     if (conflicts > 0) {
-        label.text = @"存在同名冲突，暂时不能保存。请整理字体包后重新选择；当前字体不会改变。";
+        label.text = FMLocalized(@"存在同名冲突，暂时不能保存。请整理字体包后重新选择；当前字体不会改变。");
     } else if (matched == 0) {
-        label.text = @"没有可保存的本机匹配项；当前字体和字体镜像都不会改变。";
+        label.text = FMLocalized(@"没有可保存的本机匹配项；当前字体和字体镜像都不会改变。");
     } else if ([self canSaveProfile]) {
-        label.text = @"保存只会把已匹配文件复制进字体库，不会替换镜像、切换字体、调用挂载组件或重启设备。";
+        label.text = FMLocalized(@"保存只会把已匹配文件复制进字体库，不会替换镜像、切换字体、调用挂载组件或重启设备。");
     } else {
-        label.text = @"本页只检查匹配关系，不会保存字体方案、替换镜像、调用挂载组件或重启设备。";
+        label.text = FMLocalized(@"本页只检查匹配关系，不会保存字体方案、替换镜像、调用挂载组件或重启设备。");
     }
     [footer addSubview:label];
 
@@ -823,16 +823,16 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
     NSUInteger conflicts = [self.preview[@"conflictTargetCount"] unsignedIntegerValue];
     NSUInteger matched = [self.preview[@"matchedTargetCount"] unsignedIntegerValue];
     if ([self canSaveProfile]) {
-        configuration.title = @"存入字体库";
+        configuration.title = FMLocalized(@"存入字体库");
         configuration.image = [UIImage systemImageNamed:@"tray.and.arrow.down.fill"];
     } else if (conflicts > 0) {
-        configuration.title = @"请先处理同名冲突";
+        configuration.title = FMLocalized(@"请先处理同名冲突");
         configuration.image = [UIImage systemImageNamed:@"exclamationmark.triangle.fill"];
         configuration.baseBackgroundColor = UIColor.tertiarySystemFillColor;
         configuration.baseForegroundColor = UIColor.secondaryLabelColor;
         self.saveButton.enabled = NO;
     } else {
-        configuration.title = matched == 0 ? @"没有可保存的字体" : @"当前仅可预览";
+        configuration.title = matched == 0 ? FMLocalized(@"没有可保存的字体") : FMLocalized(@"当前仅可预览");
         configuration.image = [UIImage systemImageNamed:@"eye.fill"];
         configuration.baseBackgroundColor = UIColor.tertiarySystemFillColor;
         configuration.baseForegroundColor = UIColor.secondaryLabelColor;
@@ -885,13 +885,13 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
     if (count == 0) return nil;
     switch ((FMFontPackagePreviewSection)section) {
         case FMFontPackagePreviewSectionMatches:
-            return [NSString stringWithFormat:@"会涉及的镜像文件 · %lu", (unsigned long)count];
+            return [NSString stringWithFormat:FMLocalized(@"会涉及的镜像文件 · %lu"), (unsigned long)count];
         case FMFontPackagePreviewSectionConflicts:
-            return [NSString stringWithFormat:@"需要处理的同名冲突 · %lu", (unsigned long)count];
+            return [NSString stringWithFormat:FMLocalized(@"需要处理的同名冲突 · %lu"), (unsigned long)count];
         case FMFontPackagePreviewSectionUnmatched:
-            return [NSString stringWithFormat:@"本机没有同名目标 · %lu", (unsigned long)count];
+            return [NSString stringWithFormat:FMLocalized(@"本机没有同名目标 · %lu"), (unsigned long)count];
         case FMFontPackagePreviewSectionInvalid:
-            return [NSString stringWithFormat:@"无法识别的文件 · %lu", (unsigned long)count];
+            return [NSString stringWithFormat:FMLocalized(@"无法识别的文件 · %lu"), (unsigned long)count];
         case FMFontPackagePreviewSectionCount:
             return nil;
     }
@@ -909,7 +909,7 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
     switch ((FMFontPackagePreviewSection)indexPath.section) {
         case FMFontPackagePreviewSectionMatches: {
             content.text = item[@"fileName"];
-            content.secondaryText = [NSString stringWithFormat:@"镜像  %@\n包内  %@",
+            content.secondaryText = [NSString stringWithFormat:FMLocalized(@"镜像  %@\n包内  %@"),
                                                                item[@"targetRelativePath"],
                                                                FMLibraryCompactPackagePath(
                                                                    item[@"selectedSourceRelativePath"])];
@@ -919,14 +919,14 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
         }
         case FMFontPackagePreviewSectionConflicts:
             content.text = item[@"fileName"];
-            content.secondaryText = [NSString stringWithFormat:@"%lu 份同名文件内容不同，当前不会选择任何一份",
+            content.secondaryText = [NSString stringWithFormat:FMLocalized(@"%lu 份同名文件内容不同，当前不会选择任何一份"),
                                                                (unsigned long)[item[@"alternatives"] count]];
             symbol = @"exclamationmark.triangle.fill";
             color = FMWarnColor();
             break;
         case FMFontPackagePreviewSectionUnmatched:
             content.text = item[@"fileName"];
-            content.secondaryText = [NSString stringWithFormat:@"包内  %@\n本机原版字体中没有同名文件，保持忽略",
+            content.secondaryText = [NSString stringWithFormat:FMLocalized(@"包内  %@\n本机原版字体中没有同名文件，保持忽略"),
                                                                FMLibraryCompactPackagePath(
                                                                    item[@"sourceRelativePath"])];
             symbol = @"minus.circle.fill";
@@ -934,10 +934,10 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
             break;
         case FMFontPackagePreviewSectionInvalid:
             content.text = item[@"fileName"];
-            content.secondaryText = [NSString stringWithFormat:@"包内  %@\n%@",
+            content.secondaryText = [NSString stringWithFormat:FMLocalized(@"包内  %@\n%@"),
                                                                FMLibraryCompactPackagePath(
                                                                    item[@"sourceRelativePath"]),
-                                                               item[@"reason"] ?: @"无法识别为字体"];
+                                                               item[@"reason"] ?: FMLocalized(@"无法识别为字体")];
             symbol = @"xmark.circle.fill";
             color = FMDangerColor();
             break;
@@ -973,22 +973,22 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
     (void)sender;
     if (![self canSaveProfile] || self.saving) return;
     UIAlertController *alert =
-        [UIAlertController alertControllerWithTitle:@"存入字体库"
-                                            message:@"给这套字体取一个容易辨认的名称。保存后不会立即应用。"
+        [UIAlertController alertControllerWithTitle:FMLocalized(@"存入字体库")
+                                            message:FMLocalized(@"给这套字体取一个容易辨认的名称。保存后不会立即应用。")
                                      preferredStyle:UIAlertControllerStyleAlert];
     NSString *suggestedName = [self.preview[@"packageName"] isKindOfClass:NSString.class]
-        ? self.preview[@"packageName"] : @"我的字体";
+        ? self.preview[@"packageName"] : FMLocalized(@"我的字体");
     [alert addTextFieldWithConfigurationHandler:^(UITextField *textField) {
         textField.text = suggestedName;
         textField.clearButtonMode = UITextFieldViewModeWhileEditing;
         textField.returnKeyType = UIReturnKeyDone;
         textField.accessibilityIdentifier = @"package_profile_name";
     }];
-    [alert addAction:[UIAlertAction actionWithTitle:@"取消"
+    [alert addAction:[UIAlertAction actionWithTitle:FMLocalized(@"取消")
                                              style:UIAlertActionStyleCancel
                                            handler:nil]];
     __weak typeof(self) weakSelf = self;
-    [alert addAction:[UIAlertAction actionWithTitle:@"保存"
+    [alert addAction:[UIAlertAction actionWithTitle:FMLocalized(@"保存")
                                              style:UIAlertActionStyleDefault
                                            handler:^(__unused UIAlertAction *action) {
         NSString *name = [alert.textFields.firstObject.text
@@ -1001,10 +1001,10 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
 - (void)saveProfileWithName:(NSString *)name {
     if (name.length == 0 || name.length > 80) {
         UIAlertController *invalid =
-            [UIAlertController alertControllerWithTitle:@"名称不可用"
-                                                message:@"请输入 1–80 个字符的字体名称。"
+            [UIAlertController alertControllerWithTitle:FMLocalized(@"名称不可用")
+                                                message:FMLocalized(@"请输入 1–80 个字符的字体名称。")
                                          preferredStyle:UIAlertControllerStyleAlert];
-        [invalid addAction:[UIAlertAction actionWithTitle:@"好"
+        [invalid addAction:[UIAlertAction actionWithTitle:FMLocalized(@"好")
                                                    style:UIAlertActionStyleDefault
                                                  handler:nil]];
         [self presentViewController:invalid animated:YES completion:nil];
@@ -1016,8 +1016,8 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
     self.navigationItem.rightBarButtonItem.enabled = NO;
 
     UIAlertController *progress =
-        [UIAlertController alertControllerWithTitle:@"正在存入字体库"
-                                            message:@"正在重新验证并复制已匹配的字体…\n\n"
+        [UIAlertController alertControllerWithTitle:FMLocalized(@"正在存入字体库")
+                                            message:FMLocalized(@"正在重新验证并复制已匹配的字体…\n\n")
                                      preferredStyle:UIAlertControllerStyleAlert];
     UIActivityIndicatorView *indicator = [[UIActivityIndicatorView alloc]
         initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
@@ -1053,10 +1053,10 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
                 [progress dismissViewControllerAnimated:YES completion:^{
                     if (saved == nil) {
                         UIAlertController *failure =
-                            [UIAlertController alertControllerWithTitle:@"暂时无法保存"
-                                                                message:error.localizedDescription ?: @"字体方案没有写入字体库。"
+                            [UIAlertController alertControllerWithTitle:FMLocalized(@"暂时无法保存")
+                                                                message:error.localizedDescription ?: FMLocalized(@"字体方案没有写入字体库。")
                                                          preferredStyle:UIAlertControllerStyleAlert];
-                        [failure addAction:[UIAlertAction actionWithTitle:@"好"
+                        [failure addAction:[UIAlertAction actionWithTitle:FMLocalized(@"好")
                                                                    style:UIAlertActionStyleDefault
                                                                  handler:nil]];
                         [strongSelf presentViewController:failure animated:YES completion:nil];
@@ -1066,10 +1066,10 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
                         notificationOccurred:UINotificationFeedbackTypeSuccess];
                     NSUInteger count = [saved[@"replacementCount"] unsignedIntegerValue];
                     UIAlertController *done =
-                        [UIAlertController alertControllerWithTitle:@"已存入字体库"
-                                                            message:[NSString stringWithFormat:@"已保存 %lu 个匹配字体文件。当前字体和镜像没有变化。", (unsigned long)count]
+                        [UIAlertController alertControllerWithTitle:FMLocalized(@"已存入字体库")
+                                                            message:[NSString stringWithFormat:FMLocalized(@"已保存 %lu 个匹配字体文件。当前字体和镜像没有变化。"), (unsigned long)count]
                                                      preferredStyle:UIAlertControllerStyleAlert];
-                    [done addAction:[UIAlertAction actionWithTitle:@"查看字体库"
+                    [done addAction:[UIAlertAction actionWithTitle:FMLocalized(@"查看字体库")
                                                              style:UIAlertActionStyleDefault
                                                            handler:^(__unused UIAlertAction *action) {
                         if (strongSelf.savedHandler != nil) strongSelf.savedHandler(saved);
@@ -1115,14 +1115,14 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.view.backgroundColor = FMCanvasColor();
-    self.title = @"字体库";
+    self.title = FMLocalized(@"字体库");
     self.navigationController.navigationBar.prefersLargeTitles = NO;
     UIBarButtonItem *close =
         [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"xmark"]
                                          style:UIBarButtonItemStylePlain
                                         target:self
                                         action:@selector(closeLibrary:)];
-    close.accessibilityLabel = @"关闭字体库";
+    close.accessibilityLabel = FMLocalized(@"关闭字体库");
     self.navigationItem.rightBarButtonItem = close;
 
     self.tableView = [[UITableView alloc] initWithFrame:CGRectZero style:UITableViewStylePlain];
@@ -1181,7 +1181,7 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
 
     UILabel *title = FMLabel(UIFontTextStyleTitle3, UIFontWeightBold, UIColor.labelColor);
     title.translatesAutoresizingMaskIntoConstraints = NO;
-    title.text = @"加入新的字体";
+    title.text = FMLocalized(@"加入新的字体");
     [card addSubview:title];
 
     UILabel *detail = FMLabel(UIFontTextStyleFootnote, UIFontWeightRegular,
@@ -1191,9 +1191,9 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
     BOOL canSavePackages = [self canSaveFontPackages];
     detail.text = canPreviewPackages
         ? (canSavePackages
-               ? @"选择 ZIP 或字体文件，检查匹配后存入字体库。"
-               : @"选择 ZIP 或字体文件，先查看会对应到哪些本机系统字体。")
-        : @"已连接本机字体目录；字体包导入将在写入链路完成后开放。";
+               ? FMLocalized(@"选择 ZIP 或字体文件，检查匹配后存入字体库。")
+               : FMLocalized(@"选择 ZIP 或字体文件，先查看会对应到哪些本机系统字体。"))
+        : FMLocalized(@"已连接本机字体目录；字体包导入将在写入链路完成后开放。");
     detail.numberOfLines = 2;
     [card addSubview:detail];
 
@@ -1201,14 +1201,14 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
     button.translatesAutoresizingMaskIntoConstraints = NO;
     button.accessibilityIdentifier = @"profile_import";
     UIButtonConfiguration *configuration = [UIButtonConfiguration filledButtonConfiguration];
-    configuration.title = @"选择字体包";
+    configuration.title = FMLocalized(@"选择字体包");
     configuration.image = [UIImage systemImageNamed:@"doc.badge.plus"];
     configuration.imagePadding = 7;
     configuration.cornerStyle = UIButtonConfigurationCornerStyleLarge;
     configuration.baseBackgroundColor = FMAccentColor();
     configuration.baseForegroundColor = UIColor.whiteColor;
     if (!canPreviewPackages) {
-        configuration.title = @"字体包导入尚未开放";
+        configuration.title = FMLocalized(@"字体包导入尚未开放");
         configuration.image = [UIImage systemImageNamed:@"lock.fill"];
         configuration.baseBackgroundColor = UIColor.tertiarySystemFillColor;
         configuration.baseForegroundColor = UIColor.secondaryLabelColor;
@@ -1244,7 +1244,7 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
 - (void)reloadLibrary {
     NSError *error = nil;
     if (![self.workspace prepareIfNeeded:&error]) {
-        self.workspaceError = error.localizedDescription ?: @"暂时无法读取字体库";
+        self.workspaceError = error.localizedDescription ?: FMLocalized(@"暂时无法读取字体库");
         self.state = @{};
         self.sections = @[ @[], @[] ];
         self.previewFontsByProfileID = @{};
@@ -1253,7 +1253,7 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
         self.state = [self.workspace currentState:&error] ?: @{};
         NSMutableArray<NSDictionary<NSString *, id> *> *builtIn = [NSMutableArray arrayWithObject:@{
             @"id" : NSNull.null,
-            @"name" : @"系统默认",
+            @"name" : FMLocalized(@"系统默认"),
         }];
         NSMutableArray<NSDictionary<NSString *, id> *> *imported = [NSMutableArray array];
         for (NSDictionary<NSString *, NSString *> *profile in self.workspace.availableProfiles) {
@@ -1299,8 +1299,8 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
     (void)tableView;
-    if (section == 0) return @"内置风格";
-    return self.sections[1].count > 0 ? @"我的字体" : nil;
+    if (section == 0) return FMLocalized(@"内置风格");
+    return self.sections[1].count > 0 ? FMLocalized(@"我的字体") : nil;
 }
 
 - (UIView *)tableView:(UITableView *)tableView viewForHeaderInSection:(NSInteger)section {
@@ -1337,9 +1337,9 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
     NSString *status = nil;
     if ([self.state[@"restartRequired"] boolValue] &&
         FMLibraryProfileIDsEqual(profileID, workingID)) {
-        status = @"等待 Respring";
+        status = FMLocalized(@"等待 Respring");
     }
-    else if (FMLibraryProfileIDsEqual(profileID, confirmedID)) status = @"使用中";
+    else if (FMLibraryProfileIDsEqual(profileID, confirmedID)) status = FMLocalized(@"使用中");
     NSString *name = FMFriendlyProfileName(profileID, profile[@"name"]);
     [cell configureWithProfileID:profileID
                             name:name
@@ -1372,9 +1372,9 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
     NSString *workingID = FMLibraryNormalizedProfileID(self.state[@"workingProfileID"]);
     if ([self.state[@"restartRequired"] boolValue] &&
         FMLibraryProfileIDsEqual(profileID, workingID)) {
-        return @"等待 Respring";
+        return FMLocalized(@"等待 Respring");
     }
-    if (FMLibraryProfileIDsEqual(profileID, confirmedID)) return @"使用中";
+    if (FMLibraryProfileIDsEqual(profileID, confirmedID)) return FMLocalized(@"使用中");
     return nil;
 }
 
@@ -1424,10 +1424,10 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
     if (FMLibraryProfileIDsEqual(profileID, confirmedID) ||
         FMLibraryProfileIDsEqual(profileID, workingID)) {
         UIAlertController *inUse =
-            [UIAlertController alertControllerWithTitle:@"这款字体正在使用"
-                                                message:@"请先切换到另一款字体并完成切换，再回来删除。"
+            [UIAlertController alertControllerWithTitle:FMLocalized(@"这款字体正在使用")
+                                                message:FMLocalized(@"请先切换到另一款字体并完成切换，再回来删除。")
                                          preferredStyle:UIAlertControllerStyleAlert];
-        [inUse addAction:[UIAlertAction actionWithTitle:@"知道了"
+        [inUse addAction:[UIAlertAction actionWithTitle:FMLocalized(@"知道了")
                                                  style:UIAlertActionStyleDefault
                                                handler:^(__unused UIAlertAction *action) {
             completion(NO);
@@ -1436,16 +1436,16 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
         return;
     }
     UIAlertController *alert =
-        [UIAlertController alertControllerWithTitle:[NSString stringWithFormat:@"删除“%@”？", name]
-                                            message:@"删除后不能恢复；需要再次使用时，请重新导入字体文件。"
+        [UIAlertController alertControllerWithTitle:[NSString stringWithFormat:FMLocalized(@"删除“%@”？"), name]
+                                            message:FMLocalized(@"删除后不能恢复；需要再次使用时，请重新导入字体文件。")
                                      preferredStyle:UIAlertControllerStyleAlert];
-    [alert addAction:[UIAlertAction actionWithTitle:@"取消"
+    [alert addAction:[UIAlertAction actionWithTitle:FMLocalized(@"取消")
                                              style:UIAlertActionStyleCancel
                                            handler:^(__unused UIAlertAction *action) {
         completion(NO);
     }]];
     __weak typeof(self) weakSelf = self;
-    [alert addAction:[UIAlertAction actionWithTitle:@"删除"
+    [alert addAction:[UIAlertAction actionWithTitle:FMLocalized(@"删除")
                                              style:UIAlertActionStyleDestructive
                                            handler:^(__unused UIAlertAction *action) {
         NSError *error = nil;
@@ -1490,8 +1490,8 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
     self.packagePreviewInProgress = YES;
 
     UIAlertController *progress =
-        [UIAlertController alertControllerWithTitle:@"正在检查字体包"
-                                            message:@"正在创建临时副本并按本机原版文件名匹配…\n\n"
+        [UIAlertController alertControllerWithTitle:FMLocalized(@"正在检查字体包")
+                                            message:FMLocalized(@"正在创建临时副本并按本机原版文件名匹配…\n\n")
                                      preferredStyle:UIAlertControllerStyleAlert];
     UIActivityIndicatorView *indicator = [[UIActivityIndicatorView alloc]
         initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
@@ -1543,10 +1543,10 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
 
 - (void)presentOperationError:(NSError *)error {
     UIAlertController *alert =
-        [UIAlertController alertControllerWithTitle:@"暂时无法完成"
+        [UIAlertController alertControllerWithTitle:FMLocalized(@"暂时无法完成")
                                             message:error.localizedDescription
                                      preferredStyle:UIAlertControllerStyleAlert];
-    [alert addAction:[UIAlertAction actionWithTitle:@"好"
+    [alert addAction:[UIAlertAction actionWithTitle:FMLocalized(@"好")
                                              style:UIAlertActionStyleDefault
                                            handler:nil]];
     [self presentViewController:alert animated:YES completion:nil];

@@ -1,5 +1,7 @@
 #import "FMFontPackageAnalyzer.h"
 
+#import "FMLocalization.h"
+
 #import <CommonCrypto/CommonDigest.h>
 #import <CoreText/CoreText.h>
 #import <dlfcn.h>
@@ -84,7 +86,7 @@ static BOOL FMLoadArchiveAPI(FMArchiveAPI *api, NSError **error) {
     api->handle = dlopen("/usr/lib/libarchive.2.dylib", RTLD_LOCAL | RTLD_LAZY);
     if (api->handle == NULL) {
         return FMAnalyzerFail(error, FMFontPackageAnalyzerErrorUnsupportedArchive,
-                              @"当前系统无法读取 ZIP 字体包。", nil);
+                              FMLocalized(@"当前系统无法读取 ZIP 字体包。"), nil);
     }
 
 #define FM_LOAD_ARCHIVE_SYMBOL(field, symbolName) \
@@ -109,7 +111,7 @@ static BOOL FMLoadArchiveAPI(FMArchiveAPI *api, NSError **error) {
         dlclose(api->handle);
         memset(api, 0, sizeof(*api));
         return FMAnalyzerFail(error, FMFontPackageAnalyzerErrorUnsupportedArchive,
-                              @"当前系统的 ZIP 读取组件不完整。", nil);
+                              FMLocalized(@"当前系统的 ZIP 读取组件不完整。"), nil);
     }
     return YES;
 }
@@ -189,7 +191,7 @@ static NSData *FMReadArchiveFontData(FMArchiveAPI *api,
                 *error = FMAnalyzerError(
                     FMFontPackageAnalyzerErrorUnsupportedArchive,
                     FMArchiveFailureDescription(api, archive,
-                                                @"解码字体文件时发生错误。"), nil);
+                                                FMLocalized(@"解码字体文件时发生错误。")), nil);
             }
             return nil;
         }
@@ -197,7 +199,7 @@ static NSData *FMReadArchiveFontData(FMArchiveAPI *api,
             FMMaximumFontBytes) {
             if (error != NULL) {
                 *error = FMAnalyzerError(FMFontPackageAnalyzerErrorUnsafeArchive,
-                                         @"字体包中的字体文件过大。", nil);
+                                         FMLocalized(@"字体包中的字体文件过大。"), nil);
             }
             return nil;
         }
@@ -206,7 +208,7 @@ static NSData *FMReadArchiveFontData(FMArchiveAPI *api,
     if ((int64_t)fontData.length != declaredSize) {
         if (error != NULL) {
             *error = FMAnalyzerError(FMFontPackageAnalyzerErrorUnsupportedArchive,
-                                     @"字体文件的实际大小与 ZIP 清单不一致。", nil);
+                                     FMLocalized(@"字体文件的实际大小与 ZIP 清单不一致。"), nil);
         }
         return nil;
     }
@@ -222,7 +224,7 @@ static BOOL FMWriteNewFontPayload(NSData *data, NSString *path, NSError **error)
                                                    code:errno
                                                userInfo:nil];
         return FMAnalyzerFail(error, FMFontPackageAnalyzerErrorMaterialization,
-                              @"无法在字体库中创建字体文件。", underlying);
+                              FMLocalized(@"无法在字体库中创建字体文件。"), underlying);
     }
     const uint8_t *cursor = data.bytes;
     NSUInteger remaining = data.length;
@@ -253,7 +255,7 @@ static BOOL FMWriteNewFontPayload(NSData *data, NSString *path, NSError **error)
                                                    code:savedError
                                                userInfo:nil];
         return FMAnalyzerFail(error, FMFontPackageAnalyzerErrorMaterialization,
-                              @"无法完整写入字体库文件。", underlying);
+                              FMLocalized(@"无法完整写入字体库文件。"), underlying);
     }
     return YES;
 }
@@ -265,7 +267,7 @@ static BOOL FMSyncFontPayloadDirectory(NSString *path, NSError **error) {
                                                    code:errno
                                                userInfo:nil];
         return FMAnalyzerFail(error, FMFontPackageAnalyzerErrorMaterialization,
-                              @"无法校验字体库目录。", underlying);
+                              FMLocalized(@"无法校验字体库目录。"), underlying);
     }
     int result = fsync(descriptor);
     int savedError = result == 0 ? 0 : errno;
@@ -276,7 +278,7 @@ static BOOL FMSyncFontPayloadDirectory(NSString *path, NSError **error) {
                                                    code:savedError
                                                userInfo:nil];
         return FMAnalyzerFail(error, FMFontPackageAnalyzerErrorMaterialization,
-                              @"无法完成字体库目录同步。", underlying);
+                              FMLocalized(@"无法完成字体库目录同步。"), underlying);
     }
     return YES;
 }
@@ -288,7 +290,7 @@ static NSDictionary<NSString *, id> *FMAnalyzeRawFont(
     NSString *fileName = sourcePath.lastPathComponent;
     if (!FMIsSupportedFontCatalogRelativePath(fileName)) {
         FMAnalyzerFail(error, FMFontPackageAnalyzerErrorInvalidInput,
-                       @"请选择 ZIP、TTF、TTC 或 OTF 字体文件。", nil);
+                       FMLocalized(@"请选择 ZIP、TTF、TTC 或 OTF 字体文件。"), nil);
         return nil;
     }
     NSError *readError = nil;
@@ -297,7 +299,7 @@ static NSDictionary<NSString *, id> *FMAnalyzeRawFont(
     unsigned long long fileSize = [attributes[NSFileSize] unsignedLongLongValue];
     if (attributes == nil || fileSize == 0 || fileSize > FMMaximumFontBytes) {
         FMAnalyzerFail(error, FMFontPackageAnalyzerErrorInvalidInput,
-                       @"字体文件大小无效或超过 256 MB。", readError);
+                       FMLocalized(@"字体文件大小无效或超过 256 MB。"), readError);
         return nil;
     }
     NSData *data = [NSData dataWithContentsOfFile:sourcePath
@@ -305,7 +307,7 @@ static NSDictionary<NSString *, id> *FMAnalyzeRawFont(
                                            error:&readError];
     if (data == nil || !FMCoreTextRecognizesFontData(data)) {
         FMAnalyzerFail(error, FMFontPackageAnalyzerErrorInvalidInput,
-                       @"这个文件不是可识别的字体。", readError);
+                       FMLocalized(@"这个文件不是可识别的字体。"), readError);
         return nil;
     }
     NSDictionary *matching = FMMatchFontPackageFilesToCatalog(@[
@@ -338,7 +340,7 @@ static NSDictionary<NSString *, id> *FMAnalyzeZipArchive(
     if (archive == NULL) {
         FMCloseArchiveAPI(&api);
         FMAnalyzerFail(error, FMFontPackageAnalyzerErrorUnsupportedArchive,
-                       @"无法创建 ZIP 读取会话。", nil);
+                       FMLocalized(@"无法创建 ZIP 读取会话。"), nil);
         return nil;
     }
 
@@ -351,7 +353,7 @@ static NSDictionary<NSString *, id> *FMAnalyzeZipArchive(
         api.readOpenFilename(archive, sourcePath.fileSystemRepresentation, 64 * 1024) !=
             FMArchiveOK) {
         NSString *message = FMArchiveFailureDescription(&api, archive,
-                                                        @"无法打开这个 ZIP 字体包。");
+                                                        FMLocalized(@"无法打开这个 ZIP 字体包。"));
         api.readFree(archive);
         FMCloseArchiveAPI(&api);
         FMAnalyzerFail(error, FMFontPackageAnalyzerErrorUnsupportedArchive, message, nil);
@@ -377,14 +379,14 @@ static NSDictionary<NSString *, id> *FMAnalyzeZipArchive(
             archiveError = FMAnalyzerError(
                 FMFontPackageAnalyzerErrorUnsupportedArchive,
                 FMArchiveFailureDescription(&api, archive,
-                                            @"读取 ZIP 条目时发生错误。"), nil);
+                                            FMLocalized(@"读取 ZIP 条目时发生错误。")), nil);
             failed = YES;
             break;
         }
         archiveEntryCount++;
         if (archiveEntryCount > FMMaximumArchiveEntries) {
             archiveError = FMAnalyzerError(FMFontPackageAnalyzerErrorUnsafeArchive,
-                                           @"字体包包含的文件数量过多。", nil);
+                                           FMLocalized(@"字体包包含的文件数量过多。"), nil);
             failed = YES;
             break;
         }
@@ -402,7 +404,7 @@ static NSDictionary<NSString *, id> *FMAnalyzeZipArchive(
         if (relativePath == nil) {
             if (looksLikeFont) {
                 archiveError = FMAnalyzerError(FMFontPackageAnalyzerErrorUnsafeArchive,
-                                               @"字体包包含不安全的字体路径。", nil);
+                                               FMLocalized(@"字体包包含不安全的字体路径。"), nil);
                 failed = YES;
                 break;
             }
@@ -420,19 +422,19 @@ static NSDictionary<NSString *, id> *FMAnalyzeZipArchive(
         mode_t filetype = api.entryFiletype(entry);
         if (filetype != S_IFREG) {
             archiveError = FMAnalyzerError(FMFontPackageAnalyzerErrorUnsafeArchive,
-                                           @"字体包包含非普通字体文件。", nil);
+                                           FMLocalized(@"字体包包含非普通字体文件。"), nil);
             failed = YES;
             break;
         }
         if (api.entryIsEncrypted(entry) > 0) {
             archiveError = FMAnalyzerError(FMFontPackageAnalyzerErrorUnsupportedArchive,
-                                           @"暂不支持带密码的 ZIP 字体包。", nil);
+                                           FMLocalized(@"暂不支持带密码的 ZIP 字体包。"), nil);
             failed = YES;
             break;
         }
         if ([fontPaths containsObject:relativePath]) {
             archiveError = FMAnalyzerError(FMFontPackageAnalyzerErrorUnsafeArchive,
-                                           @"字体包内存在重复路径，无法确定应使用哪一份。", nil);
+                                           FMLocalized(@"字体包内存在重复路径，无法确定应使用哪一份。"), nil);
             failed = YES;
             break;
         }
@@ -444,7 +446,7 @@ static NSDictionary<NSString *, id> *FMAnalyzeZipArchive(
             packageFontBytes + (unsigned long long)declaredSize >
                 FMMaximumPackageFontBytes) {
             archiveError = FMAnalyzerError(FMFontPackageAnalyzerErrorUnsafeArchive,
-                                           @"字体包中的字体文件过大。", nil);
+                                           FMLocalized(@"字体包中的字体文件过大。"), nil);
             failed = YES;
             break;
         }
@@ -459,7 +461,7 @@ static NSDictionary<NSString *, id> *FMAnalyzeZipArchive(
             [invalidFontEntries addObject:@{
                 @"sourceRelativePath" : relativePath,
                 @"fileName" : relativePath.lastPathComponent,
-                @"reason" : @"CoreText 无法识别这个文件",
+                @"reason" : FMLocalized(@"CoreText 无法识别这个文件"),
             }];
             continue;
         }
@@ -478,7 +480,7 @@ static NSDictionary<NSString *, id> *FMAnalyzeZipArchive(
     }
     if (packageFiles.count == 0) {
         FMAnalyzerFail(error, FMFontPackageAnalyzerErrorNoFonts,
-                       @"字体包中没有找到可识别的 TTF、TTC 或 OTF 字体。", nil);
+                       FMLocalized(@"字体包中没有找到可识别的 TTF、TTC 或 OTF 字体。"), nil);
         return nil;
     }
 
@@ -504,7 +506,7 @@ NSDictionary<NSString *, id> *FMAnalyzeFontPackageAtPath(
         !FMValidateFontCatalogDocument(catalog, &catalogError)) {
         if (error != NULL) {
             *error = FMAnalyzerError(FMFontPackageAnalyzerErrorInvalidInput,
-                                     @"字体包路径或本机字体目录无效。", catalogError);
+                                     FMLocalized(@"字体包路径或本机字体目录无效。"), catalogError);
         }
         return nil;
     }
@@ -513,7 +515,7 @@ NSDictionary<NSString *, id> *FMAnalyzeFontPackageAtPath(
         !S_ISREG(sourceStat.st_mode) || sourceStat.st_size <= 0 ||
         (unsigned long long)sourceStat.st_size > FMMaximumArchiveBytes) {
         FMAnalyzerFail(error, FMFontPackageAnalyzerErrorInvalidInput,
-                       @"请选择一个不超过 1 GB 的普通字体包文件。", nil);
+                       FMLocalized(@"请选择一个不超过 1 GB 的普通字体包文件。"), nil);
         return nil;
     }
 
@@ -542,7 +544,7 @@ FMMaterializeFontPackageMatchesAtPath(
         ![destinationDirectory isKindOfClass:NSString.class] ||
         destinationDirectory.length == 0) {
         FMAnalyzerFail(error, FMFontPackageAnalyzerErrorInvalidInput,
-                       @"字体包保存参数无效。", nil);
+                       FMLocalized(@"字体包保存参数无效。"), nil);
         return nil;
     }
 
@@ -554,7 +556,7 @@ FMMaterializeFontPackageMatchesAtPath(
         lstat(destinationDirectory.fileSystemRepresentation, &destinationStat) != 0 ||
         !S_ISDIR(destinationStat.st_mode)) {
         FMAnalyzerFail(error, FMFontPackageAnalyzerErrorInvalidInput,
-                       @"字体包或字体库暂存目录无效。", nil);
+                       FMLocalized(@"字体包或字体库暂存目录无效。"), nil);
         return nil;
     }
     NSError *contentsError = nil;
@@ -563,7 +565,7 @@ FMMaterializeFontPackageMatchesAtPath(
                                                            error:&contentsError];
     if (existing == nil || existing.count != 0) {
         FMAnalyzerFail(error, FMFontPackageAnalyzerErrorMaterialization,
-                       @"字体库暂存目录必须为空。", contentsError);
+                       FMLocalized(@"字体库暂存目录必须为空。"), contentsError);
         return nil;
     }
 
@@ -575,7 +577,7 @@ FMMaterializeFontPackageMatchesAtPath(
         [preview[@"conflictTargetCount"] unsignedIntegerValue] != 0 ||
         [preview[@"matchedTargetCount"] unsignedIntegerValue] != matches.count) {
         FMAnalyzerFail(error, FMFontPackageAnalyzerErrorInvalidInput,
-                       @"这个匹配结果暂时不能存入字体库。", nil);
+                       FMLocalized(@"这个匹配结果暂时不能存入字体库。"), nil);
         return nil;
     }
 
@@ -588,7 +590,7 @@ FMMaterializeFontPackageMatchesAtPath(
         id objectMatch = matches[index];
         if (![objectMatch isKindOfClass:NSDictionary.class]) {
             FMAnalyzerFail(error, FMFontPackageAnalyzerErrorInvalidInput,
-                           @"匹配结果包含无效的字体条目。", nil);
+                           FMLocalized(@"匹配结果包含无效的字体条目。"), nil);
             return nil;
         }
         NSDictionary<NSString *, id> *match = objectMatch;
@@ -607,7 +609,7 @@ FMMaterializeFontPackageMatchesAtPath(
             expectedSize > FMMaximumFontBytes || selectionBySource[sourceRelativePath] != nil ||
             [targetPaths containsObject:targetRelativePath]) {
             FMAnalyzerFail(error, FMFontPackageAnalyzerErrorInvalidInput,
-                           @"匹配结果包含无效或重复的字体条目。", nil);
+                           FMLocalized(@"匹配结果包含无效或重复的字体条目。"), nil);
             return nil;
         }
         [targetPaths addObject:targetRelativePath];
@@ -640,7 +642,7 @@ FMMaterializeFontPackageMatchesAtPath(
     };
     if (!FMValidateProfileDocument(validationProfile, &profileError)) {
         FMAnalyzerFail(error, FMFontPackageAnalyzerErrorInvalidInput,
-                       @"匹配结果无法生成有效的字体方案。", profileError);
+                       FMLocalized(@"匹配结果无法生成有效的字体方案。"), profileError);
         return nil;
     }
 
@@ -649,7 +651,7 @@ FMMaterializeFontPackageMatchesAtPath(
         if (selectionBySource.count != 1 ||
             selectionBySource[sourcePath.lastPathComponent] == nil) {
             FMAnalyzerFail(error, FMFontPackageAnalyzerErrorInvalidInput,
-                           @"单个字体文件的匹配结果不一致。", nil);
+                           FMLocalized(@"单个字体文件的匹配结果不一致。"), nil);
             return nil;
         }
         NSError *readError = nil;
@@ -662,7 +664,7 @@ FMMaterializeFontPackageMatchesAtPath(
             data.length != [selection[@"expectedSize"] unsignedLongLongValue] ||
             ![FMSHA256ForData(data) isEqual:selection[@"expectedSHA256"]]) {
             FMAnalyzerFail(error, FMFontPackageAnalyzerErrorMaterialization,
-                           @"字体文件在保存前发生变化或无法再验证。", readError);
+                           FMLocalized(@"字体文件在保存前发生变化或无法再验证。"), readError);
             return nil;
         }
         NSString *destinationPath = [destinationDirectory
@@ -680,7 +682,7 @@ FMMaterializeFontPackageMatchesAtPath(
     if (archive == NULL) {
         FMCloseArchiveAPI(&api);
         FMAnalyzerFail(error, FMFontPackageAnalyzerErrorUnsupportedArchive,
-                       @"无法创建 ZIP 保存会话。", nil);
+                       FMLocalized(@"无法创建 ZIP 保存会话。"), nil);
         return nil;
     }
     static const int FMArchiveOK = 0;
@@ -692,7 +694,7 @@ FMMaterializeFontPackageMatchesAtPath(
         api.readOpenFilename(archive, sourcePath.fileSystemRepresentation, 64 * 1024) !=
             FMArchiveOK) {
         NSString *message = FMArchiveFailureDescription(&api, archive,
-                                                        @"无法重新打开这个 ZIP 字体包。");
+                                                        FMLocalized(@"无法重新打开这个 ZIP 字体包。"));
         api.readFree(archive);
         FMCloseArchiveAPI(&api);
         FMAnalyzerFail(error, FMFontPackageAnalyzerErrorUnsupportedArchive, message, nil);
@@ -713,14 +715,14 @@ FMMaterializeFontPackageMatchesAtPath(
             archiveError = FMAnalyzerError(
                 FMFontPackageAnalyzerErrorUnsupportedArchive,
                 FMArchiveFailureDescription(&api, archive,
-                                            @"重新读取 ZIP 条目时发生错误。"), nil);
+                                            FMLocalized(@"重新读取 ZIP 条目时发生错误。")), nil);
             failed = YES;
             break;
         }
         archiveEntryCount++;
         if (archiveEntryCount > FMMaximumArchiveEntries) {
             archiveError = FMAnalyzerError(FMFontPackageAnalyzerErrorUnsafeArchive,
-                                           @"字体包包含的文件数量过多。", nil);
+                                           FMLocalized(@"字体包包含的文件数量过多。"), nil);
             failed = YES;
             break;
         }
@@ -738,7 +740,7 @@ FMMaterializeFontPackageMatchesAtPath(
         if (relativePath == nil) {
             if (looksLikeFont) {
                 archiveError = FMAnalyzerError(FMFontPackageAnalyzerErrorUnsafeArchive,
-                                               @"字体包包含不安全的字体路径。", nil);
+                                               FMLocalized(@"字体包包含不安全的字体路径。"), nil);
                 failed = YES;
                 break;
             }
@@ -752,19 +754,19 @@ FMMaterializeFontPackageMatchesAtPath(
         }
         if (api.entryFiletype(entry) != S_IFREG) {
             archiveError = FMAnalyzerError(FMFontPackageAnalyzerErrorUnsafeArchive,
-                                           @"字体包包含非普通字体文件。", nil);
+                                           FMLocalized(@"字体包包含非普通字体文件。"), nil);
             failed = YES;
             break;
         }
         if (api.entryIsEncrypted(entry) > 0) {
             archiveError = FMAnalyzerError(FMFontPackageAnalyzerErrorUnsupportedArchive,
-                                           @"暂不支持带密码的 ZIP 字体包。", nil);
+                                           FMLocalized(@"暂不支持带密码的 ZIP 字体包。"), nil);
             failed = YES;
             break;
         }
         if ([fontPaths containsObject:relativePath]) {
             archiveError = FMAnalyzerError(FMFontPackageAnalyzerErrorUnsafeArchive,
-                                           @"字体包内存在重复路径。", nil);
+                                           FMLocalized(@"字体包内存在重复路径。"), nil);
             failed = YES;
             break;
         }
@@ -776,7 +778,7 @@ FMMaterializeFontPackageMatchesAtPath(
             packageFontBytes + (unsigned long long)declaredSize >
                 FMMaximumPackageFontBytes) {
             archiveError = FMAnalyzerError(FMFontPackageAnalyzerErrorUnsafeArchive,
-                                           @"字体包中的字体文件过大。", nil);
+                                           FMLocalized(@"字体包中的字体文件过大。"), nil);
             failed = YES;
             break;
         }
@@ -794,7 +796,7 @@ FMMaterializeFontPackageMatchesAtPath(
             if (archiveError == nil) {
                 archiveError = FMAnalyzerError(
                     FMFontPackageAnalyzerErrorMaterialization,
-                    @"字体包内容在保存前发生变化或无法再验证。", nil);
+                    FMLocalized(@"字体包内容在保存前发生变化或无法再验证。"), nil);
             }
             failed = YES;
             break;
@@ -817,7 +819,7 @@ FMMaterializeFontPackageMatchesAtPath(
     if (materializedPaths.count != selectionBySource.count ||
         ![materializedPaths isEqualToSet:[NSSet setWithArray:selectionBySource.allKeys]]) {
         FMAnalyzerFail(error, FMFontPackageAnalyzerErrorMaterialization,
-                       @"字体包中的匹配文件不完整。", nil);
+                       FMLocalized(@"字体包中的匹配文件不完整。"), nil);
         return nil;
     }
     if (!FMSyncFontPayloadDirectory(destinationDirectory, error)) return nil;

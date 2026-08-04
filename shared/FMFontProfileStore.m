@@ -1,5 +1,7 @@
 #import "FMFontProfileStore.h"
 
+#import "FMLocalization.h"
+
 #import <CoreText/CoreText.h>
 #import <errno.h>
 #import <sys/stat.h>
@@ -138,13 +140,13 @@ static BOOL FMEnsureProfilesRoot(NSString *profilesRoot, NSError **error) {
     if (![profilesRoot isKindOfClass:NSString.class] || profilesRoot.length == 0 ||
         profilesRoot.lastPathComponent.length == 0) {
         return FMProfileStoreFail(error, FMFontProfileStoreErrorInvalidInput,
-                                  @"字体库目录无效。", nil);
+                                  FMLocalized(@"字体库目录无效。"), nil);
     }
     struct stat info = {0};
     if (lstat(profilesRoot.fileSystemRepresentation, &info) == 0) {
         if (!S_ISDIR(info.st_mode)) {
             return FMProfileStoreFail(error, FMFontProfileStoreErrorFilesystem,
-                                      @"字体库位置不是普通目录。", nil);
+                                      FMLocalized(@"字体库位置不是普通目录。"), nil);
         }
         return YES;
     }
@@ -153,7 +155,7 @@ static BOOL FMEnsureProfilesRoot(NSString *profilesRoot, NSError **error) {
                                                    code:errno
                                                userInfo:nil];
         return FMProfileStoreFail(error, FMFontProfileStoreErrorFilesystem,
-                                  @"无法检查字体库目录。", underlying);
+                                  FMLocalized(@"无法检查字体库目录。"), underlying);
     }
     NSError *directoryError = nil;
     BOOL created = [NSFileManager.defaultManager
@@ -164,7 +166,7 @@ static BOOL FMEnsureProfilesRoot(NSString *profilesRoot, NSError **error) {
     if (!created || lstat(profilesRoot.fileSystemRepresentation, &info) != 0 ||
         !S_ISDIR(info.st_mode)) {
         return FMProfileStoreFail(error, FMFontProfileStoreErrorFilesystem,
-                                  @"无法创建字体库目录。", directoryError);
+                                  FMLocalized(@"无法创建字体库目录。"), directoryError);
     }
     return YES;
 }
@@ -177,7 +179,7 @@ static NSDictionary<NSString *, id> *FMLoadValidatedProfile(
     NSError **error) {
     if (!FMProfileStoreIsSafeID(profileID) || systemBuild.length == 0) {
         FMProfileStoreFail(error, FMFontProfileStoreErrorInvalidInput,
-                           @"字体方案标识无效。", nil);
+                           FMLocalized(@"字体方案标识无效。"), nil);
         return nil;
     }
     NSString *profileDirectory = FMProfileDirectory(profilesRoot, profileID);
@@ -185,7 +187,7 @@ static NSDictionary<NSString *, id> *FMLoadValidatedProfile(
     if (lstat(profileDirectory.fileSystemRepresentation, &directoryInfo) != 0 ||
         !S_ISDIR(directoryInfo.st_mode)) {
         FMProfileStoreFail(error, FMFontProfileStoreErrorFilesystem,
-                           @"找不到这个字体方案。", nil);
+                           FMLocalized(@"找不到这个字体方案。"), nil);
         return nil;
     }
     NSError *readError = nil;
@@ -195,14 +197,14 @@ static NSDictionary<NSString *, id> *FMLoadValidatedProfile(
     if (![object isKindOfClass:NSDictionary.class] ||
         !FMValidateProfileDocument(object, &profileError)) {
         FMProfileStoreFail(error, FMFontProfileStoreErrorInvalidProfile,
-                           @"字体方案数据无效。", profileError ?: readError);
+                           FMLocalized(@"字体方案数据无效。"), profileError ?: readError);
         return nil;
     }
     NSDictionary<NSString *, id> *profile = object;
     if (![profile[@"id"] isEqual:profileID] ||
         ![profile[@"systemBuild"] isEqual:systemBuild]) {
         FMProfileStoreFail(error, FMFontProfileStoreErrorInvalidProfile,
-                           @"这个字体方案不属于当前系统版本。", nil);
+                           FMLocalized(@"这个字体方案不属于当前系统版本。"), nil);
         return nil;
     }
     if (!validateFiles) return profile;
@@ -213,7 +215,7 @@ static NSDictionary<NSString *, id> *FMLoadValidatedProfile(
     if (lstat(replacementsDirectory.fileSystemRepresentation, &replacementsInfo) != 0 ||
         !S_ISDIR(replacementsInfo.st_mode)) {
         FMProfileStoreFail(error, FMFontProfileStoreErrorInvalidProfile,
-                           @"字体方案缺少替换文件目录。", nil);
+                           FMLocalized(@"字体方案缺少替换文件目录。"), nil);
         return nil;
     }
     for (NSDictionary<NSString *, id> *replacement in profile[@"replacements"]) {
@@ -223,7 +225,7 @@ static NSDictionary<NSString *, id> *FMLoadValidatedProfile(
         if (lstat(path.fileSystemRepresentation, &fileInfo) != 0 ||
             !S_ISREG(fileInfo.st_mode) || fileInfo.st_size <= 0) {
             FMProfileStoreFail(error, FMFontProfileStoreErrorInvalidProfile,
-                               @"字体方案包含缺失或异常的字体文件。", nil);
+                               FMLocalized(@"字体方案包含缺失或异常的字体文件。"), nil);
             return nil;
         }
     }
@@ -236,19 +238,19 @@ NSArray<NSDictionary<NSString *, id> *> *FMListFontProfilesAtRoot(
     NSError **error) {
     if (systemBuild.length == 0 || profilesRoot.length == 0) {
         FMProfileStoreFail(error, FMFontProfileStoreErrorInvalidInput,
-                           @"当前系统字体库路径无效。", nil);
+                           FMLocalized(@"当前系统字体库路径无效。"), nil);
         return nil;
     }
     struct stat rootInfo = {0};
     if (lstat(profilesRoot.fileSystemRepresentation, &rootInfo) != 0) {
         if (errno == ENOENT) return @[];
         FMProfileStoreFail(error, FMFontProfileStoreErrorFilesystem,
-                           @"无法读取字体库目录。", nil);
+                           FMLocalized(@"无法读取字体库目录。"), nil);
         return nil;
     }
     if (!S_ISDIR(rootInfo.st_mode)) {
         FMProfileStoreFail(error, FMFontProfileStoreErrorFilesystem,
-                           @"字体库位置不是普通目录。", nil);
+                           FMLocalized(@"字体库位置不是普通目录。"), nil);
         return nil;
     }
     NSError *contentsError = nil;
@@ -257,7 +259,7 @@ NSArray<NSDictionary<NSString *, id> *> *FMListFontProfilesAtRoot(
                                                            error:&contentsError];
     if (entries == nil) {
         FMProfileStoreFail(error, FMFontProfileStoreErrorFilesystem,
-                           @"无法列出字体库内容。", contentsError);
+                           FMLocalized(@"无法列出字体库内容。"), contentsError);
         return nil;
     }
     NSMutableArray<NSDictionary<NSString *, id> *> *profiles = [NSMutableArray array];
@@ -319,7 +321,7 @@ NSDictionary<NSString *, id> *FMImportFontPackageProfile(
         NSCharacterSet.whitespaceAndNewlineCharacterSet];
     if (!FMProfileStoreIsSafeID(profileID) || name.length == 0 || name.length > 80) {
         FMProfileStoreFail(error, FMFontProfileStoreErrorInvalidInput,
-                           @"字体方案名称或标识无效。", nil);
+                           FMLocalized(@"字体方案名称或标识无效。"), nil);
         return nil;
     }
     NSError *analysisError = nil;
@@ -327,18 +329,18 @@ NSDictionary<NSString *, id> *FMImportFontPackageProfile(
         FMAnalyzeFontPackageAtPath(sourcePath, catalog, &analysisError);
     if (preview == nil) {
         FMProfileStoreFail(error, FMFontProfileStoreErrorInvalidInput,
-                           @"无法重新验证这个字体包。", analysisError);
+                           FMLocalized(@"无法重新验证这个字体包。"), analysisError);
         return nil;
     }
     if (![preview[@"systemBuild"] isEqual:catalog[@"systemBuild"]] ||
         [preview[@"matchedTargetCount"] unsignedIntegerValue] == 0) {
         FMProfileStoreFail(error, FMFontProfileStoreErrorInvalidInput,
-                           @"字体包没有可保存到当前系统的字体。", nil);
+                           FMLocalized(@"字体包没有可保存到当前系统的字体。"), nil);
         return nil;
     }
     if ([preview[@"conflictTargetCount"] unsignedIntegerValue] != 0) {
         FMProfileStoreFail(error, FMFontProfileStoreErrorConflict,
-                           @"字体包存在同名但内容不同的文件，请处理冲突后重新选择。", nil);
+                           FMLocalized(@"字体包存在同名但内容不同的文件，请处理冲突后重新选择。"), nil);
         return nil;
     }
     if (!FMEnsureProfilesRoot(profilesRoot, error)) return nil;
@@ -347,7 +349,7 @@ NSDictionary<NSString *, id> *FMImportFontPackageProfile(
     struct stat finalInfo = {0};
     if (lstat(finalDirectory.fileSystemRepresentation, &finalInfo) == 0 || errno != ENOENT) {
         FMProfileStoreFail(error, FMFontProfileStoreErrorInvalidInput,
-                           @"字体库中已经存在同标识的方案。", nil);
+                           FMLocalized(@"字体库中已经存在同标识的方案。"), nil);
         return nil;
     }
 
@@ -360,7 +362,7 @@ NSDictionary<NSString *, id> *FMImportFontPackageProfile(
                                                    attributes:@{ NSFilePosixPermissions : @0700 }
                                                         error:&directoryError]) {
         FMProfileStoreFail(error, FMFontProfileStoreErrorFilesystem,
-                           @"无法创建字体方案暂存目录。", directoryError);
+                           FMLocalized(@"无法创建字体方案暂存目录。"), directoryError);
         return nil;
     }
     NSString *replacementsDirectory =
@@ -371,7 +373,7 @@ NSDictionary<NSString *, id> *FMImportFontPackageProfile(
                                                         error:&directoryError]) {
         [NSFileManager.defaultManager removeItemAtPath:temporaryDirectory error:nil];
         FMProfileStoreFail(error, FMFontProfileStoreErrorFilesystem,
-                           @"无法创建字体方案文件目录。", directoryError);
+                           FMLocalized(@"无法创建字体方案文件目录。"), directoryError);
         return nil;
     }
 
@@ -395,7 +397,7 @@ NSDictionary<NSString *, id> *FMImportFontPackageProfile(
                                      &profileError)) {
         [NSFileManager.defaultManager removeItemAtPath:temporaryDirectory error:nil];
         FMProfileStoreFail(error, FMFontProfileStoreErrorInvalidProfile,
-                           @"无法生成完整的字体方案。", profileError);
+                           FMLocalized(@"无法生成完整的字体方案。"), profileError);
         return nil;
     }
 
@@ -405,7 +407,7 @@ NSDictionary<NSString *, id> *FMImportFontPackageProfile(
                                                 error:&moveError]) {
         [NSFileManager.defaultManager removeItemAtPath:temporaryDirectory error:nil];
         FMProfileStoreFail(error, FMFontProfileStoreErrorFilesystem,
-                           @"无法把字体方案存入字体库。", moveError);
+                           FMLocalized(@"无法把字体方案存入字体库。"), moveError);
         return nil;
     }
     return @{
@@ -425,7 +427,7 @@ BOOL FMDeleteFontProfileAtRoot(NSString *profilesRoot,
                                NSError **error) {
     if (![profileID hasPrefix:@"import-"]) {
         return FMProfileStoreFail(error, FMFontProfileStoreErrorInvalidInput,
-                                  @"只能删除导入到字体库的方案。", nil);
+                                  FMLocalized(@"只能删除导入到字体库的方案。"), nil);
     }
     if (FMLoadValidatedProfile(profilesRoot, profileID, systemBuild, YES, error) == nil) {
         return NO;
@@ -435,7 +437,7 @@ BOOL FMDeleteFontProfileAtRoot(NSString *profilesRoot,
             FMProfileDirectory(profilesRoot, profileID)
                                                    error:&removeError]) {
         return FMProfileStoreFail(error, FMFontProfileStoreErrorFilesystem,
-                                  @"无法删除这个字体方案。", removeError);
+                                  FMLocalized(@"无法删除这个字体方案。"), removeError);
     }
     return YES;
 }

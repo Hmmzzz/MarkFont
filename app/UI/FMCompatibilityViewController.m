@@ -49,13 +49,13 @@ static UIColor *FMEnvironmentColor(FMEnvironmentState state) {
 static NSString *FMEnvironmentStatusText(FMEnvironmentState state) {
     switch (state) {
         case FMEnvironmentStateReady:
-            return @"可用";
+            return FMLocalized(@"可用");
         case FMEnvironmentStateAttention:
-            return @"待完成";
+            return FMLocalized(@"待完成");
         case FMEnvironmentStateUnavailable:
-            return @"需要处理";
+            return FMLocalized(@"需要处理");
         case FMEnvironmentStatePending:
-            return @"读取中";
+            return FMLocalized(@"读取中");
     }
 }
 
@@ -117,7 +117,7 @@ static NSDictionary<NSString *, id> *FMEnvironmentItem(
     _eyebrowLabel = FMLabel(UIFontTextStyleCaption1, UIFontWeightSemibold,
                             UIColor.secondaryLabelColor);
     _eyebrowLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    _eyebrowLabel.text = @"运行环境";
+    _eyebrowLabel.text = FMLocalized(@"运行环境");
     [_card addSubview:_eyebrowLabel];
 
     _titleLabel = FMLabel(UIFontTextStyleTitle2, UIFontWeightBold, UIColor.labelColor);
@@ -134,7 +134,7 @@ static NSDictionary<NSString *, id> *FMEnvironmentItem(
     _privacyLabel = FMLabel(UIFontTextStyleCaption1, UIFontWeightRegular,
                             UIColor.tertiaryLabelColor);
     _privacyLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    _privacyLabel.text = @"只检查组件与连接状态，不扫描字体文件内容";
+    _privacyLabel.text = FMLocalized(@"只检查组件与连接状态，不扫描字体文件内容");
     _privacyLabel.numberOfLines = 2;
     [_card addSubview:_privacyLabel];
 
@@ -337,7 +337,7 @@ static NSDictionary<NSString *, id> *FMEnvironmentItem(
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.title = @"运行环境";
+    self.title = FMLocalized(@"运行环境");
     self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeNever;
     self.view.backgroundColor = FMCanvasColor();
     self.tableView.backgroundColor = FMCanvasColor();
@@ -356,7 +356,7 @@ static NSDictionary<NSString *, id> *FMEnvironmentItem(
                 style:UIBarButtonItemStylePlain
                target:self
                action:@selector(refreshStatus:)];
-    refresh.accessibilityLabel = @"重新检查运行环境";
+    refresh.accessibilityLabel = FMLocalized(@"重新检查运行环境");
     refresh.accessibilityIdentifier = @"environment_refresh";
     refresh.tintColor = FMAccentColor();
     self.navigationItem.rightBarButtonItem = refresh;
@@ -428,24 +428,24 @@ static NSDictionary<NSString *, id> *FMEnvironmentItem(
             ? FMEnvironmentStatePending
             : FMEnvironmentStateUnavailable;
         NSString *detail = self.loadError == nil
-            ? @"正在读取这台设备的基础组件和字体连接状态。"
-            : @"暂时无法读取设备状态。字体操作不会在状态未知时继续。";
+            ? FMLocalized(@"正在读取这台设备的基础组件和字体连接状态。")
+            : FMLocalized(@"暂时无法读取设备状态。字体操作不会在状态未知时继续。");
         [self.heroView configureWithTitle:
-            self.loadError == nil ? @"正在检查运行环境" : @"无法读取运行环境"
+            self.loadError == nil ? FMLocalized(@"正在检查运行环境") : FMLocalized(@"无法读取运行环境")
                                       detail:detail
                                        state:state];
         self.items = @[
-            FMEnvironmentItem(@"environment_provider", @"基础组件",
-                              @"等待设备返回 mount_bindfs 状态",
+            FMEnvironmentItem(@"environment_provider", FMLocalized(@"基础组件"),
+                              FMLocalized(@"等待设备返回 mount_bindfs 状态"),
                               @"shippingbox.fill", state),
-            FMEnvironmentItem(@"environment_mapping", @"字体连接",
-                              @"等待设备返回字体镜像连接状态",
+            FMEnvironmentItem(@"environment_mapping", FMLocalized(@"字体连接"),
+                              FMLocalized(@"等待设备返回字体镜像连接状态"),
                               @"link", state),
-            FMEnvironmentItem(@"environment_recovery", @"恢复准备",
-                              @"等待设备返回系统字体恢复状态",
+            FMEnvironmentItem(@"environment_recovery", FMLocalized(@"恢复准备"),
+                              FMLocalized(@"等待设备返回系统字体恢复状态"),
                               @"arrow.uturn.backward.circle.fill", state),
         ];
-        self.footerLabel.text = @"本页只读取状态，不会挂载、替换字体或重启设备";
+        self.footerLabel.text = FMLocalized(@"本页只读取状态，不会挂载、替换字体或重启设备");
         return;
     }
 
@@ -472,18 +472,18 @@ static NSDictionary<NSString *, id> *FMEnvironmentItem(
     NSString *providerDetail = providerReady
         ? (providerVersion.length > 0
             ? (versionKnown
-                ? [NSString stringWithFormat:@"mount_bindfs %@ 已验证",
+                ? [NSString stringWithFormat:FMLocalized(@"mount_bindfs %@ 已验证"),
                                              providerVersion]
-                : [NSString stringWithFormat:@"mount_bindfs %@ 已通过能力检查",
+                : [NSString stringWithFormat:FMLocalized(@"mount_bindfs %@ 已通过能力检查"),
                                              providerVersion])
-            : @"mount_bindfs 已安装并可用")
+            : FMLocalized(@"mount_bindfs 已安装并可用"))
         : (!packageInstalled
-            ? @"需要先安装 mount_bindfs"
+            ? FMLocalized(@"需要先安装 mount_bindfs")
             : (!executablePresent
-                ? @"mount_bindfs 已安装，但当前无法调用"
+                ? FMLocalized(@"mount_bindfs 已安装，但当前无法调用")
                 : (!providerCompatible
-                    ? @"mount_bindfs 接口或安全属性不兼容"
-                    : @"挂载组件尚未适配当前越狱环境")));
+                    ? FMLocalized(@"mount_bindfs 接口或安全属性不兼容")
+                    : FMLocalized(@"挂载组件尚未适配当前越狱环境"))));
 
     BOOL sourceReady = FMEnvironmentBool(fonts, @"systemDirectoryReadable") &&
                        FMEnvironmentBool(fonts, @"rootfsDirectoryReadable");
@@ -497,19 +497,19 @@ static NSDictionary<NSString *, id> *FMEnvironmentItem(
                            stateReady && mirrorReady && mappingReady;
     BOOL waitingForSetup = [engineState isEqual:@"notInitialized"];
     NSString *connectionDetail = connectionReady
-        ? @"字体镜像已通过只读连接生效"
+        ? FMLocalized(@"字体镜像已通过只读连接生效")
         : (waitingForSetup
-            ? @"首次设置完成后会自动建立字体连接"
+            ? FMLocalized(@"首次设置完成后会自动建立字体连接")
             : (!sourceReady
-                ? @"当前无法读取系统字体来源"
+                ? FMLocalized(@"当前无法读取系统字体来源")
                 : (!mirrorReady
-                    ? @"字体镜像尚未准备好"
-                    : @"字体连接需要重新建立或修复")));
+                    ? FMLocalized(@"字体镜像尚未准备好")
+                    : FMLocalized(@"字体连接需要重新建立或修复"))));
 
     BOOL recoveryReady = FMEnvironmentBool(fonts, @"stockSnapshotPresent");
     NSString *recoveryDetail = recoveryReady
-        ? @"当前系统的原始字体恢复副本已准备"
-        : @"首次设置完成后会生成恢复副本";
+        ? FMLocalized(@"当前系统的原始字体恢复副本已准备")
+        : FMLocalized(@"首次设置完成后会生成恢复副本");
 
     FMEnvironmentState providerState = providerReady
         ? FMEnvironmentStateReady : FMEnvironmentStateUnavailable;
@@ -519,39 +519,39 @@ static NSDictionary<NSString *, id> *FMEnvironmentItem(
     FMEnvironmentState recoveryState = recoveryReady
         ? FMEnvironmentStateReady : FMEnvironmentStateAttention;
     self.items = @[
-        FMEnvironmentItem(@"environment_provider", @"基础组件", providerDetail,
+        FMEnvironmentItem(@"environment_provider", FMLocalized(@"基础组件"), providerDetail,
                           @"shippingbox.fill", providerState),
-        FMEnvironmentItem(@"environment_mapping", @"字体连接", connectionDetail,
+        FMEnvironmentItem(@"environment_mapping", FMLocalized(@"字体连接"), connectionDetail,
                           @"link", connectionState),
-        FMEnvironmentItem(@"environment_recovery", @"恢复准备", recoveryDetail,
+        FMEnvironmentItem(@"environment_recovery", FMLocalized(@"恢复准备"), recoveryDetail,
                           @"arrow.uturn.backward.circle.fill", recoveryState),
     ];
 
     if (!providerReady || !sourceReady ||
         ([engineState isEqual:@"unavailable"] ||
          [engineState isEqual:@"attentionRequired"])) {
-        [self.heroView configureWithTitle:@"运行环境需要处理"
-                                    detail:@"部分基础条件尚未满足，字体操作会保持停用。"
+        [self.heroView configureWithTitle:FMLocalized(@"运行环境需要处理")
+                                    detail:FMLocalized(@"部分基础条件尚未满足，字体操作会保持停用。")
                                      state:FMEnvironmentStateUnavailable];
     } else if (!connectionReady) {
-        [self.heroView configureWithTitle:@"等待首次设置"
-                                    detail:@"基础组件可用，完成首次设置后即可管理系统字体。"
+        [self.heroView configureWithTitle:FMLocalized(@"等待首次设置")
+                                    detail:FMLocalized(@"基础组件可用，完成首次设置后即可管理系统字体。")
                                      state:FMEnvironmentStateAttention];
     } else if (!recoveryReady) {
-        [self.heroView configureWithTitle:@"还需完成恢复准备"
-                                    detail:@"字体连接正常；建立系统字体恢复副本后即可开放切换与重启。"
+        [self.heroView configureWithTitle:FMLocalized(@"还需完成恢复准备")
+                                    detail:FMLocalized(@"字体连接正常；建立系统字体恢复副本后即可开放切换与重启。")
                                      state:FMEnvironmentStateAttention];
     } else {
-        [self.heroView configureWithTitle:@"字体环境已就绪"
-                                    detail:@"组件、字体连接和恢复准备均可用。"
+        [self.heroView configureWithTitle:FMLocalized(@"字体环境已就绪")
+                                    detail:FMLocalized(@"组件、字体连接和恢复准备均可用。")
                                      state:FMEnvironmentStateReady];
     }
 
-    NSString *productType = FMEnvironmentString(system[@"productType"], @"当前设备");
-    NSString *version = FMEnvironmentString(system[@"productVersion"], @"未知版本");
-    NSString *build = FMEnvironmentString(system[@"productBuildVersion"], @"未知构建");
+    NSString *productType = FMEnvironmentString(system[@"productType"], FMLocalized(@"当前设备"));
+    NSString *version = FMEnvironmentString(system[@"productVersion"], FMLocalized(@"未知版本"));
+    NSString *build = FMEnvironmentString(system[@"productBuildVersion"], FMLocalized(@"未知构建"));
     self.footerLabel.text = [NSString stringWithFormat:
-        @"%@ · iOS %@ (%@)\n本页不会挂载、替换字体或重启设备",
+        FMLocalized(@"%@ · iOS %@ (%@)\n本页不会挂载、替换字体或重启设备"),
         productType, version, build];
 }
 
@@ -600,7 +600,7 @@ static NSDictionary<NSString *, id> *FMEnvironmentItem(
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
     (void)tableView;
     (void)section;
-    return @"字体切换所需条件";
+    return FMLocalized(@"字体切换所需条件");
 }
 
 - (void)tableView:(UITableView *)tableView willDisplayHeaderView:(UIView *)view

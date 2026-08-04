@@ -122,7 +122,7 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
     _previewBadge = FMLabel(UIFontTextStyleCaption1, UIFontWeightSemibold,
                             FMColorRGB(31, 38, 34));
     _previewBadge.translatesAutoresizingMaskIntoConstraints = NO;
-    _previewBadge.text = @"实时预览";
+    _previewBadge.text = FMLocalized(@"实时预览");
     _previewBadge.textAlignment = NSTextAlignmentCenter;
     _previewBadge.backgroundColor = [UIColor.whiteColor colorWithAlphaComponent:0.52];
     _previewBadge.layer.cornerRadius = 12;
@@ -135,12 +135,12 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
     _headlineLabel.numberOfLines = 2;
     _headlineLabel.adjustsFontSizeToFitWidth = YES;
     _headlineLabel.minimumScaleFactor = 0.78;
-    _headlineLabel.text = @"让每个字，\n都有自己的性格。";
+    _headlineLabel.text = FMLocalized(@"让每个字，\n都有自己的性格。");
     [self addSubview:_headlineLabel];
 
     _sampleLabel = [[UILabel alloc] initWithFrame:CGRectZero];
     _sampleLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    _sampleLabel.text = @"春风有信 · 0123456789";
+    _sampleLabel.text = FMLocalized(@"春风有信 · 0123456789");
     _sampleLabel.alpha = 0.68;
     [self addSubview:_sampleLabel];
 
@@ -198,7 +198,7 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
         UIFont *sampleNumberFont = latinPreviewFont != nil
             ? [latinPreviewFont fontWithSize:14.5]
             : sampleChineseFont;
-        NSString *sampleText = @"春风有信 · 0123456789";
+        NSString *sampleText = FMLocalized(@"春风有信 · 0123456789");
         NSMutableAttributedString *sample =
             [[NSMutableAttributedString alloc] initWithString:sampleText
                                                    attributes:@{
@@ -212,8 +212,8 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
         self.sampleLabel.textColor = ink;
         self.profileLabel.text = name;
         self.profileLabel.textColor = ink;
-        NSString *stateText = pending ? @"等待 Respring"
-                                      : (current ? @"正在使用" : @"实时预览");
+        NSString *stateText = pending ? FMLocalized(@"等待 Respring")
+                                      : (current ? FMLocalized(@"正在使用") : FMLocalized(@"实时预览"));
         if (current && !pending) {
             NSMutableAttributedString *badge =
                 [[NSMutableAttributedString alloc] initWithString:
@@ -292,7 +292,7 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
     _detailLabel.translatesAutoresizingMaskIntoConstraints = NO;
     _detailLabel.font = [UIFont systemFontOfSize:11.5 weight:UIFontWeightRegular];
     _detailLabel.textColor = UIColor.secondaryLabelColor;
-    _detailLabel.text = @"轻点预览";
+    _detailLabel.text = FMLocalized(@"轻点预览");
     [self addSubview:_detailLabel];
 
     _stateLabel = [[UILabel alloc] initWithFrame:CGRectZero];
@@ -354,7 +354,7 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
         : FMRepresentativeFont(profileID, 43, UIFontWeightBold);
     self.glyphLabel.textColor = UIColor.labelColor;
     self.nameLabel.text = name;
-    self.stateLabel.text = pending ? @"待完成" : (current ? @"使用中" : (chosen ? @"预览中" : @"可选择"));
+    self.stateLabel.text = pending ? FMLocalized(@"待完成") : (current ? FMLocalized(@"使用中") : (chosen ? FMLocalized(@"预览中") : FMLocalized(@"可选择")));
     self.stateLabel.textColor = pending ? FMWarnColor()
                                         : (current ? FMSuccessColor()
                                                    : (chosen ? FMAccentColor()
@@ -366,9 +366,9 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
     self.layer.borderWidth = chosen ? 2 : 1;
     self.layer.borderColor = (chosen ? FMAccentColor() : FMHairlineColor()).CGColor;
     self.accessibilityLabel = name;
-    self.accessibilityValue = pending ? @"等待 Respring"
-                                      : (current ? @"正在使用"
-                                                 : (chosen ? @"正在预览" : @"轻点预览"));
+    self.accessibilityValue = pending ? FMLocalized(@"等待 Respring")
+                                      : (current ? FMLocalized(@"正在使用")
+                                                 : (chosen ? FMLocalized(@"正在预览") : FMLocalized(@"轻点预览")));
     self.accessibilityTraits = UIAccessibilityTraitButton |
                                (chosen ? UIAccessibilityTraitSelected : 0);
     void (^animations)(void) = ^{
@@ -434,7 +434,7 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
 
     UILabel *title = FMLabel(UIFontTextStyleTitle2, UIFontWeightBold, UIColor.labelColor);
     title.translatesAutoresizingMaskIntoConstraints = NO;
-    title.text = @"准备刷新字体";
+    title.text = FMLocalized(@"准备刷新字体");
     title.textAlignment = NSTextAlignmentCenter;
     [self.view addSubview:title];
 
@@ -442,7 +442,7 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
     body.translatesAutoresizingMaskIntoConstraints = NO;
     body.textAlignment = NSTextAlignmentCenter;
     body.text = [NSString stringWithFormat:
-        @"“%@”已经准备好。执行一次 Respring 后即可刷新系统字体显示。",
+        FMLocalized(@"“%@”已经准备好。执行一次 Respring 后即可刷新系统字体显示。"),
         self.profileName];
     [self.view addSubview:body];
 
@@ -465,13 +465,13 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
 
     UILabel *stepTitle = FMLabel(UIFontTextStyleBody, UIFontWeightSemibold, UIColor.labelColor);
     stepTitle.translatesAutoresizingMaskIntoConstraints = NO;
-    stepTitle.text = @"将执行 Respring";
+    stepTitle.text = FMLocalized(@"将执行 Respring");
     [step addSubview:stepTitle];
 
     UILabel *stepDetail = FMLabel(UIFontTextStyleFootnote, UIFontWeightRegular,
                                   UIColor.secondaryLabelColor);
     stepDetail.translatesAutoresizingMaskIntoConstraints = NO;
-    stepDetail.text = @"SpringBoard 会重新载入，当前 App 将关闭";
+    stepDetail.text = FMLocalized(@"SpringBoard 会重新载入，当前 App 将关闭");
     [step addSubview:stepDetail];
 
     FMPressableButton *primary = [FMPressableButton buttonWithType:UIButtonTypeSystem];
@@ -491,7 +491,7 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
 
     UIButton *later = [UIButton buttonWithType:UIButtonTypeSystem];
     later.translatesAutoresizingMaskIntoConstraints = NO;
-    [later setTitle:@"稍后 Respring" forState:UIControlStateNormal];
+    [later setTitle:FMLocalized(@"稍后 Respring") forState:UIControlStateNormal];
     [later addTarget:self action:@selector(dismissLater:) forControlEvents:UIControlEventTouchUpInside];
     [self.view addSubview:later];
 
@@ -600,7 +600,7 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
     self.navigationController.navigationBar.prefersLargeTitles = NO;
 
     FMPressableButton *settingsButton = [FMPressableButton buttonWithType:UIButtonTypeSystem];
-    settingsButton.accessibilityLabel = @"设置";
+    settingsButton.accessibilityLabel = FMLocalized(@"设置");
     settingsButton.accessibilityIdentifier = @"open_settings";
     UIButtonConfiguration *settingsConfiguration = [UIButtonConfiguration tintedButtonConfiguration];
     settingsConfiguration.image = [UIImage systemImageNamed:@"gearshape.fill"];
@@ -618,7 +618,7 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
         [[UIBarButtonItem alloc] initWithCustomView:settingsButton];
 
     FMPressableButton *libraryButton = [FMPressableButton buttonWithType:UIButtonTypeSystem];
-    libraryButton.accessibilityLabel = @"字体库";
+    libraryButton.accessibilityLabel = FMLocalized(@"字体库");
     libraryButton.accessibilityIdentifier = @"open_library";
     UIButtonConfiguration *libraryConfiguration = [UIButtonConfiguration tintedButtonConfiguration];
     libraryConfiguration.image = [UIImage systemImageNamed:@"books.vertical.fill"];
@@ -715,7 +715,7 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
 
     self.titleLabel = [[UILabel alloc] initWithFrame:CGRectZero];
     self.titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    self.titleLabel.text = @"字体";
+    self.titleLabel.text = FMLocalized(@"字体");
     self.titleLabel.font = [UIFont systemFontOfSize:38 weight:UIFontWeightBold];
     self.titleLabel.textColor = UIColor.labelColor;
     [self.contentView addSubview:self.titleLabel];
@@ -723,7 +723,7 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
     self.subtitleLabel = FMLabel(UIFontTextStyleSubheadline, UIFontWeightRegular,
                                  UIColor.secondaryLabelColor);
     self.subtitleLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    self.subtitleLabel.text = @"先预览，再把喜欢的样子用到整个系统。";
+    self.subtitleLabel.text = FMLocalized(@"先预览，再把喜欢的样子用到整个系统。");
     [self.contentView addSubview:self.subtitleLabel];
 
     self.heroView = [[FMTypefaceHeroView alloc] initWithFrame:CGRectZero];
@@ -732,7 +732,7 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
 
     UILabel *sectionTitle = FMLabel(UIFontTextStyleTitle3, UIFontWeightBold, UIColor.labelColor);
     sectionTitle.translatesAutoresizingMaskIntoConstraints = NO;
-    sectionTitle.text = @"挑一种喜欢的风格";
+    sectionTitle.text = FMLocalized(@"挑一种喜欢的风格");
     [self.contentView addSubview:sectionTitle];
 
     self.countLabel = FMLabel(UIFontTextStyleCaption1, UIFontWeightSemibold,
@@ -758,7 +758,7 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
     UILabel *hint = FMLabel(UIFontTextStyleFootnote, UIFontWeightRegular,
                             UIColor.tertiaryLabelColor);
     hint.translatesAutoresizingMaskIntoConstraints = NO;
-    hint.text = @"轻点卡片只会预览，不会立即更改系统字体。";
+    hint.text = FMLocalized(@"轻点卡片只会预览，不会立即更改系统字体。");
     hint.textAlignment = NSTextAlignmentCenter;
     [self.contentView addSubview:hint];
 
@@ -846,7 +846,7 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
 - (void)reloadWorkspacePreservingSelection:(BOOL)preserveSelection {
     NSError *error = nil;
     if (![self.workspace prepareIfNeeded:&error]) {
-        self.workspaceError = error.localizedDescription ?: @"暂时无法读取字体库";
+        self.workspaceError = error.localizedDescription ?: FMLocalized(@"暂时无法读取字体库");
         self.state = @{};
         self.profiles = @[];
         self.previewFontsByProfileID = @{};
@@ -860,7 +860,7 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
         self.state = [self.workspace currentState:&error] ?: @{};
         NSMutableArray<NSDictionary<NSString *, id> *> *profiles = [NSMutableArray arrayWithObject:@{
             @"id" : NSNull.null,
-            @"name" : @"系统默认",
+            @"name" : FMLocalized(@"系统默认"),
         }];
         [profiles addObjectsFromArray:self.workspace.availableProfiles];
         self.profiles = profiles;
@@ -959,7 +959,7 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
         [cards addObject:card];
     }
     self.profileCards = cards;
-    self.countLabel.text = [NSString stringWithFormat:@"%lu 种风格",
+    self.countLabel.text = [NSString stringWithFormat:FMLocalized(@"%lu 种风格"),
                                                        (unsigned long)self.profiles.count];
 }
 
@@ -987,7 +987,7 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
             (profileID != nil && !self.selectedStock &&
              FMProfileIDsEqual(profileID, self.selectedProfileID))) return profile;
     }
-    return @{ @"id" : NSNull.null, @"name" : @"系统默认" };
+    return @{ @"id" : NSNull.null, @"name" : FMLocalized(@"系统默认") };
 }
 
 - (void)updatePresentationAnimated:(BOOL)animated {
@@ -1037,7 +1037,7 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
     configuration.imagePadding = 8;
     if (self.workspaceError.length > 0) {
         BOOL recovering = self.workspaceRecoveryTimer != nil;
-        configuration.title = recovering ? @"正在恢复字体连接…" : @"字体库暂时不可用";
+        configuration.title = recovering ? FMLocalized(@"正在恢复字体连接…") : FMLocalized(@"字体库暂时不可用");
         configuration.image = [UIImage systemImageNamed:
             recovering ? @"arrow.clockwise" : @"exclamationmark.triangle"];
         configuration.baseBackgroundColor = UIColor.tertiarySystemFillColor;
@@ -1051,26 +1051,26 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
             configuration.baseForegroundColor = FMPrimaryActionForegroundColor();
             self.applyButton.enabled = YES;
         } else {
-            configuration.title = @"Respring 暂不可用";
+            configuration.title = FMLocalized(@"Respring 暂不可用");
             configuration.image = [UIImage systemImageNamed:@"exclamationmark.triangle"];
             configuration.baseBackgroundColor = UIColor.tertiarySystemFillColor;
             configuration.baseForegroundColor = UIColor.secondaryLabelColor;
             self.applyButton.enabled = NO;
         }
     } else if (!restartRequired && selectedIsConfirmed) {
-        configuration.title = [NSString stringWithFormat:@"正在使用「%@」", name];
+        configuration.title = [NSString stringWithFormat:FMLocalized(@"正在使用「%@」"), name];
         configuration.image = [UIImage systemImageNamed:@"checkmark.circle.fill"];
         configuration.baseBackgroundColor = UIColor.tertiarySystemFillColor;
         configuration.baseForegroundColor = UIColor.secondaryLabelColor;
         self.applyButton.enabled = NO;
     } else if (!self.workspace.allowsChanges) {
-        configuration.title = @"当前版本仅可查看";
+        configuration.title = FMLocalized(@"当前版本仅可查看");
         configuration.image = [UIImage systemImageNamed:@"eye.fill"];
         configuration.baseBackgroundColor = UIColor.tertiarySystemFillColor;
         configuration.baseForegroundColor = UIColor.secondaryLabelColor;
         self.applyButton.enabled = NO;
     } else {
-        configuration.title = [NSString stringWithFormat:@"应用「%@」", name];
+        configuration.title = [NSString stringWithFormat:FMLocalized(@"应用「%@」"), name];
         configuration.image = [UIImage systemImageNamed:@"arrow.right"];
         configuration.imagePlacement = NSDirectionalRectEdgeTrailing;
         configuration.baseBackgroundColor = FMPrimaryActionColor();
@@ -1087,7 +1087,7 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
             return FMFriendlyProfileName(candidate, profile[@"name"]);
         }
     }
-    return profileID == nil ? @"系统默认" : @"自定义字体";
+    return profileID == nil ? FMLocalized(@"系统默认") : FMLocalized(@"自定义字体");
 }
 
 - (void)applySelectedProfile:(id)sender {
@@ -1168,7 +1168,7 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
     UILabel *label = FMLabel(UIFontTextStyleSubheadline, UIFontWeightSemibold,
                              FMPrimaryActionForegroundColor());
     label.translatesAutoresizingMaskIntoConstraints = NO;
-    label.text = [NSString stringWithFormat:@"已切换到 %@", name];
+    label.text = [NSString stringWithFormat:FMLocalized(@"已切换到 %@"), name];
     label.numberOfLines = 1;
     [toast addSubview:label];
     [self.view addSubview:toast];
@@ -1292,10 +1292,10 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
 
 - (void)presentOperationError:(NSError *)error {
     UIAlertController *alert =
-        [UIAlertController alertControllerWithTitle:@"暂时无法完成"
+        [UIAlertController alertControllerWithTitle:FMLocalized(@"暂时无法完成")
                                             message:error.localizedDescription
                                      preferredStyle:UIAlertControllerStyleAlert];
-    [alert addAction:[UIAlertAction actionWithTitle:@"好"
+    [alert addAction:[UIAlertAction actionWithTitle:FMLocalized(@"好")
                                              style:UIAlertActionStyleDefault
                                            handler:nil]];
     [self presentViewController:alert animated:YES completion:nil];
