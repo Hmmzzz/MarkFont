@@ -15,7 +15,7 @@ FontManager_FILES = main.m FMAppDelegate.m FMDeviceProfileWorkspace.m \
 FontManager_FRAMEWORKS = UIKit QuartzCore CoreText UniformTypeIdentifiers
 FontManager_LIBRARIES = roothide
 FontManager_CFLAGS = -fobjc-arc -Wall -Wextra -I../shared -IUI
-FontManager_CODESIGN_FLAGS = -Sentitlements.plist
+FontManager_CODESIGN_FLAGS = -Sentitlements.plist -Icom.hmmzzz.fontmanager
 FontManager_RESOURCE_DIRS = Resources
 
 include $(THEOS_MAKE_PATH)/application.mk
