@@ -4,6 +4,10 @@
 #import "FMDesignSystem.h"
 #import "FMProfileWorkspace.h"
 
+static NSString *const FMProjectURLString = @"https://github.com/Hmmzzz/MarkFont";
+static NSString *const FMLicenseURLString =
+    @"https://github.com/Hmmzzz/MarkFont/blob/main/LICENSE";
+
 static UIView *FMSettingsSectionHeaderView(NSString *title) {
     UIView *view = [[UIView alloc] initWithFrame:CGRectZero];
     view.backgroundColor = FMCanvasColor();
@@ -512,7 +516,7 @@ static UIView *FMSettingsSectionHeaderView(NSString *title) {
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
     (void)tableView;
-    return section == 2 ? 2 : 1;
+    return section == 2 ? 4 : 1;
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
@@ -549,6 +553,8 @@ static UIView *FMSettingsSectionHeaderView(NSString *title) {
     FMSettingsActionCell *cell =
         [tableView dequeueReusableCellWithIdentifier:@"SettingsActionCell"
                                         forIndexPath:indexPath];
+    cell.chevron.image = [UIImage systemImageNamed:@"chevron.right"];
+    cell.accessibilityHint = nil;
     if (indexPath.section == 1) {
         [cell configureWithTitle:@"运行环境"
                         subtitle:@"查看组件、字体连接与恢复准备"
@@ -565,6 +571,28 @@ static UIView *FMSettingsSectionHeaderView(NSString *title) {
                       disclosure:NO
                      destructive:NO];
         cell.accessibilityIdentifier = @"settings_author";
+    } else if (indexPath.row == 1) {
+        [cell configureWithTitle:@"开源项目"
+                        subtitle:@"GitHub · Hmmzzz/MarkFont"
+                          symbol:@"chevron.left.forwardslash.chevron.right"
+                           color:FMAccentColor()
+                      disclosure:YES
+                     destructive:NO];
+        cell.chevron.image = [UIImage systemImageNamed:@"arrow.up.right"];
+        cell.accessibilityTraits = UIAccessibilityTraitLink;
+        cell.accessibilityHint = @"打开 MarkFont GitHub 项目主页";
+        cell.accessibilityIdentifier = @"settings_open_source_project";
+    } else if (indexPath.row == 2) {
+        [cell configureWithTitle:@"开源许可"
+                        subtitle:@"GNU GPL v3.0 only · GPL-3.0-only"
+                          symbol:@"doc.text.fill"
+                           color:FMAccentColor()
+                      disclosure:YES
+                     destructive:NO];
+        cell.chevron.image = [UIImage systemImageNamed:@"arrow.up.right"];
+        cell.accessibilityTraits = UIAccessibilityTraitLink;
+        cell.accessibilityHint = @"打开 GNU GPL v3.0 许可全文";
+        cell.accessibilityIdentifier = @"settings_open_source_license";
     } else {
         [cell configureWithTitle:@"致谢"
                         subtitle:@"感谢开源项目与社区贡献者"
@@ -580,14 +608,23 @@ static UIView *FMSettingsSectionHeaderView(NSString *title) {
 - (BOOL)tableView:(UITableView *)tableView shouldHighlightRowAtIndexPath:(NSIndexPath *)indexPath {
     (void)tableView;
     return indexPath.section == 1 ||
-        (indexPath.section == 2 && indexPath.row == 1);
+        (indexPath.section == 2 && indexPath.row != 0);
 }
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:NO];
     if (indexPath.section == 0) return;
     if (indexPath.section == 2) {
-        if (indexPath.row == 1) {
+        if (indexPath.row == 1 || indexPath.row == 2) {
+            NSString *address = indexPath.row == 1
+                ? FMProjectURLString : FMLicenseURLString;
+            NSURL *url = [NSURL URLWithString:address];
+            if (url == nil) return;
+            [[[UISelectionFeedbackGenerator alloc] init] selectionChanged];
+            [UIApplication.sharedApplication openURL:url
+                                             options:@{}
+                                   completionHandler:nil];
+        } else if (indexPath.row == 3) {
             [[[UISelectionFeedbackGenerator alloc] init] selectionChanged];
             FMSettingsCreditsViewController *credits = [[FMSettingsCreditsViewController alloc] init];
             [self.navigationController pushViewController:credits animated:YES];
