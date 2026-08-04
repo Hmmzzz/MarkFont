@@ -1,0 +1,19 @@
+#!/bin/sh
+
+set -e
+
+case "${1:-}" in
+  remove)
+    if [ ! -x /usr/libexec/fontmanagerd ]; then
+      echo "MarkFont cannot verify Stock restoration; removal stopped." >&2
+      exit 70
+    fi
+    /usr/libexec/fontmanagerd package-prepare-removal
+    ;;
+  upgrade|deconfigure|failed-upgrade)
+    # Upgrades preserve the current mirror, state, Stock recovery, and Profile
+    # data. The new postinst revalidates this existing managed installation.
+    ;;
+esac
+
+exit 0

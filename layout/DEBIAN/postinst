@@ -1,0 +1,20 @@
+#!/bin/sh
+
+set -e
+
+case "${1:-}" in
+  configure)
+    if [ ! -x /usr/libexec/fontmanagerd ]; then
+      echo "MarkFont configuration helper is unavailable." >&2
+      exit 70
+    fi
+    /usr/libexec/fontmanagerd package-configure
+    ;;
+  abort-remove)
+    # A failed removal deliberately keeps disable-mount and all recovery data.
+    # This prevents an EBUSY mapping from being reattached after the user
+    # reboots before retrying package removal.
+    ;;
+esac
+
+exit 0

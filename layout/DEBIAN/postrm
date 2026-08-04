@@ -1,0 +1,108 @@
+#!/bin/sh
+
+set -e
+
+remove_exact_tree() {
+  case "$1" in
+    /var/lib/fontmanager|\
+    /bindfs/System/Library/Fonts|\
+    /bindfs/System/Library/.Fonts.fontmanager-staging|\
+    "/var/mobile/Library/Application Support/com.hmmzzz.fontmanager"|\
+    /var/mobile/Library/Caches/com.hmmzzz.fontmanager|\
+    /tmp/com.hmmzzz.fontmanager.font-imports|\
+    /var/mobile/tmp/com.hmmzzz.fontmanager.font-imports)
+      ;;
+    *)
+      echo "MarkFont refused an unknown cleanup path: $1" >&2
+      exit 70
+      ;;
+  esac
+
+  if [ -L "$1" ]; then
+    rm -f "$1"
+  elif [ -e "$1" ]; then
+    if [ ! -d "$1" ]; then
+      echo "MarkFont cleanup path is not a directory: $1" >&2
+      exit 70
+    fi
+    rm -rf "$1"
+  fi
+}
+
+require_physical_provider_parent() {
+  case "$1" in
+    /bindfs|/bindfs/System|/bindfs/System/Library)
+      ;;
+    *)
+      echo "MarkFont refused an unknown Provider parent: $1" >&2
+      exit 70
+      ;;
+  esac
+
+  if [ -L "$1" ]; then
+    echo "MarkFont Provider parent is a symbolic link: $1" >&2
+    exit 70
+  elif [ -e "$1" ] && [ ! -d "$1" ]; then
+    echo "MarkFont Provider parent is not a directory: $1" >&2
+    exit 70
+  fi
+}
+
+case "${1:-}" in
+  remove|purge)
+    engine_owned=0
+    mirror_owned=0
+    if [ -L /var/lib/fontmanager ]; then
+      echo "MarkFont recovery root is unsafe; data cleanup stopped." >&2
+      exit 70
+    elif [ -e /var/lib/fontmanager ] && [ ! -d /var/lib/fontmanager ]; then
+      echo "MarkFont recovery root is not a directory; data cleanup stopped." >&2
+      exit 70
+    elif [ -L /var/lib/fontmanager/.package-removal-ready ]; then
+      echo "MarkFont removal marker is unsafe; data cleanup stopped." >&2
+      exit 70
+    elif [ -f /var/lib/fontmanager/.package-removal-ready ]; then
+      engine_owned=1
+    elif [ -e /var/lib/fontmanager ]; then
+      echo "MarkFont recovery data lacks a verified removal marker." >&2
+      exit 70
+    fi
+
+    if [ "$engine_owned" -eq 1 ]; then
+      if [ -L /var/lib/fontmanager/.mirror-owned ]; then
+        echo "MarkFont mirror ownership marker is unsafe; Provider cleanup stopped." >&2
+        exit 70
+      elif [ -f /var/lib/fontmanager/.mirror-owned ]; then
+        mirror_owned=1
+      elif [ -e /var/lib/fontmanager/.mirror-owned ]; then
+        echo "MarkFont mirror ownership marker is not a file; Provider cleanup stopped." >&2
+        exit 70
+      fi
+    fi
+
+    if [ "$engine_owned" -eq 1 ] && [ "$mirror_owned" -eq 1 ]; then
+      require_physical_provider_parent /bindfs
+      require_physical_provider_parent /bindfs/System
+      require_physical_provider_parent /bindfs/System/Library
+      remove_exact_tree /bindfs/System/Library/.Fonts.fontmanager-staging
+      remove_exact_tree /bindfs/System/Library/Fonts
+      rmdir /bindfs/System/Library 2>/dev/null || true
+      rmdir /bindfs/System 2>/dev/null || true
+    fi
+
+    remove_exact_tree "/var/mobile/Library/Application Support/com.hmmzzz.fontmanager"
+    remove_exact_tree /var/mobile/Library/Caches/com.hmmzzz.fontmanager
+    remove_exact_tree /tmp/com.hmmzzz.fontmanager.font-imports
+    remove_exact_tree /var/mobile/tmp/com.hmmzzz.fontmanager.font-imports
+    rm -f /var/mobile/Library/Preferences/com.hmmzzz.fontmanager.plist
+
+    if [ "$engine_owned" -eq 1 ]; then
+      remove_exact_tree /var/lib/fontmanager
+    fi
+    ;;
+  upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+    # Never delete runtime data from an upgrade or dpkg error unwind.
+    ;;
+esac
+
+exit 0

@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+upstream_dm=${FONTMANAGER_UPSTREAM_DM:-}
+if [[ -z "$upstream_dm" && -n "${THEOS:-}" ]]; then
+  upstream_dm="$THEOS/vendor/dm.pl/dm.pl"
+fi
+if [[ -z "$upstream_dm" ]]; then
+  upstream_dm=$(command -v dm.pl || true)
+fi
+
+arguments=("$@")
+staging_root=
+for ((index = 0; index < ${#arguments[@]}; index++)); do
+  if [[ "${arguments[$index]}" == "-b" && $((index + 1)) -lt ${#arguments[@]} ]]; then
+    staging_root=${arguments[$((index + 1))]}
+    break
+  fi
+done
+
+if [[ -z "$staging_root" || ! -d "$staging_root" ]]; then
+  printf 'Font Manager package staging root is missing.\n' >&2
+  exit 66
+fi
+
+helper="$staging_root/usr/libexec/fontmanagerd"
+if [[ ! -f "$helper" || -L "$helper" ]]; then
+  printf 'Font Manager helper is missing or is not a regular staged file.\n' >&2
+  exit 66
+fi
+
+/bin/chmod 4755 "$helper"
+helper_mode=$(/usr/bin/stat -f '%Mp%Lp' "$helper")
+if [[ "$helper_mode" != "4755" ]]; then
+  printf 'Unable to stage fontmanagerd with mode 4755; found %s.\n' "$helper_mode" >&2
+  exit 77
+fi
+
+if [[ ! -x "$upstream_dm" ]]; then
+  printf 'RootHide Theos dm.pl is unavailable. Set THEOS to the RootHide Theos root.\n' >&2
+  exit 69
+fi
+
+exec "$upstream_dm" "$@"

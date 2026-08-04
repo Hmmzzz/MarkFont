@@ -1,0 +1,11 @@
+_THEOS_PLATFORM_DPKG_DEB := $(CURDIR)/scripts/fontmanager-dpkg-deb
+export FONTMANAGER_UPSTREAM_DM := $(THEOS)/vendor/dm.pl/dm.pl
+
+include Config.mk
+include $(THEOS)/makefiles/common.mk
+
+SUBPROJECTS += app
+SUBPROJECTS += daemon
+SUBPROJECTS += cli
+
+include $(THEOS_MAKE_PATH)/aggregate.mk

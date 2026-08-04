@@ -1,0 +1,21 @@
+.DS_Store
+
+# Theos build and package output
+.theos/
+packages/
+*.deb
+*.dSYM/
+*.xcresult
+*.profraw
+compile_commands.json
+
+# Xcode per-user and derived output
+DerivedData/
+build/
+xcuserdata/
+*.xcuserstate
+
+# Local editor and scratch files
+*.swp
+*.tmp
+.work/
