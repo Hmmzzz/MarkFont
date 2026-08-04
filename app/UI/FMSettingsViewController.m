@@ -4,10 +4,6 @@
 #import "FMDesignSystem.h"
 #import "FMProfileWorkspace.h"
 
-static NSString *const FMProjectURLString = @"https://github.com/Hmmzzz/MarkFont";
-static NSString *const FMLicenseURLString =
-    @"https://github.com/Hmmzzz/MarkFont/blob/main/LICENSE";
-
 typedef NS_ENUM(NSInteger, FMSettingsSection) {
     FMSettingsSectionGeneral,
     FMSettingsSectionAutomation,
@@ -294,6 +290,241 @@ static UIView *FMSettingsSectionHeaderView(NSString *title) {
         return;
     }
     [[[UISelectionFeedbackGenerator alloc] init] selectionChanged];
+}
+
+@end
+
+static NSAttributedString *FMSettingsDisclaimerBodyText(
+    NSArray<NSString *> *paragraphs) {
+    NSMutableParagraphStyle *style = [[NSMutableParagraphStyle alloc] init];
+    style.lineSpacing = 4;
+    style.paragraphSpacing = 10;
+    style.lineBreakMode = NSLineBreakByWordWrapping;
+    return [[NSAttributedString alloc]
+        initWithString:[paragraphs componentsJoinedByString:@"\n"]
+            attributes:@{
+                NSFontAttributeName :
+                    [UIFont preferredFontForTextStyle:UIFontTextStyleBody],
+                NSForegroundColorAttributeName : UIColor.secondaryLabelColor,
+                NSParagraphStyleAttributeName : style,
+            }];
+}
+
+static UIView *FMSettingsDisclaimerHeroView(void) {
+    UIView *hero = FMCardView();
+    hero.backgroundColor = [FMAccentColor() colorWithAlphaComponent:0.10];
+    hero.layer.borderColor =
+        [FMAccentColor() colorWithAlphaComponent:0.20].CGColor;
+
+    UIView *iconBackground = [[UIView alloc] initWithFrame:CGRectZero];
+    iconBackground.translatesAutoresizingMaskIntoConstraints = NO;
+    iconBackground.backgroundColor = FMAccentColor();
+    iconBackground.layer.cornerRadius = 16;
+    iconBackground.layer.cornerCurve = kCACornerCurveContinuous;
+
+    UIImageView *icon = [[UIImageView alloc]
+        initWithImage:[UIImage systemImageNamed:@"hand.raised.fill"]];
+    icon.translatesAutoresizingMaskIntoConstraints = NO;
+    icon.tintColor = UIColor.whiteColor;
+    icon.contentMode = UIViewContentModeScaleAspectFit;
+    [iconBackground addSubview:icon];
+
+    UILabel *eyebrow = FMLabel(UIFontTextStyleCaption1, UIFontWeightSemibold,
+                               FMAccentColor());
+    eyebrow.text = FMLocalized(@"使用须知");
+
+    UILabel *title = FMLabel(UIFontTextStyleTitle2, UIFontWeightBold,
+                             UIColor.labelColor);
+    title.text = FMLocalized(@"请确认字体授权");
+
+    UILabel *subtitle = FMLabel(UIFontTextStyleSubheadline, UIFontWeightRegular,
+                                UIColor.secondaryLabelColor);
+    subtitle.text = FMLocalized(@"导入字体前，请先了解授权责任与使用风险。");
+
+    UIStackView *labels = [[UIStackView alloc]
+        initWithArrangedSubviews:@[ eyebrow, title, subtitle ]];
+    labels.axis = UILayoutConstraintAxisVertical;
+    labels.alignment = UIStackViewAlignmentFill;
+    labels.spacing = 4;
+
+    UIStackView *content = [[UIStackView alloc]
+        initWithArrangedSubviews:@[ iconBackground, labels ]];
+    content.translatesAutoresizingMaskIntoConstraints = NO;
+    content.axis = UILayoutConstraintAxisHorizontal;
+    content.alignment = UIStackViewAlignmentTop;
+    content.spacing = 14;
+    [hero addSubview:content];
+
+    [NSLayoutConstraint activateConstraints:@[
+        [iconBackground.widthAnchor constraintEqualToConstant:48],
+        [iconBackground.heightAnchor constraintEqualToConstant:48],
+        [icon.centerXAnchor constraintEqualToAnchor:iconBackground.centerXAnchor],
+        [icon.centerYAnchor constraintEqualToAnchor:iconBackground.centerYAnchor],
+        [icon.widthAnchor constraintEqualToConstant:22],
+        [icon.heightAnchor constraintEqualToConstant:22],
+        [content.leadingAnchor constraintEqualToAnchor:hero.leadingAnchor constant:20],
+        [content.trailingAnchor constraintEqualToAnchor:hero.trailingAnchor constant:-20],
+        [content.topAnchor constraintEqualToAnchor:hero.topAnchor constant:20],
+        [content.bottomAnchor constraintEqualToAnchor:hero.bottomAnchor constant:-20],
+    ]];
+    return hero;
+}
+
+static UIView *FMSettingsDisclaimerSectionView(
+    NSString *title,
+    NSString *symbol,
+    NSArray<NSString *> *paragraphs) {
+    UIView *card = FMCardView();
+
+    UIView *iconBackground = [[UIView alloc] initWithFrame:CGRectZero];
+    iconBackground.translatesAutoresizingMaskIntoConstraints = NO;
+    iconBackground.backgroundColor = FMTintedBackground(FMAccentColor());
+    iconBackground.layer.cornerRadius = 11;
+    iconBackground.layer.cornerCurve = kCACornerCurveContinuous;
+
+    UIImageView *icon = [[UIImageView alloc]
+        initWithImage:[UIImage systemImageNamed:symbol]];
+    icon.translatesAutoresizingMaskIntoConstraints = NO;
+    icon.tintColor = FMAccentColor();
+    icon.contentMode = UIViewContentModeScaleAspectFit;
+    [iconBackground addSubview:icon];
+
+    UILabel *heading = FMLabel(UIFontTextStyleHeadline, UIFontWeightSemibold,
+                               UIColor.labelColor);
+    heading.text = title;
+
+    UIStackView *header = [[UIStackView alloc]
+        initWithArrangedSubviews:@[ iconBackground, heading ]];
+    header.axis = UILayoutConstraintAxisHorizontal;
+    header.alignment = UIStackViewAlignmentCenter;
+    header.spacing = 11;
+
+    UIView *separator = [[UIView alloc] initWithFrame:CGRectZero];
+    separator.backgroundColor = FMHairlineColor();
+
+    UILabel *body = FMLabel(UIFontTextStyleBody, UIFontWeightRegular,
+                            UIColor.secondaryLabelColor);
+    body.attributedText = FMSettingsDisclaimerBodyText(paragraphs);
+
+    UIStackView *content = [[UIStackView alloc]
+        initWithArrangedSubviews:@[ header, separator, body ]];
+    content.translatesAutoresizingMaskIntoConstraints = NO;
+    content.axis = UILayoutConstraintAxisVertical;
+    content.alignment = UIStackViewAlignmentFill;
+    content.spacing = 14;
+    [card addSubview:content];
+
+    [NSLayoutConstraint activateConstraints:@[
+        [iconBackground.widthAnchor constraintEqualToConstant:36],
+        [iconBackground.heightAnchor constraintEqualToConstant:36],
+        [icon.centerXAnchor constraintEqualToAnchor:iconBackground.centerXAnchor],
+        [icon.centerYAnchor constraintEqualToAnchor:iconBackground.centerYAnchor],
+        [icon.widthAnchor constraintEqualToConstant:17],
+        [icon.heightAnchor constraintEqualToConstant:17],
+        [separator.heightAnchor constraintEqualToConstant:
+            1.0 / UIScreen.mainScreen.scale],
+        [content.leadingAnchor constraintEqualToAnchor:card.leadingAnchor constant:20],
+        [content.trailingAnchor constraintEqualToAnchor:card.trailingAnchor constant:-20],
+        [content.topAnchor constraintEqualToAnchor:card.topAnchor constant:18],
+        [content.bottomAnchor constraintEqualToAnchor:card.bottomAnchor constant:-20],
+    ]];
+    return card;
+}
+
+static UIView *FMSettingsDisclaimerReminderView(void) {
+    UIView *view = [[UIView alloc] initWithFrame:CGRectZero];
+    view.backgroundColor = [FMSuccessColor() colorWithAlphaComponent:0.10];
+    view.layer.cornerRadius = 16;
+    view.layer.cornerCurve = kCACornerCurveContinuous;
+
+    UIImageView *icon = [[UIImageView alloc]
+        initWithImage:[UIImage systemImageNamed:@"checkmark.shield.fill"]];
+    icon.tintColor = FMSuccessColor();
+    icon.contentMode = UIViewContentModeScaleAspectFit;
+
+    UILabel *label = FMLabel(UIFontTextStyleFootnote, UIFontWeightSemibold,
+                             UIColor.secondaryLabelColor);
+    label.text = FMLocalized(@"请仅导入和使用已获得必要授权的字体");
+
+    UIStackView *content = [[UIStackView alloc]
+        initWithArrangedSubviews:@[ icon, label ]];
+    content.translatesAutoresizingMaskIntoConstraints = NO;
+    content.axis = UILayoutConstraintAxisHorizontal;
+    content.alignment = UIStackViewAlignmentCenter;
+    content.spacing = 10;
+    [view addSubview:content];
+
+    [NSLayoutConstraint activateConstraints:@[
+        [icon.widthAnchor constraintEqualToConstant:20],
+        [icon.heightAnchor constraintEqualToConstant:20],
+        [content.leadingAnchor constraintEqualToAnchor:view.leadingAnchor constant:16],
+        [content.trailingAnchor constraintEqualToAnchor:view.trailingAnchor constant:-16],
+        [content.topAnchor constraintEqualToAnchor:view.topAnchor constant:14],
+        [content.bottomAnchor constraintEqualToAnchor:view.bottomAnchor constant:-14],
+    ]];
+    return view;
+}
+
+@interface FMSettingsDisclaimerViewController : UIViewController
+@end
+
+@implementation FMSettingsDisclaimerViewController
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.title = FMLocalized(@"免责声明");
+    self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeNever;
+    self.view.backgroundColor = FMCanvasColor();
+
+    UIScrollView *scrollView = [[UIScrollView alloc] initWithFrame:CGRectZero];
+    scrollView.translatesAutoresizingMaskIntoConstraints = NO;
+    scrollView.alwaysBounceVertical = YES;
+    scrollView.accessibilityIdentifier = @"settings_disclaimer_page";
+    [self.view addSubview:scrollView];
+
+    UIView *fontRights = FMSettingsDisclaimerSectionView(
+        FMLocalized(@"字体来源与授权"), @"textformat",
+        @[
+            FMLocalized(@"MarkFont 仅提供字体管理功能，不提供、销售、授权或分发任何第三方字体文件。"),
+            FMLocalized(@"字体文件、字形设计、字体名称及相关内容可能受到版权、商标、字体许可或其他权利保护。"),
+            FMLocalized(@"用户在导入、安装、使用、复制或分发任何字体前，应自行确认已取得必要授权，并遵守字体许可与适用法律。"),
+        ]);
+    UIView *responsibility = FMSettingsDisclaimerSectionView(
+        FMLocalized(@"责任与风险"), @"shield.lefthalf.filled",
+        @[
+            FMLocalized(@"用户导入的字体由用户自行选择和获取，项目维护者与贡献者不审核其来源或授权状态。"),
+            FMLocalized(@"在适用法律允许的最大范围内，项目维护者与贡献者不对用户未经授权或违法使用字体所引起的侵权主张、损失或其他责任负责，也不对字体兼容性或不当操作造成的设备异常、数据丢失或系统不稳定负责。"),
+        ]);
+
+    UIStackView *content = [[UIStackView alloc]
+        initWithArrangedSubviews:@[
+            FMSettingsDisclaimerHeroView(),
+            fontRights,
+            responsibility,
+            FMSettingsDisclaimerReminderView(),
+        ]];
+    content.translatesAutoresizingMaskIntoConstraints = NO;
+    content.axis = UILayoutConstraintAxisVertical;
+    content.alignment = UIStackViewAlignmentFill;
+    content.spacing = 14;
+    [scrollView addSubview:content];
+
+    [NSLayoutConstraint activateConstraints:@[
+        [scrollView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
+        [scrollView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+        [scrollView.topAnchor constraintEqualToAnchor:self.view.topAnchor],
+        [scrollView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
+        [content.leadingAnchor constraintEqualToAnchor:scrollView.contentLayoutGuide.leadingAnchor
+                                              constant:16],
+        [content.trailingAnchor constraintEqualToAnchor:scrollView.contentLayoutGuide.trailingAnchor
+                                               constant:-16],
+        [content.topAnchor constraintEqualToAnchor:scrollView.contentLayoutGuide.topAnchor
+                                          constant:16],
+        [content.bottomAnchor constraintEqualToAnchor:scrollView.contentLayoutGuide.bottomAnchor
+                                             constant:-28],
+        [content.widthAnchor constraintEqualToAnchor:scrollView.frameLayoutGuide.widthAnchor
+                                            constant:-32],
+    ]];
 }
 
 @end
@@ -602,7 +833,7 @@ static UIView *FMSettingsSectionHeaderView(NSString *title) {
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
     (void)tableView;
-    return section == FMSettingsSectionAbout ? 4 : 1;
+    return section == FMSettingsSectionAbout ? 3 : 1;
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
@@ -668,27 +899,14 @@ static UIView *FMSettingsSectionHeaderView(NSString *title) {
                      destructive:NO];
         cell.accessibilityIdentifier = @"settings_author";
     } else if (indexPath.row == 1) {
-        [cell configureWithTitle:FMLocalized(@"开源项目")
-                        subtitle:@"GitHub · Hmmzzz/MarkFont"
-                          symbol:@"chevron.left.forwardslash.chevron.right"
+        [cell configureWithTitle:FMLocalized(@"免责声明")
+                        subtitle:FMLocalized(@"字体授权、使用责任与风险说明")
+                          symbol:@"hand.raised.fill"
                            color:FMAccentColor()
                       disclosure:YES
                      destructive:NO];
-        cell.chevron.image = [UIImage systemImageNamed:@"arrow.up.right"];
-        cell.accessibilityTraits = UIAccessibilityTraitLink;
-        cell.accessibilityHint = FMLocalized(@"打开 MarkFont GitHub 项目主页");
-        cell.accessibilityIdentifier = @"settings_open_source_project";
-    } else if (indexPath.row == 2) {
-        [cell configureWithTitle:FMLocalized(@"开源许可")
-                        subtitle:@"GNU GPL v3.0 only · GPL-3.0-only"
-                          symbol:@"doc.text.fill"
-                           color:FMAccentColor()
-                      disclosure:YES
-                     destructive:NO];
-        cell.chevron.image = [UIImage systemImageNamed:@"arrow.up.right"];
-        cell.accessibilityTraits = UIAccessibilityTraitLink;
-        cell.accessibilityHint = FMLocalized(@"打开 GNU GPL v3.0 许可全文");
-        cell.accessibilityIdentifier = @"settings_open_source_license";
+        cell.accessibilityHint = FMLocalized(@"查看免责声明");
+        cell.accessibilityIdentifier = @"settings_disclaimer";
     } else {
         [cell configureWithTitle:FMLocalized(@"致谢")
                         subtitle:FMLocalized(@"感谢开源项目与社区贡献者")
@@ -719,16 +937,12 @@ static UIView *FMSettingsSectionHeaderView(NSString *title) {
         return;
     }
     if (indexPath.section == FMSettingsSectionAbout) {
-        if (indexPath.row == 1 || indexPath.row == 2) {
-            NSString *address = indexPath.row == 1
-                ? FMProjectURLString : FMLicenseURLString;
-            NSURL *url = [NSURL URLWithString:address];
-            if (url == nil) return;
+        if (indexPath.row == 1) {
             [[[UISelectionFeedbackGenerator alloc] init] selectionChanged];
-            [UIApplication.sharedApplication openURL:url
-                                             options:@{}
-                                   completionHandler:nil];
-        } else if (indexPath.row == 3) {
+            FMSettingsDisclaimerViewController *disclaimer =
+                [[FMSettingsDisclaimerViewController alloc] init];
+            [self.navigationController pushViewController:disclaimer animated:YES];
+        } else if (indexPath.row == 2) {
             [[[UISelectionFeedbackGenerator alloc] init] selectionChanged];
             FMSettingsCreditsViewController *credits = [[FMSettingsCreditsViewController alloc] init];
             [self.navigationController pushViewController:credits animated:YES];

@@ -43,8 +43,8 @@
 "恢复准备" = "Recovery Readiness";
 "等待设备返回系统字体恢复状态" = "Waiting for system font recovery status";
 "本页只读取状态，不会挂载、替换字体或重启设备" = "This page only reads status. It won't mount or replace fonts, or restart the device";
-"内置挂载后端 %@ 已验证" = "Built-in mount backend %@ is verified";
-"内置挂载后端 %@ 已通过能力检查" = "Built-in mount backend %@ passed the capability check";
+"内置挂载后端已验证" = "The built-in mount backend is verified";
+"内置挂载后端已通过能力检查" = "The built-in mount backend passed the capability check";
 "内置挂载后端已就绪" = "The built-in mount backend is ready";
 "内置挂载后端缺失或安全属性异常" = "The built-in mount backend is missing or has unsafe metadata";
 "当前越狱环境未提供可用的挂载能力" = "The current jailbreak environment doesn't provide the required mount capability";
@@ -252,10 +252,20 @@
 "关于" = "About";
 "查看组件、字体连接与恢复准备" = "View components, font connection, and recovery readiness";
 "作者" = "Author";
-"开源项目" = "Open Source Project";
-"打开 MarkFont GitHub 项目主页" = "Open the MarkFont GitHub project page";
-"开源许可" = "Open Source License";
-"打开 GNU GPL v3.0 许可全文" = "Open the full GNU GPL v3.0 license";
+"免责声明" = "Disclaimer";
+"字体授权、使用责任与风险说明" = "Font authorization, user responsibility, and risk information";
+"查看免责声明" = "View the disclaimer";
+"使用须知" = "Before You Continue";
+"请确认字体授权" = "Confirm Your Font Rights";
+"导入字体前，请先了解授权责任与使用风险。" = "Review authorization responsibilities and usage risks before importing fonts.";
+"字体来源与授权" = "Font Sources and Authorization";
+"责任与风险" = "Responsibility and Risk";
+"MarkFont 仅提供字体管理功能，不提供、销售、授权或分发任何第三方字体文件。" = "MarkFont provides font management functionality only. It does not provide, sell, license, or distribute any third-party font files.";
+"字体文件、字形设计、字体名称及相关内容可能受到版权、商标、字体许可或其他权利保护。" = "Font files, glyph designs, font names, and related content may be protected by copyright, trademark, font licenses, or other rights.";
+"用户在导入、安装、使用、复制或分发任何字体前，应自行确认已取得必要授权，并遵守字体许可与适用法律。" = "Before importing, installing, using, copying, or distributing any font, users are responsible for confirming that they have obtained all necessary authorization and for complying with the font license and applicable law.";
+"用户导入的字体由用户自行选择和获取，项目维护者与贡献者不审核其来源或授权状态。" = "Fonts imported by users are selected and obtained solely by those users. Project maintainers and contributors do not review their source or authorization status.";
+"在适用法律允许的最大范围内，项目维护者与贡献者不对用户未经授权或违法使用字体所引起的侵权主张、损失或其他责任负责，也不对字体兼容性或不当操作造成的设备异常、数据丢失或系统不稳定负责。" = "To the maximum extent permitted by applicable law, the project maintainers and contributors are not liable for infringement claims, losses, or other liability arising from unauthorized or unlawful font use, nor for device malfunctions, data loss, or system instability caused by font incompatibility or improper operation.";
+"请仅导入和使用已获得必要授权的字体" = "Only import and use fonts for which you have the necessary authorization";
 "感谢开源项目与社区贡献者" = "Thanks to open source projects and community contributors";
 "当前版本无法读取运行环境。" = "This version can't read the runtime environment.";
 

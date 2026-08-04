@@ -472,16 +472,10 @@ static NSDictionary<NSString *, id> *FMEnvironmentItem(
     BOOL backendReady = executablePresent && runtimePresent && runtimeSecure &&
         storageSupported && backendCompatible;
     BOOL versionKnown = [mountBackend[@"recognition"] isEqual:@"known"];
-    NSString *mountBackendVersion = FMEnvironmentString(
-        mountBackend[@"version"], nil);
     NSString *backendDetail = backendReady
-        ? (mountBackendVersion.length > 0
-            ? (versionKnown
-                ? [NSString stringWithFormat:FMLocalized(@"内置挂载后端 %@ 已验证"),
-                                             mountBackendVersion]
-                : [NSString stringWithFormat:FMLocalized(@"内置挂载后端 %@ 已通过能力检查"),
-                                             mountBackendVersion])
-            : FMLocalized(@"内置挂载后端已就绪"))
+        ? (versionKnown
+            ? FMLocalized(@"内置挂载后端已验证")
+            : FMLocalized(@"内置挂载后端已通过能力检查"))
         : (!executablePresent
             ? FMLocalized(@"内置挂载后端缺失或安全属性异常")
             : (!runtimePresent || !runtimeSecure
