@@ -246,6 +246,11 @@ NSDictionary<NSString *, id> *FMCreateEnvironmentStatus(void) {
     NSString *mirrorLogicalPath =
         FMProviderResolvedMirrorLogicalPath(&providerRootSupported,
                                             &providerPreferencePresent);
+    NSError *providerPreferenceError = nil;
+    NSDictionary *providerAutoMount =
+        FMProviderAutoMountConfiguration(&providerPreferenceError);
+    BOOL providerAutoMountConflictsWithFonts = providerAutoMount == nil ||
+        [providerAutoMount[@"conflictsWithFonts"] boolValue];
     BOOL systemReadable = FMReadableDirectoryAtPath(FMProviderSystemFontsLogicalPath);
     BOOL rootfsReadable =
         FMReadableDirectoryAtPath(jbroot(FMProviderRootfsFontsLogicalPath));
@@ -257,7 +262,7 @@ NSDictionary<NSString *, id> *FMCreateEnvironmentStatus(void) {
         [packageMetadata[@"version"] isKindOfClass:NSString.class] &&
         [packageMetadata[@"version"] length] > 0 &&
         [providerCompatibility[@"compatible"] boolValue] &&
-        providerRootSupported && !providerPreferencePresent;
+        providerRootSupported && !providerAutoMountConflictsWithFonts;
 
     struct statfs filesystem = {0};
     BOOL statfsAvailable =
@@ -296,6 +301,11 @@ NSDictionary<NSString *, id> *FMCreateEnvironmentStatus(void) {
     }
     if (!providerRootSupported) {
         FMAddIssue(issues, @"provider.rootConfigurationUnsupported");
+    }
+    if (providerPreferenceError != nil) {
+        FMAddIssue(issues, @"provider.preferenceInvalid");
+    } else if (providerAutoMountConflictsWithFonts) {
+        FMAddIssue(issues, @"provider.fontsAutoMountConflict");
     }
 
     NSDictionary<NSString *, id> *state =
@@ -375,6 +385,8 @@ NSDictionary<NSString *, id> *FMCreateEnvironmentStatus(void) {
             @"providerRootSupported" : @(providerRootSupported),
             @"providerRootShared" : @YES,
             @"providerPreferencePresent" : @(providerPreferencePresent),
+            @"providerAutoMountConflictsWithFonts" :
+                @(providerAutoMountConflictsWithFonts),
             @"providerRootIsSymlink" : @(providerRootIsSymlink),
             @"mirrorPresent" : @(mirrorReadable),
             @"mappingActive" : @(mappingActive),

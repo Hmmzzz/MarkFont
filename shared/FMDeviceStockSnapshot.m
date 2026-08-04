@@ -153,11 +153,12 @@ static NSDictionary<NSString *, id> *FMStockSnapshotCreateContext(
     }
 
     NSError *inspectionError = nil;
-    BOOL preferencePresent = NO;
-    if (!FMProviderPreferenceExists(&preferencePresent, &inspectionError) ||
-        preferencePresent) {
+    BOOL autoMountConflict = NO;
+    if (!FMProviderAutoMountConflictsWithSystemFonts(
+            &autoMountConflict, &inspectionError) || autoMountConflict) {
         FMStockSnapshotFail(
-            error, 3, @"Provider automatic mounting must remain disabled.",
+            error, 3,
+            @"Provider automatic mounting must not target the system Fonts tree.",
             inspectionError);
         return nil;
     }

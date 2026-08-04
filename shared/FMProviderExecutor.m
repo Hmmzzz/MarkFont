@@ -86,16 +86,16 @@ static NSDictionary<NSString *, id> *FMRequireCompatibleProviderExecutable(
 static BOOL FMValidateFixedProviderEnvironment(BOOL requireAlias,
                                                BOOL *aliasPresent,
                                                NSError **error) {
-    BOOL preferencePresent = NO;
+    BOOL autoMountConflict = NO;
     NSError *pathError = nil;
-    if (!FMProviderPreferenceExists(&preferencePresent, &pathError) ||
-        preferencePresent) {
+    if (!FMProviderAutoMountConflictsWithSystemFonts(
+            &autoMountConflict, &pathError) || autoMountConflict) {
         if (error != NULL) {
             *error = pathError ?: [NSError errorWithDomain:FMProviderExecutorErrorDomain
                                                       code:3
                                                   userInfo:@{
                                                       NSLocalizedDescriptionKey :
-                                                          @"Provider auto-mount preference appeared after preflight."
+                                                          @"Provider automatic mounting for Fonts appeared after preflight."
                                                   }];
         }
         return NO;
@@ -210,6 +210,35 @@ NSDictionary<NSString *, id> *FMInvokeProviderForPreparedSystemFonts(
     report[@"aliasWasPresent"] = @(aliasPresent);
     report[@"providerCompatibility"] = compatibility[@"compatibility"];
     return report;
+}
+
+NSDictionary<NSString *, id> *
+FMDetachProviderSystemFontsForPackageLifecycle(NSError **error) {
+    BOOL aliasPresent = NO;
+    NSDictionary *compatibility =
+        FMRequireCompatibleProviderExecutable(error);
+    if (compatibility == nil ||
+        !FMValidateFixedProviderEnvironment(NO, &aliasPresent, error)) {
+        return nil;
+    }
+
+    NSDictionary *execution = FMInvokeFixedProviderOption(@"-u", error);
+    if (execution == nil || ![execution[@"reportedSuccess"] boolValue]) {
+        if (execution != nil) {
+            FMProviderExecutorFail(
+                error, 7,
+                @"The Provider could not detach the managed font mapping.", 0);
+        }
+        return nil;
+    }
+    return @{
+        @"operation" : @"detachProviderSystemFontsForPackageLifecycle",
+        @"reportedSuccess" : @YES,
+        @"aliasWasPresent" : @(aliasPresent),
+        @"providerCompatibility" : compatibility[@"compatibility"],
+        @"providerDetachMayForce" : @YES,
+        @"unmount" : execution,
+    };
 }
 
 NSDictionary<NSString *, id> *FMRefreshProviderForPreparedSystemFonts(

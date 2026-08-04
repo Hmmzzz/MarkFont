@@ -779,12 +779,12 @@ static NSDictionary<NSString *, id> *FMValidatedPreparedStockMountPreflight(
         return nil;
     }
 
-    BOOL preferencePresent = NO;
-    if (!FMProviderPreferenceExists(&preferencePresent, &inspectionError) ||
-        preferencePresent) {
+    BOOL autoMountConflict = NO;
+    if (!FMProviderAutoMountConflictsWithSystemFonts(
+            &autoMountConflict, &inspectionError) || autoMountConflict) {
         FMDeviceMountEngineFail(
             error, 7,
-            @"Provider automatic mounting must remain unconfigured for activation.",
+            @"Provider automatic mounting must not target Fonts during activation.",
             inspectionError);
         return nil;
     }
@@ -1049,14 +1049,15 @@ NSDictionary<NSString *, id> *FMMountPreparedDeviceStock(
 
     NSError *postError = nil;
     BOOL aliasPresent = NO;
-    BOOL preferencePresent = NO;
+    BOOL autoMountConflict = NO;
     NSDictionary *postInspection = FMCreateDeviceProviderInspection(&postError);
     NSDictionary *postDecision = postInspection != nil
         ? FMCoordinateProviderInspection(postInspection, &postError)
         : nil;
     BOOL pathsValid =
-        FMProviderPreferenceExists(&preferencePresent, &postError) &&
-        !preferencePresent &&
+        FMProviderAutoMountConflictsWithSystemFonts(
+            &autoMountConflict, &postError) &&
+        !autoMountConflict &&
         FMValidateProviderAlias(YES, &aliasPresent, &postError) && aliasPresent;
     if (!pathsValid || postInspection == nil || postDecision == nil ||
         !FMPostMountInspectionIsExactStock(

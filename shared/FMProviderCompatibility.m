@@ -192,5 +192,5 @@ BOOL FMProviderEvidenceSatisfiesCompatibilityContract(
         [provider[@"supportsUnmount"] boolValue] &&
         [provider[@"compatible"] boolValue] &&
         [provider[@"rootConfigurationSupported"] boolValue] &&
-        ![provider[@"preferencePresent"] boolValue];
+        ![provider[@"autoMountConflictsWithFonts"] boolValue];
 }

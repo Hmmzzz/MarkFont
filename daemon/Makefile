@@ -27,6 +27,7 @@ fontmanagerd_FILES = main.m \
     ../shared/FMDevicePackageLifecycle.m \
     ../shared/FMProviderCoordinator.m ../shared/FMProviderInspection.m \
     ../shared/FMProviderCompatibility.m \
+    ../shared/FMProviderAutoMountPolicy.m \
     ../shared/FMProviderPaths.m \
     ../shared/FMProviderExecutor.m \
     ../shared/FMMirrorPreparation.m ../shared/FMSecureDirectory.m \

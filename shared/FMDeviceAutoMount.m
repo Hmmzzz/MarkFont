@@ -441,13 +441,14 @@ static NSDictionary<NSString *, id> *_Nullable FMAutoMountLocked(
 
     NSDictionary *postMountFacts = FMAutoMountTargetFacts(&inspectionError);
     BOOL finalAliasPresent = NO;
-    BOOL finalPreferencePresent = NO;
+    BOOL finalAutoMountConflict = NO;
     BOOL mappingExact = postMountFacts != nil &&
         [postMountFacts[@"managed"] boolValue] &&
         FMValidateProviderAlias(YES, &finalAliasPresent, &inspectionError) &&
         finalAliasPresent &&
-        FMProviderPreferenceExists(&finalPreferencePresent, &inspectionError) &&
-        !finalPreferencePresent;
+        FMProviderAutoMountConflictsWithSystemFonts(
+            &finalAutoMountConflict, &inspectionError) &&
+        !finalAutoMountConflict;
     if (!mappingExact) {
         FMAutoMountSetError(
             error, 6,

@@ -12,6 +12,13 @@ FOUNDATION_EXPORT NSString *const FMProviderExecutorErrorDomain;
 NSDictionary<NSString *, id> * _Nullable
 FMInvokeProviderForPreparedSystemFonts(NSError **error);
 
+// Detaches the exact managed Fonts mapping for an explicit package lifecycle
+// operation. The Provider option and target are fixed; callers cannot supply
+// an executable, option, or path. The current Provider may force this detach,
+// so callers must first prove ownership/content and then verify exposed Stock.
+NSDictionary<NSString *, id> * _Nullable
+FMDetachProviderSystemFontsForPackageLifecycle(NSError **error);
+
 // Refreshes the already-managed Fonts mapping after atomic mirror updates.
 // The fixed Provider unmount exposes the original read-only system directory;
 // the fixed --skip-copy mount then reconnects the prepared mirror. No caller-

@@ -637,7 +637,8 @@ FMPackageConfigureFreshInstallation(NSString *systemBuild, NSError **error) {
             @"mirrorPrepared" : preparation != nil ? @YES : @NO,
             @"providerInvoked" :
                 [activation[@"providerInvoked"] boolValue] ||
-                    [legacyActivation[@"providerInvoked"] boolValue]
+                    [legacyActivation[@"providerInvoked"] boolValue] ||
+                    [takeover[@"providerInvoked"] boolValue]
                 ? @YES : @NO,
             @"filesystemMutated" : @YES,
             @"mappingChanged" :
@@ -663,6 +664,21 @@ FMPackageConfigureFreshInstallation(NSString *systemBuild, NSError **error) {
     return result;
 }
 
+static NSDictionary<NSString *, id> *FMPackageReportWithProviderAdjustment(
+    NSDictionary<NSString *, id> *report,
+    NSDictionary<NSString *, id> *adjustment) {
+    if (report == nil || adjustment == nil) return report;
+    NSMutableDictionary *result = [report mutableCopy];
+    result[@"providerPreferencePresent"] = adjustment[@"preferencePresent"];
+    result[@"providerFontsAutoMountChanged"] = adjustment[@"changed"];
+    result[@"providerFontsAutoMountConflictedBefore"] =
+        adjustment[@"conflictedBefore"];
+    result[@"providerAutoMountEnabledAfter"] = adjustment[@"enabledAfter"];
+    result[@"providerAutoMountRemainingPathCount"] =
+        @([adjustment[@"remainingPaths"] count]);
+    return result;
+}
+
 NSDictionary<NSString *, id> *FMConfigureInstalledDevicePackage(
     NSError **error) {
     if (!FMPackageRequireManagerRoot(error)) return nil;
@@ -676,6 +692,16 @@ NSDictionary<NSString *, id> *FMConfigureInstalledDevicePackage(
     }
 
     NSError *inspectionError = nil;
+    NSDictionary *providerAdjustment =
+        FMDisableProviderAutoMountForSystemFonts(&inspectionError);
+    if (providerAdjustment == nil) {
+        FMPackageLifecycleFail(
+            error, 2,
+            @"Provider automatic mounting for the system Fonts tree could not be disabled.",
+            inspectionError);
+        return nil;
+    }
+
     BOOL statePresent = NO;
     NSDictionary *state = FMPackageReadState(
         systemBuild, &statePresent, &inspectionError);
@@ -732,7 +758,7 @@ NSDictionary<NSString *, id> *FMConfigureInstalledDevicePackage(
                 inspectionError ?: releaseError);
             return nil;
         }
-        return @{
+        return FMPackageReportWithProviderAdjustment(@{
             @"schemaVersion" : @1,
             @"operation" : @"packageConfigure",
             @"status" : @"legacyImportResumed",
@@ -747,13 +773,16 @@ NSDictionary<NSString *, id> *FMConfigureInstalledDevicePackage(
             @"legacyReplacementCount" : takeover[@"replacementCount"],
             @"legacySourceRemoved" : takeover[@"legacySourceRemoved"],
             @"legacyContentCompared" : takeover[@"contentCompared"],
-            @"providerInvoked" : legacyActivation[@"providerInvoked"],
+            @"providerInvoked" :
+                [legacyActivation[@"providerInvoked"] boolValue] ||
+                    [takeover[@"providerInvoked"] boolValue]
+                ? @YES : @NO,
             @"filesystemMutated" : @YES,
             @"mappingChanged" : legacyActivation[@"mappingChanged"],
             @"stateChanged" : legacyActivation[@"stateChanged"],
             @"restartRequired" : @NO,
             @"restartRequested" : @NO,
-        };
+        }, providerAdjustment);
     }
     if (statePresent) {
         NSDictionary *targetFacts = FMPackageTargetFacts(&inspectionError);
@@ -796,7 +825,7 @@ NSDictionary<NSString *, id> *FMConfigureInstalledDevicePackage(
             mappingManaged = [autoMountReport[@"status"] isEqual:@"mounted"] ||
                 [autoMountReport[@"status"] isEqual:@"alreadyMounted"];
         }
-        return @{
+        return FMPackageReportWithProviderAdjustment(@{
             @"schemaVersion" : @1,
             @"operation" : @"packageConfigure",
             @"status" : mappingManaged ? @"alreadyConfigured"
@@ -811,9 +840,11 @@ NSDictionary<NSString *, id> *FMConfigureInstalledDevicePackage(
                 ? autoMountReport[@"mappingChanged"] : @NO,
             @"stateChanged" : @NO,
             @"restartRequested" : @NO,
-        };
+        }, providerAdjustment);
     }
-    return FMPackageConfigureFreshInstallation(systemBuild, error);
+    return FMPackageReportWithProviderAdjustment(
+        FMPackageConfigureFreshInstallation(systemBuild, error),
+        providerAdjustment);
 }
 
 static BOOL FMPackageRemovalInspectionIsExactStock(
@@ -910,7 +941,9 @@ static NSDictionary<NSString *, id> *_Nullable FMPackageMarkInactiveRemovalReady
         @"mappingWasActive" : @NO,
         @"mappingChanged" : @NO,
         @"unmountAttempted" : @NO,
-        @"nonForceUnmount" : @YES,
+        @"unmountMethod" : @"notRequired",
+        @"providerDetachMayForce" : @NO,
+        @"providerInvoked" : @NO,
         @"cleanupAuthorized" : @YES,
         @"filesystemMutated" : @YES,
         @"stateChanged" : @NO,
@@ -931,7 +964,9 @@ static NSDictionary<NSString *, id> *FMPackageExternalDataPreserved(
         @"mappingWasActive" : mappingActive ? @YES : @NO,
         @"mappingChanged" : @NO,
         @"unmountAttempted" : @NO,
-        @"nonForceUnmount" : @YES,
+        @"unmountMethod" : @"notRequired",
+        @"providerDetachMayForce" : @NO,
+        @"providerInvoked" : @NO,
         @"cleanupAuthorized" : @NO,
         @"filesystemMutated" : @NO,
         @"stateChanged" : @NO,
@@ -963,7 +998,9 @@ FMPackageMarkExternalRemovalReady(NSString *systemBuild,
         @"mappingWasActive" : @NO,
         @"mappingChanged" : @NO,
         @"unmountAttempted" : @NO,
-        @"nonForceUnmount" : @YES,
+        @"unmountMethod" : @"notRequired",
+        @"providerDetachMayForce" : @NO,
+        @"providerInvoked" : @NO,
         @"cleanupAuthorized" : @YES,
         @"filesystemMutated" : @YES,
         @"stateChanged" : @NO,
@@ -1000,6 +1037,7 @@ NSDictionary<NSString *, id> *FMPrepareDevicePackageRemoval(
             operationError);
         return nil;
     }
+    NSDictionary *providerAdjustment = nil;
     if (engineOwned) {
         BOOL mirrorOwned = NO;
         if (!FMPackageMarkerPresent(FMMirrorOwnershipLogicalPath,
@@ -1041,6 +1079,15 @@ NSDictionary<NSString *, id> *FMPrepareDevicePackageRemoval(
         if (error != NULL) *error = operationError;
         return nil;
     }
+    providerAdjustment =
+        FMDisableProviderAutoMountForSystemFonts(&operationError);
+    if (providerAdjustment == nil) {
+        FMPackageLifecycleFail(
+            error, 3,
+            @"Provider automatic mounting for Fonts could not be disabled before removal.",
+            operationError);
+        return nil;
+    }
     if (targetDisposition == FMFontTargetDispositionUnexpected) {
         FMPackageLifecycleFail(
             error, 4,
@@ -1049,7 +1096,9 @@ NSDictionary<NSString *, id> *FMPrepareDevicePackageRemoval(
         return nil;
     }
     if (targetDisposition == FMFontTargetDispositionInactive) {
-        return FMPackageMarkInactiveRemovalReady(systemBuild, error);
+        return FMPackageReportWithProviderAdjustment(
+            FMPackageMarkInactiveRemovalReady(systemBuild, error),
+            providerAdjustment);
     }
 
     BOOL statePresent = NO;
@@ -1112,19 +1161,14 @@ NSDictionary<NSString *, id> *FMPrepareDevicePackageRemoval(
         return nil;
     }
 
-    errno = 0;
-    int unmountResult = unmount(
-        FMProviderSystemFontsLogicalPath.fileSystemRepresentation, 0);
-    int unmountError = unmountResult == 0 ? 0 : errno;
-    if (unmountResult != 0) {
+    NSDictionary *providerDetachment =
+        FMDetachProviderSystemFontsForPackageLifecycle(&operationError);
+    if (providerDetachment == nil) {
         FMReleaseExclusiveDirectoryLock(lock, NULL);
-        BOOL retryAfterReboot = unmountError == EBUSY || unmountError == EPERM;
         FMPackageLifecycleFail(
-            error, retryAfterReboot ? 9 : 7,
-            retryAfterReboot
-                ? @"The non-force font mapping could not detach in this session. Reboot, re-jailbreak, and retry removal; automatic mounting is now disabled."
-                : @"The non-force font unmount failed; removal was stopped.",
-            FMPackagePOSIXError(unmountError));
+            error, 7,
+            @"The verified Provider could not detach the Stock font mapping for removal.",
+            operationError);
         return nil;
     }
 
@@ -1145,7 +1189,7 @@ NSDictionary<NSString *, id> *FMPrepareDevicePackageRemoval(
         return nil;
     }
 
-    return @{
+    return FMPackageReportWithProviderAdjustment(@{
         @"schemaVersion" : @1,
         @"operation" : @"packagePrepareRemoval",
         @"status" : @"ready",
@@ -1155,12 +1199,16 @@ NSDictionary<NSString *, id> *FMPrepareDevicePackageRemoval(
         @"mappingWasActive" : @YES,
         @"mappingChanged" : @YES,
         @"stockStagePerformed" : stockStagePerformed ? @YES : @NO,
-        @"unmountFlags" : @0,
         @"unmountAttempted" : @YES,
-        @"nonForceUnmount" : @YES,
+        @"unmountMethod" : @"providerFixedUnmount",
+        @"providerDetachMayForce" :
+            providerDetachment[@"providerDetachMayForce"],
+        @"providerInvoked" : @YES,
+        @"providerDetachReportedSuccess" :
+            providerDetachment[@"reportedSuccess"],
         @"cleanupAuthorized" : @YES,
         @"filesystemMutated" : @YES,
         @"stateChanged" : stateChanged ? @YES : @NO,
         @"restartRequested" : @NO,
-    };
+    }, providerAdjustment);
 }

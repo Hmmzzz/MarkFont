@@ -286,6 +286,15 @@ NSDictionary<NSString *, id> *FMCreateDeviceProviderInspection(NSError **error) 
     NSString *providerRootLogicalPath =
         FMProviderResolvedRootLogicalPath(&providerRootSupported,
                                           &providerPreferencePresent);
+    NSError *providerPreferenceError = nil;
+    NSDictionary *providerAutoMount =
+        FMProviderAutoMountConfiguration(&providerPreferenceError);
+    if (providerAutoMount == nil) {
+        if (error != NULL) *error = providerPreferenceError;
+        return nil;
+    }
+    BOOL providerAutoMountConflictsWithFonts =
+        [providerAutoMount[@"conflictsWithFonts"] boolValue];
     NSString *providerRootPath = jbroot(providerRootLogicalPath);
     NSString *mirrorPath = [providerRootPath
         stringByAppendingPathComponent:@"System/Library/Fonts"];
@@ -341,7 +350,7 @@ NSDictionary<NSString *, id> *FMCreateDeviceProviderInspection(NSError **error) 
         [providerStatus[@"packageInstalled"] boolValue] &&
         providerVersion.length > 0 &&
         [compatibility[@"compatible"] boolValue] &&
-        providerRootSupported && !providerPreferencePresent;
+        providerRootSupported && !providerAutoMountConflictsWithFonts;
 
     BOOL statePresent = [stateStatus[@"present"] boolValue];
     BOOL stateValid = [stateStatus[@"valid"] boolValue];
@@ -386,6 +395,8 @@ NSDictionary<NSString *, id> *FMCreateDeviceProviderInspection(NSError **error) 
             @"supportsUnmount" : compatibility[@"supportsUnmount"],
             @"rootConfigurationSupported" : FMJSONBoolean(providerRootSupported),
             @"preferencePresent" : FMJSONBoolean(providerPreferencePresent),
+            @"autoMountConflictsWithFonts" :
+                FMJSONBoolean(providerAutoMountConflictsWithFonts),
         },
         @"fonts" : @{
             @"systemReadable" : FMJSONBoolean(

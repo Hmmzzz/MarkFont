@@ -22,8 +22,19 @@ NSString *FMProviderResolvedRootLogicalPath(BOOL * _Nullable supported,
 NSString *FMProviderResolvedMirrorLogicalPath(BOOL * _Nullable supported,
                                               BOOL * _Nullable preferencePresent);
 
-// Distinguishes an absent preference from an unreadable filesystem error.
-BOOL FMProviderPreferenceExists(BOOL *present, NSError **error);
+// Reads the Provider plist according to its actual Enable/path semantics.
+// A present preference is compatible when it does not currently auto-mount a
+// target overlapping /System/Library/Fonts.
+NSDictionary<NSString *, id> *_Nullable
+FMProviderAutoMountConfiguration(NSError **error);
+BOOL FMProviderAutoMountConflictsWithSystemFonts(BOOL *conflicts,
+                                                 NSError **error);
+
+// Package-install takeover helper. Removes only automatic-mount targets that
+// overlap the managed Fonts tree, preserving all unrelated Provider targets.
+// If no targets remain, the preference is retained with Enable=false.
+NSDictionary<NSString *, id> *_Nullable
+FMDisableProviderAutoMountForSystemFonts(NSError **error);
 
 // Validates the Provider-created alias without exposing or persisting the
 // randomized physical jbroot. A missing alias is acceptable only when

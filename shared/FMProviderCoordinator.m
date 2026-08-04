@@ -4,7 +4,7 @@
 
 #import "FMProviderCompatibility.h"
 
-NSInteger const FMProviderInspectionSchemaVersion = 2;
+NSInteger const FMProviderInspectionSchemaVersion = 3;
 NSInteger const FMProviderDecisionVersion = 4;
 NSString *const FMProviderCoordinatorErrorDomain = @"com.hmmzzz.fontmanager.providercoordinator";
 
@@ -132,7 +132,8 @@ BOOL FMValidateProviderInspection(id object, NSError **error) {
         !FMRequireBool(provider, @"supportsSkipCopy", error) ||
         !FMRequireBool(provider, @"supportsUnmount", error) ||
         !FMRequireBool(provider, @"rootConfigurationSupported", error) ||
-        !FMRequireBool(provider, @"preferencePresent", error)) {
+        !FMRequireBool(provider, @"preferencePresent", error) ||
+        !FMRequireBool(provider, @"autoMountConflictsWithFonts", error)) {
         return error == NULL || *error == nil
                    ? FMCoordinatorFail(error, @"Invalid Provider evidence.")
                    : NO;

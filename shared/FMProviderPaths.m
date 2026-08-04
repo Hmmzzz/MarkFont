@@ -6,6 +6,9 @@
 #import <string.h>
 #import <sys/mount.h>
 #import <sys/stat.h>
+#import <unistd.h>
+
+#import "FMProviderAutoMountPolicy.h"
 
 NSString *const FMProviderPackageIdentifier = @"com.nan.bindfs";
 NSString *const FMProviderExecutableLogicalPath = @"/usr/bin/mount_bindfs";
@@ -39,47 +42,215 @@ static BOOL FMProviderPathsFail(NSError **error,
     return NO;
 }
 
-BOOL FMProviderPreferenceExists(BOOL *present, NSError **error) {
+static void FMProviderPathsSetUnderlyingError(NSError **error,
+                                              NSInteger code,
+                                              NSString *description,
+                                              NSError *underlying) {
+    if (error == NULL) return;
+    NSMutableDictionary *userInfo = [NSMutableDictionary dictionaryWithObject:
+        description forKey:NSLocalizedDescriptionKey];
+    if (underlying != nil) userInfo[NSUnderlyingErrorKey] = underlying;
+    *error = [NSError errorWithDomain:FMProviderPathsErrorDomain
+                                 code:code
+                             userInfo:userInfo];
+}
+
+static NSDictionary<NSString *, id> *_Nullable FMProviderLoadPreference(
+    BOOL *present,
+    NSPropertyListFormat *format,
+    struct stat *metadata,
+    NSError **error) {
     if (present == NULL) {
-        return FMProviderPathsFail(error, 1,
-                                   @"Provider preference output is required.", 0);
+        FMProviderPathsFail(error, 1,
+                            @"Provider preference output is required.", 0);
+        return nil;
     }
+    NSString *path = jbroot(FMProviderPreferenceLogicalPath);
     struct stat info = {0};
-    if (lstat(jbroot(FMProviderPreferenceLogicalPath).fileSystemRepresentation,
-              &info) == 0) {
-        *present = YES;
-        return YES;
-    }
-    if (errno == ENOENT) {
+    errno = 0;
+    if (lstat(path.fileSystemRepresentation, &info) != 0) {
+        if (errno == ENOENT) {
+            *present = NO;
+            return @{};
+        }
+        int savedError = errno;
         *present = NO;
-        return YES;
+        FMProviderPathsFail(error, 2,
+                            @"The Provider preference could not be inspected.",
+                            savedError);
+        return nil;
     }
-    *present = NO;
-    return FMProviderPathsFail(error, 2,
-                               @"The Provider preference could not be inspected.",
-                               errno);
+    *present = YES;
+    if (!S_ISREG(info.st_mode)) {
+        FMProviderPathsFail(error, 2,
+                            @"The Provider preference is not a regular file.",
+                            EINVAL);
+        return nil;
+    }
+
+    NSError *readError = nil;
+    NSData *data = [NSData dataWithContentsOfFile:path
+                                         options:0
+                                           error:&readError];
+    NSPropertyListFormat detectedFormat = NSPropertyListXMLFormat_v1_0;
+    id object = data != nil
+        ? [NSPropertyListSerialization propertyListWithData:data
+                                                    options:NSPropertyListImmutable
+                                                     format:&detectedFormat
+                                                      error:&readError]
+        : nil;
+    if (![object isKindOfClass:NSDictionary.class]) {
+        FMProviderPathsSetUnderlyingError(
+            error, 2, @"The Provider preference is not a valid dictionary.",
+            readError);
+        return nil;
+    }
+    if (format != NULL) *format = detectedFormat;
+    if (metadata != NULL) *metadata = info;
+    return object;
+}
+
+NSDictionary<NSString *, id> *FMProviderAutoMountConfiguration(
+    NSError **error) {
+    BOOL present = NO;
+    NSDictionary *preference = FMProviderLoadPreference(
+        &present, NULL, NULL, error);
+    if (preference == nil) return nil;
+    if (!present) {
+        return @{
+            @"preferencePresent" : @NO,
+            @"enabled" : @NO,
+            @"pathsValid" : @YES,
+            @"paths" : @[],
+            @"fontsConfigured" : @NO,
+            @"conflictsWithFonts" : @NO,
+            @"rootSupported" : @YES,
+        };
+    }
+    NSMutableDictionary *configuration =
+        [FMAnalyzeProviderAutoMountPreference(preference) mutableCopy];
+    configuration[@"preferencePresent"] = @YES;
+    return configuration;
+}
+
+BOOL FMProviderAutoMountConflictsWithSystemFonts(BOOL *conflicts,
+                                                 NSError **error) {
+    if (conflicts == NULL) {
+        return FMProviderPathsFail(
+            error, 1, @"Provider automatic-mount conflict output is required.", 0);
+    }
+    NSDictionary *configuration = FMProviderAutoMountConfiguration(error);
+    if (configuration == nil) {
+        *conflicts = YES;
+        return NO;
+    }
+    *conflicts = [configuration[@"conflictsWithFonts"] boolValue];
+    return YES;
+}
+
+NSDictionary<NSString *, id> *FMDisableProviderAutoMountForSystemFonts(
+    NSError **error) {
+    if (getuid() != 0 || geteuid() != 0) {
+        FMProviderPathsFail(
+            error, 7,
+            @"Changing Provider automatic mounting requires a real root caller.",
+            EPERM);
+        return nil;
+    }
+
+    BOOL present = NO;
+    NSPropertyListFormat format = NSPropertyListXMLFormat_v1_0;
+    struct stat metadata = {0};
+    NSDictionary *preference = FMProviderLoadPreference(
+        &present, &format, &metadata, error);
+    if (preference == nil) return nil;
+    NSDictionary *before = present
+        ? FMAnalyzeProviderAutoMountPreference(preference)
+        : FMProviderAutoMountConfiguration(error);
+    if (before == nil) return nil;
+    if (!present || ![before[@"conflictsWithFonts"] boolValue]) {
+        return @{
+            @"preferencePresent" : present ? @YES : @NO,
+            @"changed" : @NO,
+            @"conflictedBefore" : @NO,
+            @"conflictsAfter" : @NO,
+            @"remainingPaths" : before[@"paths"] ?: @[],
+            @"enabledAfter" : before[@"enabled"] ?: @NO,
+        };
+    }
+    if (![before[@"rootSupported"] boolValue]) {
+        FMProviderPathsFail(
+            error, 7,
+            @"The Provider root is unsupported for automatic Fonts takeover.",
+            EINVAL);
+        return nil;
+    }
+
+    BOOL changed = NO;
+    NSError *policyError = nil;
+    NSDictionary *updated =
+        FMProviderAutoMountPreferenceByRemovingSystemFonts(
+            preference, &changed, &policyError);
+    if (updated == nil || !changed) {
+        FMProviderPathsSetUnderlyingError(
+            error, 7,
+            @"The Provider Fonts automatic-mount entry could not be removed.",
+            policyError);
+        return nil;
+    }
+
+    NSPropertyListFormat outputFormat =
+        format == NSPropertyListBinaryFormat_v1_0
+            ? NSPropertyListBinaryFormat_v1_0
+            : NSPropertyListXMLFormat_v1_0;
+    NSError *writeError = nil;
+    NSData *data = [NSPropertyListSerialization
+        dataWithPropertyList:updated
+                      format:outputFormat
+                     options:0
+                       error:&writeError];
+    NSString *path = jbroot(FMProviderPreferenceLogicalPath);
+    if (data == nil ||
+        ![data writeToFile:path options:NSDataWritingAtomic error:&writeError]) {
+        FMProviderPathsSetUnderlyingError(
+            error, 7,
+            @"The Provider preference could not be updated atomically.",
+            writeError);
+        return nil;
+    }
+    if (chown(path.fileSystemRepresentation, metadata.st_uid, metadata.st_gid) != 0 ||
+        chmod(path.fileSystemRepresentation, metadata.st_mode & 0777) != 0) {
+        FMProviderPathsFail(
+            error, 7,
+            @"The updated Provider preference metadata could not be preserved.",
+            errno);
+        return nil;
+    }
+
+    NSDictionary *after = FMProviderAutoMountConfiguration(&writeError);
+    if (after == nil || [after[@"conflictsWithFonts"] boolValue]) {
+        FMProviderPathsSetUnderlyingError(
+            error, 7,
+            @"Provider Fonts automatic mounting remained enabled after update.",
+            writeError);
+        return nil;
+    }
+    return @{
+        @"preferencePresent" : @YES,
+        @"changed" : @YES,
+        @"conflictedBefore" : @YES,
+        @"conflictsAfter" : @NO,
+        @"remainingPaths" : after[@"paths"],
+        @"enabledAfter" : after[@"enabled"],
+    };
 }
 
 NSString *FMProviderResolvedRootLogicalPath(BOOL *supported,
                                             BOOL *preferencePresent) {
-    BOOL localSupported = NO;
-    BOOL localPreferencePresent = NO;
-    NSString *preferencePath = jbroot(FMProviderPreferenceLogicalPath);
-    struct stat info = {0};
-    if (lstat(preferencePath.fileSystemRepresentation, &info) != 0) {
-        localSupported = errno == ENOENT;
-    } else {
-        localPreferencePresent = YES;
-        if (S_ISREG(info.st_mode)) {
-            NSDictionary *preference =
-                [NSDictionary dictionaryWithContentsOfFile:preferencePath];
-            NSString *configuredRoot =
-                [preference[@"root"] isKindOfClass:NSString.class]
-                    ? preference[@"root"]
-                    : nil;
-            localSupported = [configuredRoot isEqual:@".jbroot/bindfs"];
-        }
-    }
+    NSDictionary *configuration = FMProviderAutoMountConfiguration(NULL);
+    BOOL localSupported = [configuration[@"rootSupported"] boolValue];
+    BOOL localPreferencePresent =
+        [configuration[@"preferencePresent"] boolValue];
     if (supported != NULL) {
         *supported = localSupported;
     }
