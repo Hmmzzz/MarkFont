@@ -2,6 +2,32 @@
 
 set -e
 
+request_sileo_reload() {
+  if [ -z "${SILEO:-}" ]; then
+    return 0
+  fi
+
+  sileo_fd=
+  sileo_version=
+  read -r sileo_fd sileo_version <<EOF
+${SILEO}
+EOF
+  case "$sileo_fd" in
+    ''|*[!0-9]*) return 0 ;;
+  esac
+  case "$sileo_version" in
+    ''|*[!0-9]*) return 0 ;;
+  esac
+  if [ "$sileo_version" -lt 1 ]; then
+    return 0
+  fi
+
+  # Sileo maps finish:reload to its user-controlled Restart SpringBoard
+  # action. A closed control fd must not turn successful cleanup into a
+  # failed dpkg removal.
+  printf '%s\n' 'finish:reload' 2>/dev/null >&"$sileo_fd" || true
+}
+
 remove_exact_tree() {
   case "$1" in
     /var/lib/fontmanager|\
@@ -99,6 +125,7 @@ case "${1:-}" in
     if [ "$engine_owned" -eq 1 ]; then
       remove_exact_tree /var/lib/fontmanager
     fi
+    request_sileo_reload
     ;;
   upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
     # Never delete runtime data from an upgrade or dpkg error unwind.
