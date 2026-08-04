@@ -1,12 +1,12 @@
-#import "FMProviderAutoMountPolicy.h"
+#import "FMLegacyProviderAutoMountPolicy.h"
 
-NSString *const FMProviderAutoMountPolicyErrorDomain =
+NSString *const FMLegacyProviderAutoMountPolicyErrorDomain =
     @"com.hmmzzz.fontmanager.provider-auto-mount-policy";
 
-static NSString *const FMProviderSystemFontsPath = @"/System/Library/Fonts";
-static NSString *const FMProviderSupportedRoot = @".jbroot/bindfs";
+static NSString *const FMLegacyProviderSystemFontsPath = @"/System/Library/Fonts";
+static NSString *const FMLegacyProviderSupportedRoot = @".jbroot/bindfs";
 
-static BOOL FMProviderPathIsEqualOrDescendant(NSString *path,
+static BOOL FMLegacyProviderPathIsEqualOrDescendant(NSString *path,
                                               NSString *root) {
     if ([path isEqual:root]) return YES;
     NSString *prefix = [root isEqual:@"/"]
@@ -14,17 +14,17 @@ static BOOL FMProviderPathIsEqualOrDescendant(NSString *path,
     return [path hasPrefix:prefix];
 }
 
-static BOOL FMProviderPathOverlapsSystemFonts(NSString *path) {
+static BOOL FMLegacyProviderPathOverlapsSystemFonts(NSString *path) {
     if (![path isKindOfClass:NSString.class] || !path.isAbsolutePath) {
         return NO;
     }
     NSString *candidate = path.stringByStandardizingPath;
-    NSString *fonts = FMProviderSystemFontsPath.stringByStandardizingPath;
-    return FMProviderPathIsEqualOrDescendant(candidate, fonts) ||
-        FMProviderPathIsEqualOrDescendant(fonts, candidate);
+    NSString *fonts = FMLegacyProviderSystemFontsPath.stringByStandardizingPath;
+    return FMLegacyProviderPathIsEqualOrDescendant(candidate, fonts) ||
+        FMLegacyProviderPathIsEqualOrDescendant(fonts, candidate);
 }
 
-static NSArray *FMProviderConfiguredPaths(NSDictionary *preference,
+static NSArray *FMLegacyProviderConfiguredPaths(NSDictionary *preference,
                                           BOOL *valid) {
     id value = preference[@"path"];
     if (value == nil) {
@@ -46,16 +46,16 @@ static NSArray *FMProviderConfiguredPaths(NSDictionary *preference,
     return value;
 }
 
-NSDictionary<NSString *, id> *FMAnalyzeProviderAutoMountPreference(
+NSDictionary<NSString *, id> *FMAnalyzeLegacyProviderAutoMountPreference(
     NSDictionary<NSString *, id> *preference) {
     BOOL pathsValid = NO;
-    NSArray *paths = FMProviderConfiguredPaths(preference, &pathsValid);
+    NSArray *paths = FMLegacyProviderConfiguredPaths(preference, &pathsValid);
     BOOL enabled = [preference[@"Enable"] isKindOfClass:NSNumber.class] &&
         [preference[@"Enable"] boolValue];
     BOOL fontsConfigured = NO;
     if (pathsValid) {
         for (NSString *path in paths) {
-            if (FMProviderPathOverlapsSystemFonts(path)) {
+            if (FMLegacyProviderPathOverlapsSystemFonts(path)) {
                 fontsConfigured = YES;
                 break;
             }
@@ -69,35 +69,35 @@ NSDictionary<NSString *, id> *FMAnalyzeProviderAutoMountPreference(
         @"paths" : pathsValid ? paths : @[],
         @"fontsConfigured" : fontsConfigured ? @YES : @NO,
         @"conflictsWithFonts" : enabled && fontsConfigured ? @YES : @NO,
-        @"rootSupported" : [root isEqual:FMProviderSupportedRoot] ? @YES : @NO,
+        @"rootSupported" : [root isEqual:FMLegacyProviderSupportedRoot] ? @YES : @NO,
     };
 }
 
 NSDictionary<NSString *, id> *
-FMProviderAutoMountPreferenceByRemovingSystemFonts(
+FMLegacyProviderAutoMountPreferenceByRemovingSystemFonts(
     NSDictionary<NSString *, id> *preference,
     BOOL *changed,
     NSError **error) {
     if (changed == NULL) {
         if (error != NULL) {
-            *error = [NSError errorWithDomain:FMProviderAutoMountPolicyErrorDomain
+            *error = [NSError errorWithDomain:FMLegacyProviderAutoMountPolicyErrorDomain
                                          code:1
                                      userInfo:@{
                                          NSLocalizedDescriptionKey :
-                                             @"Provider preference change output is required."
+                                             @"legacy Provider preference change output is required."
                                      }];
         }
         return nil;
     }
     *changed = NO;
-    NSDictionary *analysis = FMAnalyzeProviderAutoMountPreference(preference);
+    NSDictionary *analysis = FMAnalyzeLegacyProviderAutoMountPreference(preference);
     if (![analysis[@"conflictsWithFonts"] boolValue]) {
         return [preference copy];
     }
 
     NSMutableArray *remaining = [NSMutableArray array];
     for (NSString *path in analysis[@"paths"]) {
-        if (!FMProviderPathOverlapsSystemFonts(path)) {
+        if (!FMLegacyProviderPathOverlapsSystemFonts(path)) {
             [remaining addObject:path];
         }
     }

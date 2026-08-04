@@ -16,9 +16,9 @@
 #import "FMFileStore.h"
 #import "FMOperationLock.h"
 #import "FMProfileEngine.h"
-#import "FMProviderCompatibility.h"
-#import "FMProviderExecutor.h"
-#import "FMProviderPaths.h"
+#import "FMMountBackendCompatibility.h"
+#import "FMMountBackendExecutor.h"
+#import "FMMountPaths.h"
 #import "FMRestartRequest.h"
 
 NSString *const FMDeviceRestartCoordinatorErrorDomain =
@@ -214,6 +214,54 @@ static NSDictionary<NSString *, id> *FMDeviceRestartBootEvidence(NSError **error
     return evidence;
 }
 
+static NSDictionary<NSString *, id> *_Nullable FMDeviceRestartReadRequest(
+    NSString *confirmedSystemBuild,
+    BOOL *missing,
+    NSError **error) {
+    if (missing != NULL) *missing = NO;
+    NSString *requestPath = jbroot(FMRestartRequestLogicalPath);
+    struct stat requestInfo = {0};
+    errno = 0;
+    if (lstat(requestPath.fileSystemRepresentation, &requestInfo) != 0) {
+        int savedError = errno;
+        if (savedError == ENOENT) {
+            if (missing != NULL) *missing = YES;
+            return nil;
+        }
+        FMDeviceRestartFail(
+            error, 11, @"The restart request marker could not be inspected.",
+            [NSError errorWithDomain:NSPOSIXErrorDomain
+                                code:savedError
+                            userInfo:nil]);
+        return nil;
+    }
+
+    BOOL metadataValid = S_ISREG(requestInfo.st_mode) &&
+        requestInfo.st_uid == 0 &&
+        (requestInfo.st_mode & 0777) == 0600;
+    if (!metadataValid) {
+        FMDeviceRestartFail(
+            error, 11, @"The restart request marker is invalid.",
+            [NSError errorWithDomain:NSPOSIXErrorDomain
+                                code:EPERM
+                            userInfo:nil]);
+        return nil;
+    }
+
+    NSError *readError = nil;
+    id requestObject = FMReadJSONObjectAtPath(requestPath, &readError);
+    NSError *validationError = nil;
+    if (![requestObject isKindOfClass:NSDictionary.class] ||
+        !FMValidateRestartRequestDocument(requestObject, &validationError) ||
+        ![requestObject[@"systemBuild"] isEqual:confirmedSystemBuild]) {
+        FMDeviceRestartFail(
+            error, 11, @"The restart request marker is invalid.",
+            validationError ?: readError);
+        return nil;
+    }
+    return requestObject;
+}
+
 static BOOL FMDeviceRestartRequireExecutable(NSError **error) {
     NSString *path = jbroot(FMUserspaceRebootExecutableLogicalPath);
     struct stat info = {0};
@@ -277,18 +325,18 @@ NSDictionary<NSString *, id> *FMCreateDeviceUserspaceRebootPreflight(
     }
     id workingProfileID = state[@"workingProfileID"];
     NSError *compatibilityError = nil;
-    NSDictionary *providerCompatibility =
-        FMInspectProviderExecutableCompatibilityAtPath(
-            jbroot(FMProviderExecutableLogicalPath), &compatibilityError);
-    if (providerCompatibility == nil ||
-        ![providerCompatibility[@"compatible"] boolValue]) {
+    NSDictionary *mountBackendCompatibility =
+        FMInspectMountBackendCompatibilityAtPath(
+            jbroot(FMMountBackendExecutableLogicalPath), &compatibilityError);
+    if (mountBackendCompatibility == nil ||
+        ![mountBackendCompatibility[@"compatible"] boolValue]) {
         FMDeviceRestartFail(
             error, 6,
-            @"The installed Provider does not satisfy the fixed capability contract.",
+            @"The built-in mount backend does not satisfy its capability contract.",
             compatibilityError);
         return nil;
     }
-    if (!FMProviderManagedMappingIsActive(error) ||
+    if (!FMMountManagedMappingIsActive(error) ||
         !FMDeviceRestartRequireExecutable(error) ||
         !FMDeviceRestartRequireStockSnapshot(confirmedSystemBuild, error)) {
         return nil;
@@ -304,13 +352,13 @@ NSDictionary<NSString *, id> *FMCreateDeviceUserspaceRebootPreflight(
         @"bootEvidence" : bootEvidence,
         @"executableLogicalPath" : FMUserspaceRebootExecutableLogicalPath,
         @"arguments" : @[ @"reboot_userspace" ],
-        @"providerCompatibility" : providerCompatibility[@"compatibility"],
+        @"mountBackendCompatibility" : mountBackendCompatibility[@"compatibility"],
         @"mappingVerified" : @YES,
         @"mirrorContentScanned" : @NO,
         @"workingStateVerified" : @YES,
         @"filesystemMutated" : @NO,
         @"stateChanged" : @NO,
-        @"providerInvoked" : @NO,
+        @"mountBackendInvoked" : @NO,
         @"restartRequested" : @NO,
     };
 }
@@ -331,11 +379,11 @@ NSDictionary<NSString *, id> *FMArmDeviceUserspaceReboot(
     NSError *operationError = nil;
     NSDictionary *preflight = FMCreateDeviceUserspaceRebootPreflight(
         confirmedSystemBuild, &operationError);
-    NSDictionary *providerRefresh = preflight != nil
-        ? FMRefreshProviderForPreparedSystemFonts(&operationError)
+    NSDictionary *backendRefresh = preflight != nil
+        ? FMRefreshMountBackendForPreparedSystemFonts(&operationError)
         : nil;
-    BOOL mappingRefreshed = providerRefresh != nil &&
-        FMProviderManagedMappingIsActive(&operationError);
+    BOOL mappingRefreshed = backendRefresh != nil &&
+        FMMountManagedMappingIsActive(&operationError);
     NSDictionary *request = mappingRefreshed
         ? FMCreateRestartRequestDocument(
             confirmedSystemBuild, preflight[@"workingProfileID"],
@@ -361,8 +409,8 @@ NSDictionary<NSString *, id> *FMArmDeviceUserspaceReboot(
         @"arguments" : @[ @"reboot_userspace" ],
         @"filesystemMutated" : @YES,
         @"stateChanged" : @NO,
-        @"providerInvoked" : @YES,
-        @"providerCompatibility" : preflight[@"providerCompatibility"],
+        @"mountBackendInvoked" : @YES,
+        @"mountBackendCompatibility" : preflight[@"mountBackendCompatibility"],
         @"mappingRefreshed" : @YES,
         @"restartRequested" : @YES,
     };
@@ -451,16 +499,16 @@ FMCreateDeviceRespringPreflight(
         return nil;
     }
 
-    NSDictionary *providerCompatibility = nil;
+    NSDictionary *mountBackendCompatibility = nil;
     if (stagedProfileChange) {
         NSError *compatibilityError = nil;
-        providerCompatibility = FMInspectProviderExecutableCompatibilityAtPath(
-            jbroot(FMProviderExecutableLogicalPath), &compatibilityError);
-        if (providerCompatibility == nil ||
-            ![providerCompatibility[@"compatible"] boolValue]) {
+        mountBackendCompatibility = FMInspectMountBackendCompatibilityAtPath(
+            jbroot(FMMountBackendExecutableLogicalPath), &compatibilityError);
+        if (mountBackendCompatibility == nil ||
+            ![mountBackendCompatibility[@"compatible"] boolValue]) {
             FMDeviceRestartFail(
                 error, 6,
-                @"The installed Provider does not satisfy the fixed capability contract.",
+                @"The built-in mount backend does not satisfy its capability contract.",
                 compatibilityError);
             return nil;
         }
@@ -468,7 +516,7 @@ FMCreateDeviceRespringPreflight(
             return nil;
         }
     }
-    if (!FMProviderManagedMappingIsActive(error) ||
+    if (!FMMountManagedMappingIsActive(error) ||
         !FMDeviceRestartRequireRespringExecutable(error)) {
         return nil;
     }
@@ -484,8 +532,8 @@ FMCreateDeviceRespringPreflight(
         @"activationMode" : stagedProfileChange
             ? @"stagedProfileChange" : @"lateAutomaticMount",
         @"mappingRefreshRequired" : stagedProfileChange ? @YES : @NO,
-        @"providerCompatibility" : providerCompatibility != nil
-            ? providerCompatibility[@"compatibility"] : @"notRequired",
+        @"mountBackendCompatibility" : mountBackendCompatibility != nil
+            ? mountBackendCompatibility[@"compatibility"] : @"notRequired",
         @"executableLogicalPath" : FMRespringExecutableLogicalPath,
         @"arguments" : @[],
         @"mappingVerified" : @YES,
@@ -493,7 +541,7 @@ FMCreateDeviceRespringPreflight(
         @"workingStateVerified" : @YES,
         @"filesystemMutated" : @NO,
         @"stateChanged" : @NO,
-        @"providerInvoked" : @NO,
+        @"mountBackendInvoked" : @NO,
         @"restartRequested" : @NO,
     };
 }
@@ -516,12 +564,12 @@ NSDictionary<NSString *, id> *FMArmDeviceRespring(
         confirmedSystemBuild, &operationError);
     BOOL mappingRefreshRequired =
         [preflight[@"mappingRefreshRequired"] boolValue];
-    NSDictionary *providerRefresh = preflight != nil && mappingRefreshRequired
-        ? FMRefreshProviderForPreparedSystemFonts(&operationError)
+    NSDictionary *backendRefresh = preflight != nil && mappingRefreshRequired
+        ? FMRefreshMountBackendForPreparedSystemFonts(&operationError)
         : nil;
     BOOL mappingReady = preflight != nil &&
-        (!mappingRefreshRequired || providerRefresh != nil) &&
-        FMProviderManagedMappingIsActive(&operationError);
+        (!mappingRefreshRequired || backendRefresh != nil) &&
+        FMMountManagedMappingIsActive(&operationError);
     NSDictionary *request = mappingReady
         ? FMCreateRestartRequestDocument(
             confirmedSystemBuild, preflight[@"workingProfileID"],
@@ -549,18 +597,103 @@ NSDictionary<NSString *, id> *FMArmDeviceRespring(
         @"arguments" : @[],
         @"filesystemMutated" : @YES,
         @"stateChanged" : @NO,
-        @"providerInvoked" : mappingRefreshRequired ? @YES : @NO,
-        @"providerCompatibility" : preflight[@"providerCompatibility"],
+        @"mountBackendInvoked" : mappingRefreshRequired ? @YES : @NO,
+        @"mountBackendCompatibility" : preflight[@"mountBackendCompatibility"],
         @"mappingRefreshed" : mappingRefreshRequired ? @YES : @NO,
         @"restartRequested" : @YES,
     };
 }
 
-BOOL FMExecuteDeviceRespring(NSError **error) {
-    if (geteuid() != 0) {
+static BOOL FMDeviceRestartRestoreArmedRespringWithExistingLock(
+    NSDictionary<NSString *, id> *state,
+    NSDictionary<NSString *, id> *request,
+    NSError **error) {
+    NSError *stateError = nil;
+    BOOL restoredState = FMWriteJSONObjectAtomically(
+        state, jbroot(FMStateLogicalPath), 0600, &stateError);
+    NSError *requestError = nil;
+    BOOL restoredRequest = FMWriteJSONObjectAtomically(
+        request, jbroot(FMRestartRequestLogicalPath), 0600, &requestError);
+    if (!restoredState || !restoredRequest) {
         return FMDeviceRestartFail(
-            error, 1, @"Respring requires effective uid 0.", nil);
+            error, 13, @"The armed Respring state could not be restored.",
+            stateError ?: requestError);
     }
+    return YES;
+}
+
+BOOL FMExecuteDeviceRespring(
+    NSString *confirmedSystemBuild,
+    NSError **error) {
+    if (!FMDeviceRestartValidateCallerAndBuild(confirmedSystemBuild, error) ||
+        !FMDeviceRestartRequireRespringExecutable(error)) {
+        return NO;
+    }
+
+    NSString *engineRoot = jbroot(FMEngineRootLogicalPath);
+    NSError *lockError = nil;
+    int lock = FMAcquireExclusiveDirectoryLock(engineRoot, 0, 0, &lockError);
+    if (lock < 0) {
+        return FMDeviceRestartFail(
+            error, 8, @"Another font operation is already running.", lockError);
+    }
+
+    NSError *operationError = nil;
+    BOOL requestMissing = NO;
+    NSDictionary *request = FMDeviceRestartReadRequest(
+        confirmedSystemBuild, &requestMissing, &operationError);
+    if (request == nil) {
+        if (requestMissing) {
+            FMDeviceRestartFail(
+                &operationError, 11,
+                @"Respring execution requires an armed request.", nil);
+        }
+        NSError *releaseError = nil;
+        FMReleaseExclusiveDirectoryLock(lock, &releaseError);
+        if (error != NULL) *error = operationError ?: releaseError;
+        return NO;
+    }
+
+    NSDictionary *state = FMDeviceRestartReadState(
+        confirmedSystemBuild, &operationError);
+    BOOL stateMatchesRequest = state != nil &&
+        [state[@"mirrorState"] isEqual:@"clean"] &&
+        [state[@"restartRequired"] boolValue] &&
+        FMDeviceRestartProfileIDsEqual(
+            state[@"workingProfileID"], request[@"workingProfileID"]);
+    if (state != nil && !stateMatchesRequest) {
+        FMDeviceRestartFail(
+            &operationError, 12,
+            @"The armed Profile changed before Respring execution.", nil);
+    }
+    BOOL mappingReady = stateMatchesRequest &&
+        FMMountManagedMappingIsActive(&operationError);
+    NSDictionary *originalState = stateMatchesRequest ? [state copy] : nil;
+    NSDictionary *originalRequest = stateMatchesRequest ? [request copy] : nil;
+    BOOL confirmed = mappingReady && FMConfirmWorkingProfileAtStatePath(
+        jbroot(FMStateLogicalPath), &operationError);
+    if (!confirmed) {
+        NSError *releaseError = nil;
+        FMReleaseExclusiveDirectoryLock(lock, &releaseError);
+        if (error != NULL) *error = operationError ?: releaseError;
+        return NO;
+    }
+
+    if (!FMDeviceRestartRemoveRequest(&operationError)) {
+        NSError *restoreError = nil;
+        FMDeviceRestartRestoreArmedRespringWithExistingLock(
+            originalState, originalRequest, &restoreError);
+        NSError *releaseError = nil;
+        FMReleaseExclusiveDirectoryLock(lock, &releaseError);
+        if (error != NULL) {
+            *error = restoreError ?: operationError ?: releaseError;
+        }
+        return NO;
+    }
+
+    // The operation-lock descriptor is O_CLOEXEC. A successful exec therefore
+    // releases the lock as the helper becomes sbreload; a failed exec returns
+    // here with the lock still held so the pending state can be restored.
     NSString *path = jbroot(FMRespringExecutableLogicalPath);
     char *const arguments[] = {
         (char *)path.fileSystemRepresentation,
@@ -568,13 +701,18 @@ BOOL FMExecuteDeviceRespring(NSError **error) {
     };
     execv(path.fileSystemRepresentation, arguments);
     int savedError = errno;
-    NSError *cleanupError = nil;
-    FMDeviceRestartRemoveRequest(&cleanupError);
+
+    NSError *restoreError = nil;
+    FMDeviceRestartRestoreArmedRespringWithExistingLock(
+        originalState, originalRequest, &restoreError);
+    NSError *releaseError = nil;
+    FMReleaseExclusiveDirectoryLock(lock, &releaseError);
     return FMDeviceRestartFail(
         error, 10, @"The fixed Respring tool could not be started.",
-        cleanupError ?: [NSError errorWithDomain:NSPOSIXErrorDomain
-                                             code:savedError
-                                         userInfo:nil]);
+        restoreError ?: releaseError ?:
+            [NSError errorWithDomain:NSPOSIXErrorDomain
+                                code:savedError
+                            userInfo:nil]);
 }
 
 static NSDictionary<NSString *, id> *FMDeviceRestartNoopReport(
@@ -589,7 +727,7 @@ static NSDictionary<NSString *, id> *FMDeviceRestartNoopReport(
         @"restartObserved" : restartObserved ? @YES : @NO,
         @"filesystemMutated" : @NO,
         @"stateChanged" : @NO,
-        @"providerInvoked" : @NO,
+        @"mountBackendInvoked" : @NO,
         @"restartRequested" : @NO,
     };
 }
@@ -610,101 +748,75 @@ NSDictionary<NSString *, id> *FMReconcileDeviceAfterRestart(
         return nil;
     }
 
-    NSString *requestPath = jbroot(FMRestartRequestLogicalPath);
-    struct stat requestInfo = {0};
-    int inspectResult = lstat(requestPath.fileSystemRepresentation, &requestInfo);
-    if (inspectResult != 0 && errno == ENOENT) {
-        NSError *releaseError = nil;
-        BOOL released = FMReleaseExclusiveDirectoryLock(lock, &releaseError);
-        if (!released) {
-            if (error != NULL) *error = releaseError;
-            return nil;
-        }
-        return FMDeviceRestartNoopReport(
-            @"notRequested", confirmedSystemBuild, NO);
-    }
-
     NSError *operationError = nil;
     NSDictionary *result = nil;
-    BOOL metadataValid = inspectResult == 0 && S_ISREG(requestInfo.st_mode) &&
-        requestInfo.st_uid == 0 && (requestInfo.st_mode & 0777) == 0600;
-    if (!metadataValid) {
-        int savedError = inspectResult == 0 ? EINVAL : errno;
-        FMDeviceRestartFail(
-            &operationError, 11, @"The restart request marker is invalid.",
-            [NSError errorWithDomain:NSPOSIXErrorDomain code:savedError userInfo:nil]);
-    } else {
-        id requestObject = FMReadJSONObjectAtPath(requestPath, &operationError);
-        NSError *validationError = nil;
-        if (![requestObject isKindOfClass:NSDictionary.class] ||
-            !FMValidateRestartRequestDocument(requestObject, &validationError) ||
-            ![requestObject[@"systemBuild"] isEqual:confirmedSystemBuild]) {
-            FMDeviceRestartFail(
-                &operationError, 11, @"The restart request marker is invalid.",
-                validationError ?: operationError);
-        } else {
-            NSDictionary *request = requestObject;
-            NSDictionary *bootEvidence = FMDeviceRestartBootEvidence(&operationError);
-            BOOL restartObserved = NO;
-            BOOL compared = bootEvidence != nil && FMRestartRequestObservedRestart(
-                request, bootEvidence, &restartObserved, &operationError);
-            if (compared) {
-                if (!restartObserved) {
-                    result = FMDeviceRestartNoopReport(
-                        @"waitingForRestart", confirmedSystemBuild, NO);
-                } else {
-                    NSDictionary *state = FMDeviceRestartReadState(
-                        confirmedSystemBuild, &operationError);
-                    id expectedProfileID = request[@"workingProfileID"];
-                    if (state != nil &&
-                        (![state[@"mirrorState"] isEqual:@"clean"] ||
-                         !FMDeviceRestartProfileIDsEqual(
-                             state[@"workingProfileID"], expectedProfileID))) {
-                        FMDeviceRestartFail(
-                            &operationError, 12,
-                            @"The pending Profile changed before restart reconciliation.", nil);
-                    } else if (state != nil && ![state[@"restartRequired"] boolValue]) {
-                        if (!FMDeviceRestartProfileIDsEqual(
-                                state[@"confirmedProfileID"], expectedProfileID) ||
-                            !FMDeviceRestartRemoveRequest(&operationError)) {
-                            if (operationError == nil) {
-                                FMDeviceRestartFail(
-                                    &operationError, 12,
-                                    @"The confirmed Profile does not match the restart request.",
-                                    nil);
-                            }
-                        } else {
-                            result = @{
-                                @"schemaVersion" : @1,
-                                @"operation" : @"reconcileAfterRestart",
-                                @"status" : @"alreadyReconciled",
-                                @"systemBuild" : confirmedSystemBuild,
-                                @"workingProfileID" : expectedProfileID,
-                                @"restartObserved" : @YES,
-                                @"filesystemMutated" : @YES,
-                                @"stateChanged" : @NO,
-                                @"providerInvoked" : @NO,
-                                @"restartRequested" : @NO,
-                            };
+    BOOL requestMissing = NO;
+    NSDictionary *request = FMDeviceRestartReadRequest(
+        confirmedSystemBuild, &requestMissing, &operationError);
+    if (requestMissing) {
+        result = FMDeviceRestartNoopReport(
+            @"notRequested", confirmedSystemBuild, NO);
+    } else if (request != nil) {
+        NSDictionary *bootEvidence = FMDeviceRestartBootEvidence(&operationError);
+        BOOL restartObserved = NO;
+        BOOL compared = bootEvidence != nil && FMRestartRequestObservedRestart(
+            request, bootEvidence, &restartObserved, &operationError);
+        if (compared) {
+            if (!restartObserved) {
+                result = FMDeviceRestartNoopReport(
+                    @"waitingForRestart", confirmedSystemBuild, NO);
+            } else {
+                NSDictionary *state = FMDeviceRestartReadState(
+                    confirmedSystemBuild, &operationError);
+                id expectedProfileID = request[@"workingProfileID"];
+                if (state != nil &&
+                    (![state[@"mirrorState"] isEqual:@"clean"] ||
+                     !FMDeviceRestartProfileIDsEqual(
+                         state[@"workingProfileID"], expectedProfileID))) {
+                    FMDeviceRestartFail(
+                        &operationError, 12,
+                        @"The pending Profile changed before restart reconciliation.", nil);
+                } else if (state != nil && ![state[@"restartRequired"] boolValue]) {
+                    if (!FMDeviceRestartProfileIDsEqual(
+                            state[@"confirmedProfileID"], expectedProfileID) ||
+                        !FMDeviceRestartRemoveRequest(&operationError)) {
+                        if (operationError == nil) {
+                            FMDeviceRestartFail(
+                                &operationError, 12,
+                                @"The confirmed Profile does not match the restart request.",
+                                nil);
                         }
-                    } else if (state != nil &&
-                               FMProviderManagedMappingIsActive(&operationError) &&
-                               FMConfirmWorkingProfileAtStatePath(
-                                   jbroot(FMStateLogicalPath), &operationError) &&
-                               FMDeviceRestartRemoveRequest(&operationError)) {
+                    } else {
                         result = @{
                             @"schemaVersion" : @1,
                             @"operation" : @"reconcileAfterRestart",
-                            @"status" : @"reconciled",
+                            @"status" : @"alreadyReconciled",
                             @"systemBuild" : confirmedSystemBuild,
                             @"workingProfileID" : expectedProfileID,
                             @"restartObserved" : @YES,
                             @"filesystemMutated" : @YES,
-                            @"stateChanged" : @YES,
-                            @"providerInvoked" : @NO,
+                            @"stateChanged" : @NO,
+                            @"mountBackendInvoked" : @NO,
                             @"restartRequested" : @NO,
                         };
                     }
+                } else if (state != nil &&
+                           FMMountManagedMappingIsActive(&operationError) &&
+                           FMConfirmWorkingProfileAtStatePath(
+                               jbroot(FMStateLogicalPath), &operationError) &&
+                           FMDeviceRestartRemoveRequest(&operationError)) {
+                    result = @{
+                        @"schemaVersion" : @1,
+                        @"operation" : @"reconcileAfterRestart",
+                        @"status" : @"reconciled",
+                        @"systemBuild" : confirmedSystemBuild,
+                        @"workingProfileID" : expectedProfileID,
+                        @"restartObserved" : @YES,
+                        @"filesystemMutated" : @YES,
+                        @"stateChanged" : @YES,
+                        @"mountBackendInvoked" : @NO,
+                        @"restartRequested" : @NO,
+                    };
                 }
             }
         }

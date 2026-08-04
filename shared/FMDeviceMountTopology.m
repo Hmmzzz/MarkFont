@@ -3,7 +3,7 @@
 #import <errno.h>
 #import <sys/mount.h>
 
-#import "FMProviderPaths.h"
+#import "FMMountPaths.h"
 
 NSString *const FMDeviceMountTopologyErrorDomain =
     @"com.hmmzzz.fontmanager.device-mount-topology";
@@ -79,7 +79,7 @@ NSDictionary<NSString *, id> *FMCreateSystemFontsMountTopology(
         return nil;
     }
 
-    NSString *fontTarget = FMProviderSystemFontsLogicalPath;
+    NSString *fontTarget = FMMountSystemFontsLogicalPath;
     NSString *canonicalMirror = FMTCanonicalPath(expectedMirrorPath);
     NSMutableArray<NSDictionary<NSString *, id> *> *exactTargetRows =
         [NSMutableArray array];

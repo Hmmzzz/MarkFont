@@ -1,4 +1,4 @@
-#import "FMProviderInspection.h"
+#import "FMMountInspection.h"
 
 #import <errno.h>
 #import <limits.h>
@@ -11,16 +11,17 @@
 #import "FMFileStore.h"
 #import "FMFontCatalog.h"
 #import "FMProfileMirrorMatcher.h"
-#import "FMProviderCompatibility.h"
-#import "FMProviderCoordinator.h"
-#import "FMProviderPaths.h"
+#import "FMMountBackendCompatibility.h"
+#import "FMMountBackendExecutor.h"
+#import "FMMountCoordinator.h"
+#import "FMMountPaths.h"
 #import "FMTreeManifest.h"
 
-NSString *const FMProviderInspectionErrorDomain =
-    @"com.hmmzzz.fontmanager.providerinspection";
+NSString *const FMMountInspectionErrorDomain =
+    @"com.hmmzzz.fontmanager.mount-inspection";
 
 static NSError *FMInspectionError(NSString *description) {
-    return [NSError errorWithDomain:FMProviderInspectionErrorDomain
+    return [NSError errorWithDomain:FMMountInspectionErrorDomain
                                code:1
                            userInfo:@{NSLocalizedDescriptionKey : description}];
 }
@@ -52,7 +53,7 @@ static NSString *FMMirrorKind(NSString *mirrorPath, NSError **error) {
             return @"missing";
         }
         if (error != NULL) {
-            *error = FMInspectionError(@"Unable to inspect the Provider mirror path.");
+            *error = FMInspectionError(@"Unable to inspect the managed mirror path.");
         }
         return nil;
     }
@@ -65,7 +66,7 @@ static NSString *FMMirrorKind(NSString *mirrorPath, NSError **error) {
                             error:&contentsError];
     if (contents == nil) {
         if (error != NULL) {
-            *error = FMInspectionError(@"Unable to enumerate the Provider mirror.");
+            *error = FMInspectionError(@"Unable to enumerate the managed mirror.");
         }
         return nil;
     }
@@ -268,10 +269,10 @@ static NSDictionary<NSString *, id> *FMManifestEvidence(
     };
 }
 
-NSDictionary<NSString *, id> *FMCreateDeviceProviderInspection(NSError **error) {
+NSDictionary<NSString *, id> *FMCreateDeviceMountInspection(NSError **error) {
     NSDictionary *environment = FMCreateEnvironmentStatus();
     NSDictionary *system = environment[@"system"];
-    NSDictionary *providerStatus = environment[@"provider"];
+    NSDictionary *backendStatus = environment[@"mountBackend"];
     NSDictionary *stateStatus = environment[@"state"];
     NSString *systemBuild = system[@"productBuildVersion"];
     if (![systemBuild isKindOfClass:NSString.class] || systemBuild.length == 0) {
@@ -281,24 +282,24 @@ NSDictionary<NSString *, id> *FMCreateDeviceProviderInspection(NSError **error) 
         return nil;
     }
 
-    BOOL providerRootSupported = NO;
-    BOOL providerPreferencePresent = NO;
-    NSString *providerRootLogicalPath =
-        FMProviderResolvedRootLogicalPath(&providerRootSupported,
-                                          &providerPreferencePresent);
-    NSError *providerPreferenceError = nil;
-    NSDictionary *providerAutoMount =
-        FMProviderAutoMountConfiguration(&providerPreferenceError);
-    if (providerAutoMount == nil) {
-        if (error != NULL) *error = providerPreferenceError;
+    BOOL mountStorageSupported = NO;
+    BOOL legacyProviderPreferencePresent = NO;
+    NSString *mountStorageRootLogicalPath =
+        FMMountResolvedStorageRootLogicalPath(&mountStorageSupported,
+                                          &legacyProviderPreferencePresent);
+    NSError *legacyProviderPreferenceError = nil;
+    NSDictionary *legacyProviderAutoMount =
+        FMLegacyProviderAutoMountConfiguration(&legacyProviderPreferenceError);
+    if (legacyProviderAutoMount == nil) {
+        if (error != NULL) *error = legacyProviderPreferenceError;
         return nil;
     }
-    BOOL providerAutoMountConflictsWithFonts =
-        [providerAutoMount[@"conflictsWithFonts"] boolValue];
-    NSString *providerRootPath = jbroot(providerRootLogicalPath);
-    NSString *mirrorPath = [providerRootPath
+    BOOL legacyProviderAutoMountConflictsWithFonts =
+        [legacyProviderAutoMount[@"conflictsWithFonts"] boolValue];
+    NSString *mountStorageRootPath = jbroot(mountStorageRootLogicalPath);
+    NSString *mirrorPath = [mountStorageRootPath
         stringByAppendingPathComponent:@"System/Library/Fonts"];
-    NSString *stockPath = jbroot(FMProviderRootfsFontsLogicalPath);
+    NSString *stockPath = jbroot(FMMountRootfsFontsLogicalPath);
     NSString *jbrootPath = jbroot(@"/");
 
     NSError *mirrorKindError = nil;
@@ -319,12 +320,13 @@ NSDictionary<NSString *, id> *FMCreateDeviceProviderInspection(NSError **error) 
                          stockInfo.st_ino != mirrorInfo.st_ino;
 
     struct statfs mappingInfo = {0};
-    BOOL mappingInfoAvailable = statfs(FMProviderSystemFontsLogicalPath.fileSystemRepresentation,
+    BOOL mappingInfoAvailable = statfs(FMMountSystemFontsLogicalPath.fileSystemRepresentation,
                                        &mappingInfo) == 0;
     NSString *filesystemType = mappingInfoAvailable
         ? [NSString stringWithUTF8String:mappingInfo.f_fstypename]
         : nil;
-    BOOL mappingActive = [filesystemType caseInsensitiveCompare:@"bindfs"] == NSOrderedSame;
+    BOOL mappingActive = filesystemType != nil &&
+        [filesystemType caseInsensitiveCompare:@"bindfs"] == NSOrderedSame;
     NSString *mappingTarget = mappingInfoAvailable
         ? [NSString stringWithUTF8String:mappingInfo.f_mntonname]
         : nil;
@@ -334,23 +336,24 @@ NSDictionary<NSString *, id> *FMCreateDeviceProviderInspection(NSError **error) 
     NSString *canonicalMirror = mirrorPath.stringByResolvingSymlinksInPath;
     NSString *canonicalSource = mappingSource.stringByResolvingSymlinksInPath;
 
-    NSString *providerExecutablePath = jbroot(FMProviderExecutableLogicalPath);
+    NSString *backendExecutablePath =
+        jbroot(FMMountBackendExecutableLogicalPath);
     NSError *compatibilityError = nil;
     NSDictionary *compatibility =
-        FMInspectProviderExecutableCompatibilityAtPath(
-            providerExecutablePath, &compatibilityError);
+        FMInspectMountBackendCompatibilityAtPath(
+            backendExecutablePath, &compatibilityError);
     if (compatibility == nil) {
         if (error != NULL) *error = compatibilityError;
         return nil;
     }
-    NSString *providerVersion = [providerStatus[@"version"] isKindOfClass:NSString.class]
-                                    ? providerStatus[@"version"]
-                                    : nil;
-    BOOL providerCompatible =
-        [providerStatus[@"packageInstalled"] boolValue] &&
-        providerVersion.length > 0 &&
+    NSString *backendVersion =
+        [backendStatus[@"version"] isKindOfClass:NSString.class]
+            ? backendStatus[@"version"] : nil;
+    BOOL backendCompatible = backendVersion.length > 0 &&
         [compatibility[@"compatible"] boolValue] &&
-        providerRootSupported && !providerAutoMountConflictsWithFonts;
+        [backendStatus[@"runtimeLibraryPresent"] boolValue] &&
+        [backendStatus[@"runtimeLibrarySecure"] boolValue] &&
+        mountStorageSupported && !legacyProviderAutoMountConflictsWithFonts;
 
     BOOL statePresent = [stateStatus[@"present"] boolValue];
     BOOL stateValid = [stateStatus[@"valid"] boolValue];
@@ -371,50 +374,53 @@ NSDictionary<NSString *, id> *FMCreateDeviceProviderInspection(NSError **error) 
     }
 
     NSDictionary *inspection = @{
-        @"schemaVersion" : @(FMProviderInspectionSchemaVersion),
+        @"schemaVersion" : @(FMMountInspectionSchemaVersion),
         @"evidenceMode" : @"deviceReadOnly",
         @"systemBuild" : systemBuild,
-        @"provider" : @{
-            @"packageID" : FMProviderPackageIdentifier,
-            @"version" : providerVersion ?: NSNull.null,
-            @"packageInstalled" : FMJSONBoolean(
-                [providerStatus[@"packageInstalled"] boolValue]),
+        @"mountBackend" : @{
+            @"identifier" : FMMountBackendIdentifier,
+            @"version" : backendVersion ?: NSNull.null,
             @"executablePresent" : FMJSONBoolean(
-                [providerStatus[@"executablePresent"] boolValue]),
+                [backendStatus[@"executablePresent"] boolValue]),
+            @"runtimeLibraryPresent" : FMJSONBoolean(
+                [backendStatus[@"runtimeLibraryPresent"] boolValue]),
+            @"runtimeLibrarySecure" : FMJSONBoolean(
+                [backendStatus[@"runtimeLibrarySecure"] boolValue]),
             @"contractVersion" : compatibility[@"contractVersion"],
             @"recognition" :
-                FMProviderRecognitionForVersion(providerVersion),
-            @"compatibility" : providerCompatible
+                FMMountBackendRecognitionForVersion(backendVersion),
+            @"compatibility" : backendCompatible
                 ? @"compatible" : @"incompatible",
-            @"compatible" : FMJSONBoolean(providerCompatible),
+            @"compatible" : FMJSONBoolean(backendCompatible),
             @"executableSecure" : compatibility[@"executableSecure"],
-            @"boundedTextWrapper" : compatibility[@"boundedTextWrapper"],
-            @"shellWrapper" : compatibility[@"shellWrapper"],
-            @"supportsCopy" : @NO,
-            @"supportsSkipCopy" : compatibility[@"supportsSkipCopy"],
-            @"supportsUnmount" : compatibility[@"supportsUnmount"],
-            @"rootConfigurationSupported" : FMJSONBoolean(providerRootSupported),
-            @"preferencePresent" : FMJSONBoolean(providerPreferencePresent),
-            @"autoMountConflictsWithFonts" :
-                FMJSONBoolean(providerAutoMountConflictsWithFonts),
+            @"machOExecutable" : compatibility[@"machOExecutable"],
+            @"supportsReadOnlyMount" :
+                compatibility[@"supportsReadOnlyMount"],
+            @"supportsForceUnmount" :
+                compatibility[@"supportsForceUnmount"],
+            @"storageSupported" : FMJSONBoolean(mountStorageSupported),
+            @"legacyProviderPreferencePresent" :
+                FMJSONBoolean(legacyProviderPreferencePresent),
+            @"legacyProviderAutoMountConflictsWithFonts" :
+                FMJSONBoolean(legacyProviderAutoMountConflictsWithFonts),
         },
         @"fonts" : @{
             @"systemReadable" : FMJSONBoolean(
-                FMPhysicalDirectoryReadable(FMProviderSystemFontsLogicalPath)),
+                FMPhysicalDirectoryReadable(FMMountSystemFontsLogicalPath)),
             @"rootfsReadable" : FMJSONBoolean(
                 FMPhysicalDirectoryReadable(stockPath)),
             @"mirrorKind" : mirrorKind,
             @"mirrorInsideJBRoot" : FMJSONBoolean(
-                providerRootSupported && FMPathIsInsideRoot(mirrorPath, jbrootPath)),
+                mountStorageSupported && FMPathIsInsideRoot(mirrorPath, jbrootPath)),
             @"rootfsDistinctFromMirror" : FMJSONBoolean(distinctTrees),
-            @"mirrorLogicalPath" : [providerRootLogicalPath
+            @"mirrorLogicalPath" : [mountStorageRootLogicalPath
                 stringByAppendingPathComponent:@"System/Library/Fonts"],
         },
         @"mapping" : @{
             @"active" : FMJSONBoolean(mappingActive),
             @"targetMatches" : FMJSONBoolean(
                 mappingActive &&
-                    [mappingTarget isEqual:FMProviderSystemFontsLogicalPath]),
+                    [mappingTarget isEqual:FMMountSystemFontsLogicalPath]),
             @"sourceMatchesMirror" : FMJSONBoolean(
                 mappingActive && [canonicalSource isEqual:canonicalMirror]),
             @"readOnly" : FMJSONBoolean(
@@ -426,9 +432,10 @@ NSDictionary<NSString *, id> *FMCreateDeviceProviderInspection(NSError **error) 
     };
 
     NSError *validationError = nil;
-    if (!FMValidateProviderInspection(inspection, &validationError)) {
+    if (!FMValidateMountInspection(inspection, &validationError)) {
         if (error != NULL) {
-            *error = validationError ?: FMInspectionError(@"Provider inspection is invalid.");
+            *error = validationError ?:
+                FMInspectionError(@"Mount backend inspection is invalid.");
         }
         return nil;
     }

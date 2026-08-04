@@ -13,7 +13,7 @@ typedef NS_ENUM(NSInteger, FMStatusErrorCode) {
 };
 
 BOOL FMValidateStatusDocument(id document, NSError **error);
-NSString *FMEngineStateForFacts(NSDictionary<NSString *, id> *provider,
+NSString *FMEngineStateForFacts(NSDictionary<NSString *, id> *mountBackend,
                                 NSDictionary<NSString *, id> *fonts,
                                 NSDictionary<NSString *, id> *state);
 NSString *FMStatusHumanReadableText(NSDictionary<NSString *, id> *document);

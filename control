@@ -2,8 +2,8 @@ Package: com.hmmzzz.fontmanager
 Name: MarkFont
 Version: 0.1.1
 Architecture: iphoneos-arm64e
-Description: RootHide font manager with verified Stock mirror preparation and fixed-path activation.
+Description: RootHide font manager with a built-in fixed-path bindfs backend and verified Stock recovery.
 Maintainer: Hmmzzz
 Author: Hmmzzz
 Section: Utilities
-Depends: firmware (>= 17.0), com.nan.bindfs (>= 0.6.0), dash, uikittools
+Depends: firmware (>= 17.0), uikittools

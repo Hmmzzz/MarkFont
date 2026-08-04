@@ -1,27 +1,23 @@
-#import "FMProviderPaths.h"
+#import "FMMountPaths.h"
 
 #import <errno.h>
 #import <roothide.h>
-#import <stdlib.h>
-#import <string.h>
 #import <sys/mount.h>
 #import <sys/stat.h>
 #import <unistd.h>
 
-#import "FMProviderAutoMountPolicy.h"
+#import "FMLegacyProviderAutoMountPolicy.h"
 
-NSString *const FMProviderPackageIdentifier = @"com.nan.bindfs";
-NSString *const FMProviderExecutableLogicalPath = @"/usr/bin/mount_bindfs";
-NSString *const FMProviderPreferenceLogicalPath =
+NSString *const FMLegacyProviderPreferenceLogicalPath =
     @"/var/mobile/Library/Preferences/com.nan.auto-bindfs.plist";
-NSString *const FMProviderDefaultRootLogicalPath = @"/bindfs";
-NSString *const FMProviderAliasLogicalPath = @"/.bindfs";
-NSString *const FMProviderSystemFontsLogicalPath = @"/System/Library/Fonts";
-NSString *const FMProviderRootfsFontsLogicalPath = @"/rootfs/System/Library/Fonts";
+NSString *const FMMountStorageRootLogicalPath = @"/bindfs";
+NSString *const FMMountSystemFontsLogicalPath = @"/System/Library/Fonts";
+NSString *const FMMountRootfsFontsLogicalPath = @"/rootfs/System/Library/Fonts";
 
-NSString *const FMProviderPathsErrorDomain = @"com.hmmzzz.fontmanager.providerpaths";
+NSString *const FMMountPathsErrorDomain =
+    @"com.hmmzzz.fontmanager.mount-paths";
 
-static BOOL FMProviderPathsFail(NSError **error,
+static BOOL FMMountPathsFail(NSError **error,
                                 NSInteger code,
                                 NSString *description,
                                 int errorNumber) {
@@ -35,14 +31,14 @@ static BOOL FMProviderPathsFail(NSError **error,
                                     code:errorNumber
                                 userInfo:nil];
         }
-        *error = [NSError errorWithDomain:FMProviderPathsErrorDomain
+        *error = [NSError errorWithDomain:FMMountPathsErrorDomain
                                      code:code
                                  userInfo:userInfo];
     }
     return NO;
 }
 
-static void FMProviderPathsSetUnderlyingError(NSError **error,
+static void FMMountPathsSetUnderlyingError(NSError **error,
                                               NSInteger code,
                                               NSString *description,
                                               NSError *underlying) {
@@ -50,22 +46,22 @@ static void FMProviderPathsSetUnderlyingError(NSError **error,
     NSMutableDictionary *userInfo = [NSMutableDictionary dictionaryWithObject:
         description forKey:NSLocalizedDescriptionKey];
     if (underlying != nil) userInfo[NSUnderlyingErrorKey] = underlying;
-    *error = [NSError errorWithDomain:FMProviderPathsErrorDomain
+    *error = [NSError errorWithDomain:FMMountPathsErrorDomain
                                  code:code
                              userInfo:userInfo];
 }
 
-static NSDictionary<NSString *, id> *_Nullable FMProviderLoadPreference(
+static NSDictionary<NSString *, id> *_Nullable FMLegacyProviderLoadPreference(
     BOOL *present,
     NSPropertyListFormat *format,
     struct stat *metadata,
     NSError **error) {
     if (present == NULL) {
-        FMProviderPathsFail(error, 1,
-                            @"Provider preference output is required.", 0);
+        FMMountPathsFail(error, 1,
+                            @"legacy Provider preference output is required.", 0);
         return nil;
     }
-    NSString *path = jbroot(FMProviderPreferenceLogicalPath);
+    NSString *path = jbroot(FMLegacyProviderPreferenceLogicalPath);
     struct stat info = {0};
     errno = 0;
     if (lstat(path.fileSystemRepresentation, &info) != 0) {
@@ -75,15 +71,15 @@ static NSDictionary<NSString *, id> *_Nullable FMProviderLoadPreference(
         }
         int savedError = errno;
         *present = NO;
-        FMProviderPathsFail(error, 2,
-                            @"The Provider preference could not be inspected.",
+        FMMountPathsFail(error, 2,
+                            @"The legacy Provider preference could not be inspected.",
                             savedError);
         return nil;
     }
     *present = YES;
     if (!S_ISREG(info.st_mode)) {
-        FMProviderPathsFail(error, 2,
-                            @"The Provider preference is not a regular file.",
+        FMMountPathsFail(error, 2,
+                            @"The legacy Provider preference is not a regular file.",
                             EINVAL);
         return nil;
     }
@@ -100,8 +96,8 @@ static NSDictionary<NSString *, id> *_Nullable FMProviderLoadPreference(
                                                       error:&readError]
         : nil;
     if (![object isKindOfClass:NSDictionary.class]) {
-        FMProviderPathsSetUnderlyingError(
-            error, 2, @"The Provider preference is not a valid dictionary.",
+        FMMountPathsSetUnderlyingError(
+            error, 2, @"The legacy Provider preference is not a valid dictionary.",
             readError);
         return nil;
     }
@@ -110,10 +106,10 @@ static NSDictionary<NSString *, id> *_Nullable FMProviderLoadPreference(
     return object;
 }
 
-NSDictionary<NSString *, id> *FMProviderAutoMountConfiguration(
+NSDictionary<NSString *, id> *FMLegacyProviderAutoMountConfiguration(
     NSError **error) {
     BOOL present = NO;
-    NSDictionary *preference = FMProviderLoadPreference(
+    NSDictionary *preference = FMLegacyProviderLoadPreference(
         &present, NULL, NULL, error);
     if (preference == nil) return nil;
     if (!present) {
@@ -128,18 +124,18 @@ NSDictionary<NSString *, id> *FMProviderAutoMountConfiguration(
         };
     }
     NSMutableDictionary *configuration =
-        [FMAnalyzeProviderAutoMountPreference(preference) mutableCopy];
+        [FMAnalyzeLegacyProviderAutoMountPreference(preference) mutableCopy];
     configuration[@"preferencePresent"] = @YES;
     return configuration;
 }
 
-BOOL FMProviderAutoMountConflictsWithSystemFonts(BOOL *conflicts,
+BOOL FMLegacyProviderAutoMountConflictsWithSystemFonts(BOOL *conflicts,
                                                  NSError **error) {
     if (conflicts == NULL) {
-        return FMProviderPathsFail(
-            error, 1, @"Provider automatic-mount conflict output is required.", 0);
+        return FMMountPathsFail(
+            error, 1, @"legacy Provider automatic-mount conflict output is required.", 0);
     }
-    NSDictionary *configuration = FMProviderAutoMountConfiguration(error);
+    NSDictionary *configuration = FMLegacyProviderAutoMountConfiguration(error);
     if (configuration == nil) {
         *conflicts = YES;
         return NO;
@@ -148,12 +144,12 @@ BOOL FMProviderAutoMountConflictsWithSystemFonts(BOOL *conflicts,
     return YES;
 }
 
-NSDictionary<NSString *, id> *FMDisableProviderAutoMountForSystemFonts(
+NSDictionary<NSString *, id> *FMDisableLegacyProviderAutoMountForSystemFonts(
     NSError **error) {
     if (getuid() != 0 || geteuid() != 0) {
-        FMProviderPathsFail(
+        FMMountPathsFail(
             error, 7,
-            @"Changing Provider automatic mounting requires a real root caller.",
+            @"Changing legacy Provider automatic mounting requires a real root caller.",
             EPERM);
         return nil;
     }
@@ -161,12 +157,12 @@ NSDictionary<NSString *, id> *FMDisableProviderAutoMountForSystemFonts(
     BOOL present = NO;
     NSPropertyListFormat format = NSPropertyListXMLFormat_v1_0;
     struct stat metadata = {0};
-    NSDictionary *preference = FMProviderLoadPreference(
+    NSDictionary *preference = FMLegacyProviderLoadPreference(
         &present, &format, &metadata, error);
     if (preference == nil) return nil;
     NSDictionary *before = present
-        ? FMAnalyzeProviderAutoMountPreference(preference)
-        : FMProviderAutoMountConfiguration(error);
+        ? FMAnalyzeLegacyProviderAutoMountPreference(preference)
+        : FMLegacyProviderAutoMountConfiguration(error);
     if (before == nil) return nil;
     if (!present || ![before[@"conflictsWithFonts"] boolValue]) {
         return @{
@@ -179,9 +175,9 @@ NSDictionary<NSString *, id> *FMDisableProviderAutoMountForSystemFonts(
         };
     }
     if (![before[@"rootSupported"] boolValue]) {
-        FMProviderPathsFail(
+        FMMountPathsFail(
             error, 7,
-            @"The Provider root is unsupported for automatic Fonts takeover.",
+            @"The legacy Provider root is unsupported for automatic Fonts takeover.",
             EINVAL);
         return nil;
     }
@@ -189,12 +185,12 @@ NSDictionary<NSString *, id> *FMDisableProviderAutoMountForSystemFonts(
     BOOL changed = NO;
     NSError *policyError = nil;
     NSDictionary *updated =
-        FMProviderAutoMountPreferenceByRemovingSystemFonts(
+        FMLegacyProviderAutoMountPreferenceByRemovingSystemFonts(
             preference, &changed, &policyError);
     if (updated == nil || !changed) {
-        FMProviderPathsSetUnderlyingError(
+        FMMountPathsSetUnderlyingError(
             error, 7,
-            @"The Provider Fonts automatic-mount entry could not be removed.",
+            @"The legacy Provider Fonts automatic-mount entry could not be removed.",
             policyError);
         return nil;
     }
@@ -209,29 +205,29 @@ NSDictionary<NSString *, id> *FMDisableProviderAutoMountForSystemFonts(
                       format:outputFormat
                      options:0
                        error:&writeError];
-    NSString *path = jbroot(FMProviderPreferenceLogicalPath);
+    NSString *path = jbroot(FMLegacyProviderPreferenceLogicalPath);
     if (data == nil ||
         ![data writeToFile:path options:NSDataWritingAtomic error:&writeError]) {
-        FMProviderPathsSetUnderlyingError(
+        FMMountPathsSetUnderlyingError(
             error, 7,
-            @"The Provider preference could not be updated atomically.",
+            @"The legacy Provider preference could not be updated atomically.",
             writeError);
         return nil;
     }
     if (chown(path.fileSystemRepresentation, metadata.st_uid, metadata.st_gid) != 0 ||
         chmod(path.fileSystemRepresentation, metadata.st_mode & 0777) != 0) {
-        FMProviderPathsFail(
+        FMMountPathsFail(
             error, 7,
-            @"The updated Provider preference metadata could not be preserved.",
+            @"The updated legacy Provider preference metadata could not be preserved.",
             errno);
         return nil;
     }
 
-    NSDictionary *after = FMProviderAutoMountConfiguration(&writeError);
+    NSDictionary *after = FMLegacyProviderAutoMountConfiguration(&writeError);
     if (after == nil || [after[@"conflictsWithFonts"] boolValue]) {
-        FMProviderPathsSetUnderlyingError(
+        FMMountPathsSetUnderlyingError(
             error, 7,
-            @"Provider Fonts automatic mounting remained enabled after update.",
+            @"legacy Provider Fonts automatic mounting remained enabled after update.",
             writeError);
         return nil;
     }
@@ -245,110 +241,36 @@ NSDictionary<NSString *, id> *FMDisableProviderAutoMountForSystemFonts(
     };
 }
 
-NSString *FMProviderResolvedRootLogicalPath(BOOL *supported,
-                                            BOOL *preferencePresent) {
-    NSDictionary *configuration = FMProviderAutoMountConfiguration(NULL);
-    BOOL localSupported = [configuration[@"rootSupported"] boolValue];
-    BOOL localPreferencePresent =
-        [configuration[@"preferencePresent"] boolValue];
+NSString *FMMountResolvedStorageRootLogicalPath(BOOL *supported,
+                                                BOOL *preferencePresent) {
     if (supported != NULL) {
-        *supported = localSupported;
+        *supported = YES;
     }
     if (preferencePresent != NULL) {
-        *preferencePresent = localPreferencePresent;
+        struct stat info = {0};
+        *preferencePresent = lstat(
+            jbroot(FMLegacyProviderPreferenceLogicalPath).fileSystemRepresentation,
+            &info) == 0;
     }
-    return FMProviderDefaultRootLogicalPath;
+    return FMMountStorageRootLogicalPath;
 }
 
-NSString *FMProviderResolvedMirrorLogicalPath(BOOL *supported,
-                                              BOOL *preferencePresent) {
-    NSString *root = FMProviderResolvedRootLogicalPath(supported,
+NSString *FMMountResolvedMirrorLogicalPath(BOOL *supported,
+                                           BOOL *preferencePresent) {
+    NSString *root = FMMountResolvedStorageRootLogicalPath(supported,
                                                        preferencePresent);
     return [root stringByAppendingPathComponent:@"System/Library/Fonts"];
 }
 
-static NSString *FMRealPath(NSString *path) {
-    char *resolved = realpath(path.fileSystemRepresentation, NULL);
-    if (resolved == NULL) {
-        return nil;
-    }
-    NSString *result = [NSFileManager.defaultManager
-        stringWithFileSystemRepresentation:resolved
-                                     length:strlen(resolved)];
-    free(resolved);
-    return result;
-}
-
-BOOL FMValidateProviderAlias(BOOL requirePresent,
-                             BOOL *present,
-                             NSError **error) {
-    BOOL rootSupported = NO;
-    NSString *rootLogicalPath =
-        FMProviderResolvedRootLogicalPath(&rootSupported, NULL);
-    if (!rootSupported) {
-        if (present != NULL) {
-            *present = NO;
-        }
-        return FMProviderPathsFail(error, 3,
-                                   @"The Provider root configuration is unsupported.",
-                                   0);
-    }
-
-    NSString *aliasPath = jbroot(FMProviderAliasLogicalPath);
-    struct stat aliasInfo = {0};
-    if (lstat(aliasPath.fileSystemRepresentation, &aliasInfo) != 0) {
-        if (errno == ENOENT) {
-            if (present != NULL) {
-                *present = NO;
-            }
-            return requirePresent
-                ? FMProviderPathsFail(error, 4,
-                                      @"The required Provider alias is missing.", 0)
-                : YES;
-        }
-        if (present != NULL) {
-            *present = NO;
-        }
-        return FMProviderPathsFail(error, 4,
-                                   @"The Provider alias could not be inspected.",
-                                   errno);
-    }
-    if (present != NULL) {
-        *present = YES;
-    }
-    if (!S_ISLNK(aliasInfo.st_mode)) {
-        return FMProviderPathsFail(error, 5,
-                                   @"The Provider alias is not a symbolic link.", 0);
-    }
-
-    NSString *rootPath = jbroot(rootLogicalPath);
-    struct stat rootInfo = {0};
-    if (lstat(rootPath.fileSystemRepresentation, &rootInfo) != 0 ||
-        !S_ISDIR(rootInfo.st_mode)) {
-        return FMProviderPathsFail(error, 5,
-                                   @"The Provider storage root is unavailable.",
-                                   errno != 0 ? errno : ENOTDIR);
-    }
-    NSString *resolvedAlias = FMRealPath(aliasPath);
-    NSString *resolvedRoot = FMRealPath(rootPath);
-    if (resolvedAlias.length == 0 || resolvedRoot.length == 0 ||
-        ![resolvedAlias isEqual:resolvedRoot]) {
-        return FMProviderPathsFail(error, 5,
-                                   @"The Provider alias does not resolve to its storage root.",
-                                   0);
-    }
-    return YES;
-}
-
-BOOL FMProviderManagedMappingIsActive(NSError **error) {
+BOOL FMMountManagedMappingIsActive(NSError **error) {
     BOOL rootSupported = NO;
     NSString *mirrorLogicalPath =
-        FMProviderResolvedMirrorLogicalPath(&rootSupported, NULL);
+        FMMountResolvedMirrorLogicalPath(&rootSupported, NULL);
     struct statfs mapping = {0};
     if (!rootSupported ||
-        statfs(FMProviderSystemFontsLogicalPath.fileSystemRepresentation,
+        statfs(FMMountSystemFontsLogicalPath.fileSystemRepresentation,
                &mapping) != 0) {
-        return FMProviderPathsFail(
+        return FMMountPathsFail(
             error, 6, @"The active font mapping could not be inspected.",
             rootSupported ? errno : 0);
     }
@@ -358,12 +280,12 @@ BOOL FMProviderManagedMappingIsActive(NSError **error) {
     NSString *target = [NSString stringWithUTF8String:mapping.f_mntonname];
     NSString *source = [NSString stringWithUTF8String:mapping.f_mntfromname];
     NSString *mirrorPath = jbroot(mirrorLogicalPath);
-    BOOL exact =
+    BOOL exact = filesystemType != nil && source != nil &&
         [filesystemType caseInsensitiveCompare:@"bindfs"] == NSOrderedSame &&
-        [target isEqual:FMProviderSystemFontsLogicalPath] &&
+        [target isEqual:FMMountSystemFontsLogicalPath] &&
         [source.stringByResolvingSymlinksInPath
             isEqual:mirrorPath.stringByResolvingSymlinksInPath] &&
         (mapping.f_flags & MNT_RDONLY) != 0;
-    return exact || FMProviderPathsFail(
+    return exact || FMMountPathsFail(
         error, 6, @"The active font mapping is not the managed read-only mirror.", 0);
 }

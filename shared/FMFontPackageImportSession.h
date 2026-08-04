@@ -6,7 +6,7 @@ FOUNDATION_EXPORT NSString *const FMFontPackageImportSessionErrorDomain;
 
 // Owns one stable, app-controlled copy of a user-selected font package. The
 // copy lives only under Font Manager's namespaced temporary root and is never a
-// Profile or a Provider mirror input by itself.
+// Profile or a managed mirror input by itself.
 @interface FMFontPackageImportSession : NSObject
 
 @property(nonatomic, copy, readonly) NSURL *packageURL;

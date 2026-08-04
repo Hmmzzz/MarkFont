@@ -30,18 +30,18 @@ NS_ASSUME_NONNULL_BEGIN
 @optional
 // Lightweight environment summary for product UI. Implementations may read
 // helper, state, and mount metadata, but must not walk or hash the font tree,
-// invoke the Provider, modify files, or request a restart.
+// invoke the mount backend, modify files, or request a restart.
 - (nullable NSDictionary<NSString *, id> *)environmentStatus:(NSError **)error;
 
 // Read-only package inspection. The UI passes an app-controlled temporary copy,
 // never the original security-scoped document. Implementations must not persist
-// a Profile, modify the mirror, invoke the Provider, or request a restart.
+// a Profile, modify the mirror, invoke the mount backend, or request a restart.
 - (nullable NSDictionary<NSString *, id> *)previewFontPackageAtPath:(NSString *)sourcePath
                                                                error:(NSError **)error;
 
 // Saves only the unambiguous package matches as an inactive Profile in the
 // app-owned library. It must not stage the Profile, modify the mirror, invoke
-// the Provider, change state.json, or request a restart.
+// the mount backend, change state.json, or request a restart.
 - (nullable NSDictionary<NSString *, id> *)saveFontPackageAtPath:(NSString *)sourcePath
                                                       profileName:(NSString *)profileName
                                                             error:(NSError **)error;

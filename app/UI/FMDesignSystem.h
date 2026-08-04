@@ -299,22 +299,21 @@ static inline NSString *FMClassificationSymbol(NSString *classification) {
 
 static inline NSString *FMActionTitle(NSString *action) {
     if ([action isEqual:@"none"]) return FMLocalized(@"无需操作");
-    if ([action isEqual:@"initializeProvider"]) return FMLocalized(@"准备字体环境");
+    if ([action isEqual:@"initializeMirror"]) return FMLocalized(@"准备字体环境");
     if ([action isEqual:@"adoptStockMirror"]) return FMLocalized(@"接管现有系统副本");
     if ([action isEqual:@"importExistingDifferences"]) return FMLocalized(@"保存现有字体改动");
     if ([action isEqual:@"restoreStockWithConfirmation"]) return FMLocalized(@"确认后恢复系统字体");
     if ([action isEqual:@"reviewMirrorDifferences"]) return FMLocalized(@"检查现有字体差异");
     if ([action isEqual:@"repairMirror"]) return FMLocalized(@"恢复未完成操作");
-    if ([action isEqual:@"installProvider"]) return FMLocalized(@"安装挂载组件");
-    if ([action isEqual:@"updateProviderAdapter"]) return FMLocalized(@"更新挂载组件");
+    if ([action isEqual:@"repairMountBackend"]) return FMLocalized(@"修复内置挂载后端");
     if ([action isEqual:@"repairRootfsAccess"]) return FMLocalized(@"恢复系统字体访问");
     return action;
 }
 
 static inline NSString *FMIssueTitle(NSString *issue) {
     NSDictionary<NSString *, NSString *> *titles = @{
-        @"providerUnavailable" : FMLocalized(@"挂载组件不可用"),
-        @"providerCapabilityMismatch" : FMLocalized(@"挂载能力与当前系统不匹配"),
+        @"mountBackendUnavailable" : FMLocalized(@"内置挂载后端不可用"),
+        @"mountBackendCapabilityMismatch" : FMLocalized(@"挂载能力与当前系统不匹配"),
         @"fontSourceUnavailable" : FMLocalized(@"无法读取系统字体"),
         @"mirrorOutsideJBRoot" : FMLocalized(@"字体镜像位置异常"),
         @"rootfsMirrorAliased" : FMLocalized(@"系统字体与镜像路径重叠"),

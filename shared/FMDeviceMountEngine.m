@@ -15,17 +15,17 @@
 #import "FMEnvironmentProbe.h"
 #import "FMFileStore.h"
 #import "FMMirrorPreparation.h"
-#import "FMProviderCoordinator.h"
-#import "FMProviderCompatibility.h"
-#import "FMProviderExecutor.h"
-#import "FMProviderInspection.h"
-#import "FMProviderPaths.h"
+#import "FMMountCoordinator.h"
+#import "FMMountBackendCompatibility.h"
+#import "FMMountBackendExecutor.h"
+#import "FMMountInspection.h"
+#import "FMMountPaths.h"
 #import "FMSecureDirectory.h"
 
 NSString *const FMDeviceMountEngineErrorDomain =
     @"com.hmmzzz.fontmanager.devicemountengine";
 
-static NSString *const FMProviderStagingName =
+static NSString *const FMMountStagingName =
     @".Fonts.fontmanager-staging";
 static NSString *const FMBaselineRootLogicalPath =
     @"/var/lib/fontmanager/baseline";
@@ -71,15 +71,15 @@ static BOOL FMRequireAbsentPath(NSString *path,
     return YES;
 }
 
-static BOOL FMRequireSecureSharedProviderRoot(NSString *providerRoot,
-                                              NSError **error) {
-    int descriptor = open(providerRoot.fileSystemRepresentation,
+static BOOL FMRequireSecureSharedMountRoot(NSString *mountRoot,
+                                           NSError **error) {
+    int descriptor = open(mountRoot.fileSystemRepresentation,
                           O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
     if (descriptor < 0) {
         NSError *underlying =
             [NSError errorWithDomain:NSPOSIXErrorDomain code:errno userInfo:nil];
         return FMDeviceMountEngineFail(
-            error, 4, @"The reusable Provider root could not be opened.",
+            error, 4, @"The reusable bindfs storage root could not be opened.",
             underlying);
     }
     struct stat info = {0};
@@ -94,7 +94,7 @@ static BOOL FMRequireSecureSharedProviderRoot(NSString *providerRoot,
                                 code:savedError
                             userInfo:nil];
         return FMDeviceMountEngineFail(
-            error, 4, @"The reusable Provider root has unsafe metadata.",
+            error, 4, @"The reusable bindfs storage root has unsafe metadata.",
             underlying);
     }
 
@@ -102,45 +102,40 @@ static BOOL FMRequireSecureSharedProviderRoot(NSString *providerRoot,
         NSError *underlying =
             [NSError errorWithDomain:NSPOSIXErrorDomain code:errno userInfo:nil];
         return FMDeviceMountEngineFail(
-            error, 4, @"The shared Provider root could not be closed safely.",
+            error, 4, @"The shared bindfs storage root could not be closed safely.",
             underlying);
     }
     return YES;
 }
 
-static BOOL FMRequireFreshOrReusableProviderStorage(
-    NSString *providerRoot,
-    NSString *providerAlias,
+static BOOL FMRequireFreshOrReusableMountStorage(
+    NSString *mountRoot,
     BOOL *reused,
     NSError **error) {
     struct stat rootInfo = {0};
     errno = 0;
-    if (lstat(providerRoot.fileSystemRepresentation, &rootInfo) != 0) {
+    if (lstat(mountRoot.fileSystemRepresentation, &rootInfo) != 0) {
         if (errno != ENOENT) {
             NSError *underlying =
                 [NSError errorWithDomain:NSPOSIXErrorDomain
                                     code:errno
                                 userInfo:nil];
             return FMDeviceMountEngineFail(
-                error, 4, @"The Provider storage root could not be inspected.",
+                error, 4, @"The bindfs storage root could not be inspected.",
                 underlying);
         }
         if (reused != NULL) *reused = NO;
-        return FMRequireAbsentPath(
-            providerAlias,
-            @"A Provider alias exists without its storage root.", error);
+        return YES;
     }
 
-    NSError *providerError = nil;
-    // `/bindfs` belongs to the Provider and can legitimately contain mirrors
-    // for unrelated targets. MarkFont validates the shared root and its own
-    // exact ancestor chain, but never requires or clears unrelated entries.
-    if (!FMRequireSecureSharedProviderRoot(providerRoot, &providerError) ||
-        !FMValidateProviderAlias(NO, NULL, &providerError)) {
+    NSError *storageError = nil;
+    // `/bindfs` is a shared logical namespace and may contain bindfs sources
+    // for unrelated targets. MarkFont validates the shared root and only owns
+    // its exact Fonts subtree; it never requires an external alias.
+    if (!FMRequireSecureSharedMountRoot(mountRoot, &storageError)) {
         return FMDeviceMountEngineFail(
             error, 4,
-            @"Existing shared Provider storage is unsafe or has an invalid alias.",
-            providerError);
+            @"Existing shared bindfs storage is unsafe.", storageError);
     }
     if (reused != NULL) *reused = YES;
     return YES;
@@ -246,18 +241,18 @@ static NSDictionary<NSString *, id> *FMPreflightInspection(
 
     NSError *inspectionError = nil;
     NSDictionary *inspection =
-        FMCreateDeviceProviderInspection(&inspectionError);
+        FMCreateDeviceMountInspection(&inspectionError);
     NSDictionary *decision = inspection != nil
-        ? FMCoordinateProviderInspection(inspection, &inspectionError)
+        ? FMCoordinateMountInspection(inspection, &inspectionError)
         : nil;
     if (inspection == nil || decision == nil) {
         FMDeviceMountEngineFail(error, 3,
-                                @"The read-only Provider preflight failed.",
+                                @"The read-only mount preflight failed.",
                                 inspectionError);
         return nil;
     }
 
-    NSDictionary *provider = inspection[@"provider"];
+    NSDictionary *backend = inspection[@"mountBackend"];
     NSDictionary *fonts = inspection[@"fonts"];
     NSDictionary *mapping = inspection[@"mapping"];
     NSDictionary *state = inspection[@"state"];
@@ -266,13 +261,13 @@ static NSDictionary<NSString *, id> *FMPreflightInspection(
         [inspection[@"evidenceMode"] isEqual:@"deviceReadOnly"] &&
         [inspection[@"systemBuild"] isEqual:confirmedSystemBuild] &&
         [decision[@"classification"] isEqual:@"initializeEmptyMirror"] &&
-        [decision[@"recommendedAction"] isEqual:@"initializeProvider"] &&
-        [decision[@"allowedActions"] isEqual:@[ @"initializeProvider" ]] &&
+        [decision[@"recommendedAction"] isEqual:@"initializeMirror"] &&
+        [decision[@"allowedActions"] isEqual:@[ @"initializeMirror" ]] &&
         [issues isKindOfClass:NSArray.class] && issues.count == 0 &&
-        FMProviderEvidenceSatisfiesCompatibilityContract(provider) &&
+        FMMountBackendEvidenceSatisfiesCompatibilityContract(backend) &&
         [fonts[@"mirrorKind"] isEqual:@"missing"] &&
         [fonts[@"mirrorLogicalPath"]
-            isEqual:FMProviderResolvedMirrorLogicalPath(NULL, NULL)] &&
+            isEqual:FMMountResolvedMirrorLogicalPath(NULL, NULL)] &&
         [fonts[@"systemReadable"] boolValue] &&
         [fonts[@"rootfsReadable"] boolValue] &&
         [fonts[@"mirrorInsideJBRoot"] boolValue] &&
@@ -299,14 +294,13 @@ static NSDictionary<NSString *, id> *FMValidatedPreparationPreflight(
         return nil;
     }
 
-    NSString *stockRoot = jbroot(FMProviderRootfsFontsLogicalPath);
-    NSString *providerRoot = jbroot(FMProviderDefaultRootLogicalPath);
-    NSString *providerAlias = jbroot(FMProviderAliasLogicalPath);
-    NSString *providerParent = jbroot(@"/bindfs/System/Library");
+    NSString *stockRoot = jbroot(FMMountRootfsFontsLogicalPath);
+    NSString *mountStorageRoot = jbroot(FMMountStorageRootLogicalPath);
+    NSString *mountStorageParent = jbroot(@"/bindfs/System/Library");
     NSString *stagingRoot =
-        [providerParent stringByAppendingPathComponent:FMProviderStagingName];
+        [mountStorageParent stringByAppendingPathComponent:FMMountStagingName];
     NSString *finalMirrorRoot =
-        [providerParent stringByAppendingPathComponent:@"Fonts"];
+        [mountStorageParent stringByAppendingPathComponent:@"Fonts"];
     NSString *baselineBuildPath = [jbroot(FMBaselineRootLogicalPath)
         stringByAppendingPathComponent:confirmedSystemBuild];
     NSString *baselineStagingPath = [jbroot(FMBaselineRootLogicalPath)
@@ -316,16 +310,16 @@ static NSDictionary<NSString *, id> *FMValidatedPreparationPreflight(
     NSString *stockSnapshotStagingPath = [jbroot(FMStockSnapshotRootLogicalPath)
         stringByAppendingPathComponent:FMBaselineStagingName(confirmedSystemBuild)];
 
-    BOOL providerStorageReused = NO;
+    BOOL mountStorageReused = NO;
 
     if (!FMRequireReadOnlyStockDirectory(stockRoot, error) ||
-        !FMRequireFreshOrReusableProviderStorage(
-            providerRoot, providerAlias, &providerStorageReused, error) ||
+        !FMRequireFreshOrReusableMountStorage(
+            mountStorageRoot, &mountStorageReused, error) ||
         !FMRequireAbsentPath(stagingRoot,
                              @"A preserved Stock-mirror staging directory already exists.",
                              error) ||
         !FMRequireAbsentPath(finalMirrorRoot,
-                             @"The final Provider mirror already exists.", error) ||
+                             @"The final managed mirror already exists.", error) ||
         !FMRequireAbsentPath(baselineBuildPath,
                              @"A baseline for this system build already exists.", error) ||
         !FMRequireAbsentPath(baselineStagingPath,
@@ -378,11 +372,11 @@ static NSDictionary<NSString *, id> *FMValidatedPreparationPreflight(
         @"stockEntryCount" : inspection[@"manifest"][@"stockEntryCount"],
         @"stockRegularBytes" : @(stockBytes),
         @"availableBytes" : @(availableBytes),
-        @"providerVersion" : inspection[@"provider"][@"version"],
-        @"mirrorLogicalPath" : FMProviderResolvedMirrorLogicalPath(NULL, NULL),
-        @"providerStorageReused" : providerStorageReused ? @YES : @NO,
+        @"mountBackendVersion" : inspection[@"mountBackend"][@"version"],
+        @"mirrorLogicalPath" : FMMountResolvedMirrorLogicalPath(NULL, NULL),
+        @"mountStorageReused" : mountStorageReused ? @YES : @NO,
         @"readOnly" : @YES,
-        @"providerInvoked" : @NO,
+        @"mountBackendInvoked" : @NO,
         @"filesystemMutated" : @NO,
         @"mappingChanged" : @NO,
         @"restartRequested" : @NO,
@@ -493,19 +487,19 @@ NSDictionary<NSString *, id> *FMPrepareDeviceStockMirror(
 
     NSDictionary *environment = FMCreateEnvironmentStatus();
     NSDictionary *system = environment[@"system"];
-    NSDictionary *provider = inspection[@"provider"];
+    NSDictionary *backend = inspection[@"mountBackend"];
     if (![system[@"productBuildVersion"] isEqual:confirmedSystemBuild]) {
         FMDeviceMountEngineFail(error, 3,
-                                @"System identity changed after Provider preflight.", nil);
+                                @"System identity changed after mount preflight.", nil);
         return nil;
     }
 
-    NSString *stockRoot = jbroot(FMProviderRootfsFontsLogicalPath);
-    NSString *providerParent = jbroot(@"/bindfs/System/Library");
+    NSString *stockRoot = jbroot(FMMountRootfsFontsLogicalPath);
+    NSString *mountStorageParent = jbroot(@"/bindfs/System/Library");
     NSString *stagingRoot =
-        [providerParent stringByAppendingPathComponent:FMProviderStagingName];
+        [mountStorageParent stringByAppendingPathComponent:FMMountStagingName];
     NSString *finalMirrorRoot =
-        [providerParent stringByAppendingPathComponent:@"Fonts"];
+        [mountStorageParent stringByAppendingPathComponent:@"Fonts"];
     NSString *bootstrapRoot = FMPhysicalDirectoryPath(jbroot(@"/"), error);
     if (bootstrapRoot == nil || [bootstrapRoot isEqualToString:@"/"] ||
         !FMEnsureSecureDirectoryTree(bootstrapRoot,
@@ -534,9 +528,9 @@ NSDictionary<NSString *, id> *FMPrepareDeviceStockMirror(
     }
 
     NSDictionary *postInspection =
-        FMCreateDeviceProviderInspection(&preparationError);
+        FMCreateDeviceMountInspection(&preparationError);
     NSDictionary *postDecision = postInspection != nil
-        ? FMCoordinateProviderInspection(postInspection, &preparationError)
+        ? FMCoordinateMountInspection(postInspection, &preparationError)
         : nil;
     NSDictionary *postManifest = postInspection[@"manifest"];
     BOOL postcondition = postInspection != nil && postDecision != nil &&
@@ -586,13 +580,14 @@ NSDictionary<NSString *, id> *FMPrepareDeviceStockMirror(
     NSISO8601DateFormatter *formatter = [[NSISO8601DateFormatter alloc] init];
     formatter.formatOptions = NSISO8601DateFormatWithInternetDateTime;
     NSDictionary *identity = @{
-        @"schemaVersion" : @(FMDataSchemaVersion),
+        @"schemaVersion" : @(FMBaselineIdentitySchemaVersion),
         @"productType" : system[@"productType"],
         @"productVersion" : system[@"productVersion"],
         @"productBuildVersion" : system[@"productBuildVersion"],
         @"sourceLogicalPath" : @"/System/Library/Fonts",
-        @"providerPackage" : @"com.nan.bindfs",
-        @"providerVersion" : provider[@"version"],
+        @"mirrorLogicalPath" : @"/bindfs/System/Library/Fonts",
+        @"mountBackend" : FMMountBackendIdentifier,
+        @"mountBackendVersion" : backend[@"version"],
         @"createdAt" : [formatter stringFromDate:NSDate.date],
     };
     if (!FMWriteBaseline(identity, stockManifest, confirmedSystemBuild, error)) {
@@ -615,14 +610,14 @@ NSDictionary<NSString *, id> *FMPrepareDeviceStockMirror(
         @"operation" : @"prepareStockMirror",
         @"status" : @"prepared",
         @"systemBuild" : confirmedSystemBuild,
-        @"mirrorLogicalPath" : FMProviderResolvedMirrorLogicalPath(NULL, NULL),
+        @"mirrorLogicalPath" : FMMountResolvedMirrorLogicalPath(NULL, NULL),
         @"baselineLogicalPath" : [FMBaselineRootLogicalPath
             stringByAppendingPathComponent:confirmedSystemBuild],
         @"stockSnapshotLogicalPath" : [FMStockSnapshotRootLogicalPath
             stringByAppendingPathComponent:confirmedSystemBuild],
         @"stockEntryCount" : @([stockManifest[@"entries"] count]),
         @"baselineManifestSHA256" : manifestHash,
-        @"providerInvoked" : @NO,
+        @"mountBackendInvoked" : @NO,
         @"mappingChanged" : @NO,
         @"stateCreated" : @NO,
         @"restartRequested" : @NO,
@@ -658,7 +653,7 @@ static BOOL FMRequireSecureRegularFile(NSString *path, NSError **error) {
 }
 
 static BOOL FMRequirePhysicalSystemTarget(NSError **error) {
-    int descriptor = open(FMProviderSystemFontsLogicalPath.fileSystemRepresentation,
+    int descriptor = open(FMMountSystemFontsLogicalPath.fileSystemRepresentation,
                           O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
     if (descriptor < 0) {
         NSError *underlying = [NSError errorWithDomain:NSPOSIXErrorDomain
@@ -698,7 +693,7 @@ static BOOL FMInspectionHasExactPreparedStockEvidence(
     NSDictionary<NSString *, id> *inspection,
     NSDictionary<NSString *, id> *decision,
     NSString *confirmedSystemBuild) {
-    NSDictionary *provider = inspection[@"provider"];
+    NSDictionary *backend = inspection[@"mountBackend"];
     NSDictionary *fonts = inspection[@"fonts"];
     NSDictionary *mapping = inspection[@"mapping"];
     NSDictionary *manifest = inspection[@"manifest"];
@@ -723,10 +718,10 @@ static BOOL FMInspectionHasExactPreparedStockEvidence(
         [decision[@"recommendedAction"] isEqual:@"adoptStockMirror"] &&
         [decision[@"allowedActions"] isEqual:@[ @"adoptStockMirror" ]] &&
         [issues isKindOfClass:NSArray.class] && issues.count == 0 &&
-        FMProviderEvidenceSatisfiesCompatibilityContract(provider) &&
+        FMMountBackendEvidenceSatisfiesCompatibilityContract(backend) &&
         [fonts[@"mirrorKind"] isEqual:@"present"] &&
         [fonts[@"mirrorLogicalPath"]
-            isEqual:FMProviderResolvedMirrorLogicalPath(NULL, NULL)] &&
+            isEqual:FMMountResolvedMirrorLogicalPath(NULL, NULL)] &&
         [fonts[@"systemReadable"] boolValue] &&
         [fonts[@"rootfsReadable"] boolValue] &&
         [fonts[@"mirrorInsideJBRoot"] boolValue] &&
@@ -765,9 +760,9 @@ static NSDictionary<NSString *, id> *FMValidatedPreparedStockMountPreflight(
     }
 
     NSError *inspectionError = nil;
-    NSDictionary *inspection = FMCreateDeviceProviderInspection(&inspectionError);
+    NSDictionary *inspection = FMCreateDeviceMountInspection(&inspectionError);
     NSDictionary *decision = inspection != nil
-        ? FMCoordinateProviderInspection(inspection, &inspectionError)
+        ? FMCoordinateMountInspection(inspection, &inspectionError)
         : nil;
     if (inspection == nil || decision == nil ||
         !FMInspectionHasExactPreparedStockEvidence(
@@ -780,30 +775,23 @@ static NSDictionary<NSString *, id> *FMValidatedPreparedStockMountPreflight(
     }
 
     BOOL autoMountConflict = NO;
-    if (!FMProviderAutoMountConflictsWithSystemFonts(
+    if (!FMLegacyProviderAutoMountConflictsWithSystemFonts(
             &autoMountConflict, &inspectionError) || autoMountConflict) {
         FMDeviceMountEngineFail(
             error, 7,
-            @"Provider automatic mounting must not target Fonts during activation.",
+            @"legacy Provider automatic mounting must not target Fonts during activation.",
             inspectionError);
         return nil;
     }
     BOOL mappingActive = [inspection[@"mapping"][@"active"] boolValue];
-    BOOL aliasPresent = NO;
-    if (!FMValidateProviderAlias(mappingActive, &aliasPresent, &inspectionError)) {
-        FMDeviceMountEngineFail(error, 7,
-                                @"The Provider alias failed activation preflight.",
-                                inspectionError);
-        return nil;
-    }
 
-    NSString *stockPath = jbroot(FMProviderRootfsFontsLogicalPath);
+    NSString *stockPath = jbroot(FMMountRootfsFontsLogicalPath);
     if (!FMRequireReadOnlyStockDirectory(stockPath, error)) {
         return nil;
     }
     NSString *bootstrapRoot = FMPhysicalDirectoryPath(jbroot(@"/"), error);
     NSString *varLibrary = FMPhysicalDirectoryPath(jbroot(@"/var/lib"), error);
-    NSString *mirrorLogicalPath = FMProviderResolvedMirrorLogicalPath(NULL, NULL);
+    NSString *mirrorLogicalPath = FMMountResolvedMirrorLogicalPath(NULL, NULL);
     NSString *mirrorPath = jbroot(mirrorLogicalPath);
     NSString *resolvedMirror = FMPhysicalDirectoryPath(mirrorPath, error);
     if (bootstrapRoot == nil || varLibrary == nil || resolvedMirror == nil ||
@@ -845,7 +833,7 @@ static NSDictionary<NSString *, id> *FMValidatedPreparedStockMountPreflight(
     }
 
     NSString *mirrorStagingPath = [jbroot(@"/bindfs/System/Library")
-        stringByAppendingPathComponent:FMProviderStagingName];
+        stringByAppendingPathComponent:FMMountStagingName];
     NSString *baselineRoot = jbroot(FMBaselineRootLogicalPath);
     NSString *baselineBuildPath =
         [baselineRoot stringByAppendingPathComponent:confirmedSystemBuild];
@@ -877,7 +865,7 @@ static NSDictionary<NSString *, id> *FMValidatedPreparedStockMountPreflight(
         FMReadJSONObjectAtPath(manifestPath, &inspectionError);
     NSDictionary *environment = FMCreateEnvironmentStatus();
     NSDictionary *system = environment[@"system"];
-    NSDictionary *provider = inspection[@"provider"];
+    NSDictionary *backend = inspection[@"mountBackend"];
     NSDictionary *manifest = inspection[@"manifest"];
     if (identity == nil || baselineManifest == nil ||
         !FMValidateBaselineIdentity(identity, &inspectionError) ||
@@ -915,18 +903,18 @@ static NSDictionary<NSString *, id> *FMValidatedPreparedStockMountPreflight(
         @"operation" : @"preflightPreparedStockMount",
         @"status" : @"eligible",
         @"systemBuild" : confirmedSystemBuild,
-        @"providerVersion" : provider[@"version"],
-        @"baselineProviderVersion" : identity[@"providerVersion"],
-        @"providerRecognition" : provider[@"recognition"],
-        @"providerCompatibility" : provider[@"compatibility"],
+        @"mountBackendVersion" : backend[@"version"],
+        @"baselineMountBackendVersion" :
+            identity[@"mountBackendVersion"] ?: identity[@"providerVersion"],
+        @"mountBackendRecognition" : backend[@"recognition"],
+        @"mountBackendCompatibility" : backend[@"compatibility"],
         @"mirrorLogicalPath" : mirrorLogicalPath,
         @"stockEntryCount" : manifest[@"stockEntryCount"],
         @"baselineManifestSHA256" : baselineManifestHash,
         @"mappingAlreadyActive" : @(mappingActive),
-        @"providerWouldBeInvoked" : mappingActive ? @NO : @YES,
-        @"aliasPresent" : @(aliasPresent),
+        @"mountBackendWouldBeInvoked" : mappingActive ? @NO : @YES,
         @"readOnly" : @YES,
-        @"providerInvoked" : @NO,
+        @"mountBackendInvoked" : @NO,
         @"filesystemMutated" : @NO,
         @"mappingChanged" : @NO,
         @"stateCreated" : @NO,
@@ -1026,46 +1014,43 @@ NSDictionary<NSString *, id> *FMMountPreparedDeviceStock(
     }
     BOOL mappingAlreadyActive =
         [preInspection[@"mapping"][@"active"] boolValue];
-    NSDictionary *providerReport = @{
+    NSDictionary *backendReport = @{
         @"processStarted" : @NO,
         @"exitedNormally" : @NO,
         @"exitStatus" : NSNull.null,
         @"terminatingSignal" : NSNull.null,
         @"reportedSuccess" : @NO,
-        @"aliasWasPresent" : preflight[@"aliasPresent"],
-        @"providerCompatibility" : preflight[@"providerCompatibility"],
+        @"mountBackendCompatibility" : preflight[@"mountBackendCompatibility"],
     };
     if (!mappingAlreadyActive) {
-        NSError *providerError = nil;
-        providerReport = FMInvokeProviderForPreparedSystemFonts(&providerError);
-        if (providerReport == nil) {
+        NSError *backendError = nil;
+        backendReport = FMInvokeMountBackendForPreparedSystemFonts(&backendError);
+        if (backendReport == nil) {
             FMDeviceMountEngineFail(
                 error, 9,
-                @"The fixed Provider activation operation could not complete.",
-                providerError);
+                @"The fixed mount backend activation operation could not complete.",
+                backendError);
             return nil;
         }
     }
 
     NSError *postError = nil;
-    BOOL aliasPresent = NO;
     BOOL autoMountConflict = NO;
-    NSDictionary *postInspection = FMCreateDeviceProviderInspection(&postError);
+    NSDictionary *postInspection = FMCreateDeviceMountInspection(&postError);
     NSDictionary *postDecision = postInspection != nil
-        ? FMCoordinateProviderInspection(postInspection, &postError)
+        ? FMCoordinateMountInspection(postInspection, &postError)
         : nil;
     BOOL pathsValid =
-        FMProviderAutoMountConflictsWithSystemFonts(
+        FMLegacyProviderAutoMountConflictsWithSystemFonts(
             &autoMountConflict, &postError) &&
-        !autoMountConflict &&
-        FMValidateProviderAlias(YES, &aliasPresent, &postError) && aliasPresent;
+        !autoMountConflict;
     if (!pathsValid || postInspection == nil || postDecision == nil ||
         !FMPostMountInspectionIsExactStock(
             postInspection, postDecision, confirmedSystemBuild,
             preflight[@"baselineManifestSHA256"])) {
         FMDeviceMountEngineFail(
             error, 9,
-            @"Provider activation did not produce the exact verified read-only mapping; no state was created.",
+            @"mount backend activation did not produce the exact verified read-only mapping; no state was created.",
             postError);
         return nil;
     }
@@ -1074,9 +1059,9 @@ NSDictionary<NSString *, id> *FMMountPreparedDeviceStock(
         return nil;
     }
 
-    NSDictionary *finalInspection = FMCreateDeviceProviderInspection(&postError);
+    NSDictionary *finalInspection = FMCreateDeviceMountInspection(&postError);
     NSDictionary *finalDecision = finalInspection != nil
-        ? FMCoordinateProviderInspection(finalInspection, &postError)
+        ? FMCoordinateMountInspection(finalInspection, &postError)
         : nil;
     NSDictionary *finalManifest = finalInspection[@"manifest"];
     NSDictionary *finalState = finalInspection[@"state"];
@@ -1111,17 +1096,17 @@ NSDictionary<NSString *, id> *FMMountPreparedDeviceStock(
         @"mirrorLogicalPath" : preflight[@"mirrorLogicalPath"],
         @"baselineManifestSHA256" : preflight[@"baselineManifestSHA256"],
         @"stockEntryCount" : finalManifest[@"stockEntryCount"],
-        @"providerInvoked" : mappingAlreadyActive ? @NO : @YES,
-        @"providerVersion" : finalInspection[@"provider"][@"version"],
-        @"baselineProviderVersion" : preflight[@"baselineProviderVersion"],
-        @"providerRecognition" : preflight[@"providerRecognition"],
-        @"providerCompatibility" : preflight[@"providerCompatibility"],
-        @"providerReportedSuccess" : providerReport[@"reportedSuccess"],
-        @"providerExitStatus" : providerReport[@"exitStatus"],
+        @"mountBackendInvoked" : mappingAlreadyActive ? @NO : @YES,
+        @"mountBackendVersion" : finalInspection[@"mountBackend"][@"version"],
+        @"baselineMountBackendVersion" :
+            preflight[@"baselineMountBackendVersion"],
+        @"mountBackendRecognition" : preflight[@"mountBackendRecognition"],
+        @"mountBackendCompatibility" : preflight[@"mountBackendCompatibility"],
+        @"mountBackendReportedSuccess" : backendReport[@"reportedSuccess"],
+        @"mountBackendExitStatus" : backendReport[@"exitStatus"],
         @"mappingChanged" : mappingAlreadyActive ? @NO : @YES,
         @"mappingActive" : @YES,
         @"mappingReadOnly" : @YES,
-        @"aliasValidated" : @YES,
         @"stateCreated" : @YES,
         @"restartRequested" : @NO,
         @"recoveryMode" : @(mappingAlreadyActive),

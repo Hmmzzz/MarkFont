@@ -14,8 +14,8 @@
 #import "FMDataModel.h"
 #import "FMFileStore.h"
 #import "FMOperationLock.h"
-#import "FMProviderExecutor.h"
-#import "FMProviderPaths.h"
+#import "FMMountBackendExecutor.h"
+#import "FMMountPaths.h"
 #import "FMSecureDirectory.h"
 
 NSString *const FMDeviceAutoMountErrorDomain =
@@ -26,7 +26,7 @@ static NSString *const FMStateLogicalPath = @"/var/lib/fontmanager/state.json";
 static NSString *const FMDisableMountLogicalPath =
     @"/var/lib/fontmanager/disable-mount";
 static NSString *const FMRootHideSafeModeLogicalPath = @"/basebin/.safe_mode";
-static NSString *const FMProviderGlobalDisableLogicalPath =
+static NSString *const FMLegacyProviderGlobalDisableLogicalPath =
     @"/rootfs/var/mobile/.not_auto_mount";
 static NSString *const FMSpringBoardProcessPath =
     @"/System/Library/CoreServices/SpringBoard.app/SpringBoard";
@@ -96,7 +96,7 @@ static NSDictionary<NSString *, id> *FMAutoMountSkippedReport(
         @"status" : status,
         @"reason" : reason,
         @"jailbreakSession" : @(jbrand()),
-        @"providerInvoked" : @NO,
+        @"mountBackendInvoked" : @NO,
         @"copyPerformed" : @NO,
         @"filesystemMutated" : @NO,
         @"mappingChanged" : @NO,
@@ -109,13 +109,13 @@ static NSDictionary<NSString *, id> *_Nullable FMAutoMountGateReport(
     NSError **error) {
     BOOL safeMode = NO;
     BOOL disabled = NO;
-    BOOL providerDisabled = NO;
+    BOOL legacyProviderDisabled = NO;
     if (!FMAutoMountMarkerExists(jbroot(FMRootHideSafeModeLogicalPath),
                                  &safeMode, error) ||
         !FMAutoMountMarkerExists(jbroot(FMDisableMountLogicalPath),
                                  &disabled, error) ||
-        !FMAutoMountMarkerExists(jbroot(FMProviderGlobalDisableLogicalPath),
-                                 &providerDisabled, error)) {
+        !FMAutoMountMarkerExists(jbroot(FMLegacyProviderGlobalDisableLogicalPath),
+                                 &legacyProviderDisabled, error)) {
         return nil;
     }
     if (safeMode) {
@@ -124,8 +124,8 @@ static NSDictionary<NSString *, id> *_Nullable FMAutoMountGateReport(
     if (disabled) {
         return FMAutoMountSkippedReport(@"disabled", @"fontManagerDisableMarker");
     }
-    if (providerDisabled) {
-        return FMAutoMountSkippedReport(@"disabled", @"providerGlobalDisableMarker");
+    if (legacyProviderDisabled) {
+        return FMAutoMountSkippedReport(@"disabled", @"legacyProviderGlobalDisableMarker");
     }
     return @{};
 }
@@ -296,7 +296,7 @@ static BOOL FMAutoMountValidateWorkspace(NSError **error) {
         return NO;
     }
 
-    NSString *mirrorPath = jbroot(FMProviderResolvedMirrorLogicalPath(NULL, NULL));
+    NSString *mirrorPath = jbroot(FMMountResolvedMirrorLogicalPath(NULL, NULL));
     NSArray<NSString *> *topLevelEntries = [NSFileManager.defaultManager
         contentsOfDirectoryAtPath:mirrorPath error:&directoryError];
     if (topLevelEntries == nil || topLevelEntries.count == 0) {
@@ -312,10 +312,10 @@ static NSDictionary<NSString *, id> *_Nullable FMAutoMountTargetFacts(
     NSError **error) {
     BOOL rootSupported = NO;
     NSString *mirrorLogicalPath =
-        FMProviderResolvedMirrorLogicalPath(&rootSupported, NULL);
+        FMMountResolvedMirrorLogicalPath(&rootSupported, NULL);
     struct statfs filesystem = {0};
     if (!rootSupported ||
-        statfs(FMProviderSystemFontsLogicalPath.fileSystemRepresentation,
+        statfs(FMMountSystemFontsLogicalPath.fileSystemRepresentation,
                &filesystem) != 0) {
         int savedError = rootSupported ? errno : 0;
         FMAutoMountSetError(
@@ -328,7 +328,7 @@ static NSDictionary<NSString *, id> *_Nullable FMAutoMountTargetFacts(
     NSString *target = [NSString stringWithUTF8String:filesystem.f_mntonname];
     NSString *source = [NSString stringWithUTF8String:filesystem.f_mntfromname];
     NSString *mirrorPath = jbroot(mirrorLogicalPath);
-    BOOL dedicated = [target isEqual:FMProviderSystemFontsLogicalPath];
+    BOOL dedicated = [target isEqual:FMMountSystemFontsLogicalPath];
     BOOL bindfs = filesystemType != nil &&
         [filesystemType caseInsensitiveCompare:@"bindfs"] == NSOrderedSame;
     BOOL managed = bindfs && dedicated &&
@@ -344,7 +344,7 @@ static NSDictionary<NSString *, id> *_Nullable FMAutoMountTargetFacts(
 }
 
 static BOOL FMAutoMountRequirePhysicalTarget(NSError **error) {
-    int descriptor = open(FMProviderSystemFontsLogicalPath.fileSystemRepresentation,
+    int descriptor = open(FMMountSystemFontsLogicalPath.fileSystemRepresentation,
                           O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
     if (descriptor < 0) {
         FMAutoMountSetError(
@@ -416,8 +416,12 @@ static NSDictionary<NSString *, id> *_Nullable FMAutoMountLocked(
     BOOL springBoardWasRunning = NO;
     BOOL customWorkingProfile =
         [state[@"workingProfileID"] isKindOfClass:NSString.class];
+    BOOL lateAutomaticMountPending = customWorkingProfile &&
+        [state[@"restartRequired"] boolValue] &&
+        [state[@"refreshReason"] isEqual:@"lateAutomaticMount"];
     if (!mappingWasManaged && customWorkingProfile &&
-        ![state[@"restartRequired"] boolValue]) {
+        (![state[@"restartRequired"] boolValue] ||
+         lateAutomaticMountPending)) {
         springBoardWasRunning = FMAutoMountSpringBoardIsRunning(
             &springBoardObservationAvailable);
     }
@@ -426,33 +430,30 @@ static NSDictionary<NSString *, id> *_Nullable FMAutoMountLocked(
         (!mappingWasManaged && customWorkingProfile &&
          (!springBoardObservationAvailable || springBoardWasRunning));
 
-    NSDictionary *providerReport = nil;
+    NSDictionary *backendReport = nil;
     if (!mappingWasManaged) {
-        providerReport = FMInvokeProviderForPreparedSystemFonts(&inspectionError);
-        if (providerReport == nil ||
-            ![providerReport[@"reportedSuccess"] boolValue]) {
+        backendReport = FMInvokeMountBackendForPreparedSystemFonts(&inspectionError);
+        if (backendReport == nil ||
+            ![backendReport[@"reportedSuccess"] boolValue]) {
             FMAutoMountSetError(
                 error, 5,
-                @"The fixed Provider remount operation did not succeed.",
+                @"The fixed mount backend operation operation did not succeed.",
                 inspectionError);
             return nil;
         }
     }
 
     NSDictionary *postMountFacts = FMAutoMountTargetFacts(&inspectionError);
-    BOOL finalAliasPresent = NO;
     BOOL finalAutoMountConflict = NO;
     BOOL mappingExact = postMountFacts != nil &&
         [postMountFacts[@"managed"] boolValue] &&
-        FMValidateProviderAlias(YES, &finalAliasPresent, &inspectionError) &&
-        finalAliasPresent &&
-        FMProviderAutoMountConflictsWithSystemFonts(
+        FMLegacyProviderAutoMountConflictsWithSystemFonts(
             &finalAutoMountConflict, &inspectionError) &&
         !finalAutoMountConflict;
     if (!mappingExact) {
         FMAutoMountSetError(
             error, 6,
-            @"Provider completion did not produce the exact managed read-only mapping.",
+            @"Mount backend completion did not produce the exact managed read-only mapping.",
             inspectionError);
         return nil;
     }
@@ -492,6 +493,7 @@ static NSDictionary<NSString *, id> *_Nullable FMAutoMountLocked(
             return nil;
         }
         stateChanged = YES;
+        lateAutomaticMountPending = YES;
     }
 
     return @{
@@ -501,13 +503,13 @@ static NSDictionary<NSString *, id> *_Nullable FMAutoMountLocked(
         @"systemBuild" : systemBuild,
         @"workingProfileID" : state[@"workingProfileID"],
         @"jailbreakSession" : @(jbrand()),
-        @"providerInvoked" : mappingWasManaged ? @NO : @YES,
-        @"providerCompatibility" : mappingWasManaged
+        @"mountBackendInvoked" : mappingWasManaged ? @NO : @YES,
+        @"mountBackendCompatibility" : mappingWasManaged
             ? @"notRequired"
-            : providerReport[@"providerCompatibility"],
-        @"providerReportedSuccess" : mappingWasManaged
+            : backendReport[@"mountBackendCompatibility"],
+        @"mountBackendReportedSuccess" : mappingWasManaged
             ? @YES
-            : providerReport[@"reportedSuccess"],
+            : backendReport[@"reportedSuccess"],
         @"copyPerformed" : @NO,
         @"contentScanned" : @NO,
         @"contentVerified" : @NO,
@@ -523,6 +525,8 @@ static NSDictionary<NSString *, id> *_Nullable FMAutoMountLocked(
             springBoardObservationAvailable ? @YES : @NO,
         @"activationRefreshRequired" :
             activationRefreshRequired ? @YES : @NO,
+        @"lateAutomaticMountPending" :
+            lateAutomaticMountPending ? @YES : @NO,
         @"filesystemMutated" : @NO,
         @"stateChanged" : stateChanged ? @YES : @NO,
         @"restartRequested" : @NO,
@@ -671,7 +675,7 @@ NSDictionary<NSString *, id> *FMSetAutomaticRespringEnabled(
         @"enabled" : enabled ? @YES : @NO,
         @"filesystemMutated" : stateChanged ? @YES : @NO,
         @"stateChanged" : stateChanged ? @YES : @NO,
-        @"providerInvoked" : @NO,
+        @"mountBackendInvoked" : @NO,
         @"restartRequested" : @NO,
     };
 }

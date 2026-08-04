@@ -1,17 +1,17 @@
-#import "FMProviderCoordinator.h"
+#import "FMMountCoordinator.h"
 
 #import <CoreFoundation/CoreFoundation.h>
 
-#import "FMProviderCompatibility.h"
+#import "FMMountBackendCompatibility.h"
 
-NSInteger const FMProviderInspectionSchemaVersion = 3;
-NSInteger const FMProviderDecisionVersion = 4;
-NSString *const FMProviderCoordinatorErrorDomain = @"com.hmmzzz.fontmanager.providercoordinator";
+NSInteger const FMMountInspectionSchemaVersion = 4;
+NSInteger const FMMountDecisionVersion = 5;
+NSString *const FMMountCoordinatorErrorDomain = @"com.hmmzzz.fontmanager.mount-coordinator";
 
 static BOOL FMCoordinatorFail(NSError **error, NSString *message) {
     if (error != NULL) {
-        *error = [NSError errorWithDomain:FMProviderCoordinatorErrorDomain
-                                     code:FMProviderCoordinatorErrorInvalidInspection
+        *error = [NSError errorWithDomain:FMMountCoordinatorErrorDomain
+                                     code:FMMountCoordinatorErrorInvalidInspection
                                  userInfo:@{NSLocalizedDescriptionKey : message}];
     }
     return NO;
@@ -84,7 +84,7 @@ static BOOL FMValidatePathArray(id value, NSString *key, NSError **error) {
     return YES;
 }
 
-BOOL FMValidateProviderInspection(id object, NSError **error) {
+BOOL FMValidateMountInspection(id object, NSError **error) {
     if (![object isKindOfClass:NSDictionary.class]) {
         return FMCoordinatorFail(error, @"Inspection root must be a dictionary.");
     }
@@ -93,18 +93,18 @@ BOOL FMValidateProviderInspection(id object, NSError **error) {
     NSSet<NSString *> *evidenceModes =
         [NSSet setWithArray:@[ @"simulatorFixture", @"deviceReadOnly" ]];
     if (![schemaVersion isKindOfClass:NSNumber.class] || FMIsJSONBoolean(schemaVersion) ||
-        [schemaVersion integerValue] != FMProviderInspectionSchemaVersion ||
+        [schemaVersion integerValue] != FMMountInspectionSchemaVersion ||
         ![evidenceModes containsObject:inspection[@"evidenceMode"]] ||
         !FMIsNonemptyString(inspection[@"systemBuild"])) {
         return FMCoordinatorFail(error, @"Invalid inspection identity.");
     }
 
-    NSDictionary *provider = nil;
+    NSDictionary *backend = nil;
     NSDictionary *fonts = nil;
     NSDictionary *mapping = nil;
     NSDictionary *manifest = nil;
     NSDictionary *state = nil;
-    if (!FMRequireDictionary(inspection, @"provider", &provider, error) ||
+    if (!FMRequireDictionary(inspection, @"mountBackend", &backend, error) ||
         !FMRequireDictionary(inspection, @"fonts", &fonts, error) ||
         !FMRequireDictionary(inspection, @"mapping", &mapping, error) ||
         !FMRequireDictionary(inspection, @"manifest", &manifest, error) ||
@@ -112,38 +112,39 @@ BOOL FMValidateProviderInspection(id object, NSError **error) {
         return NO;
     }
 
-    if (![provider[@"packageID"] isEqual:@"com.nan.bindfs"] ||
-        !FMIsNullOrString(provider[@"version"]) ||
-        ![provider[@"contractVersion"] isKindOfClass:NSNumber.class] ||
-        FMIsJSONBoolean(provider[@"contractVersion"]) ||
-        [provider[@"contractVersion"] integerValue] !=
-            FMProviderCapabilityContractVersion ||
+    if (![backend[@"identifier"] isEqual:@"markfont-bindfs"] ||
+        !FMIsNullOrString(backend[@"version"]) ||
+        ![backend[@"contractVersion"] isKindOfClass:NSNumber.class] ||
+        FMIsJSONBoolean(backend[@"contractVersion"]) ||
+        [backend[@"contractVersion"] integerValue] !=
+            FMMountBackendCapabilityContractVersion ||
         ![@[ @"known", @"unknown" ]
-            containsObject:provider[@"recognition"]] ||
+            containsObject:backend[@"recognition"]] ||
         ![@[ @"compatible", @"incompatible" ]
-            containsObject:provider[@"compatibility"]] ||
-        !FMRequireBool(provider, @"packageInstalled", error) ||
-        !FMRequireBool(provider, @"executablePresent", error) ||
-        !FMRequireBool(provider, @"compatible", error) ||
-        !FMRequireBool(provider, @"executableSecure", error) ||
-        !FMRequireBool(provider, @"boundedTextWrapper", error) ||
-        !FMRequireBool(provider, @"shellWrapper", error) ||
-        !FMRequireBool(provider, @"supportsCopy", error) ||
-        !FMRequireBool(provider, @"supportsSkipCopy", error) ||
-        !FMRequireBool(provider, @"supportsUnmount", error) ||
-        !FMRequireBool(provider, @"rootConfigurationSupported", error) ||
-        !FMRequireBool(provider, @"preferencePresent", error) ||
-        !FMRequireBool(provider, @"autoMountConflictsWithFonts", error)) {
+            containsObject:backend[@"compatibility"]] ||
+        !FMRequireBool(backend, @"executablePresent", error) ||
+        !FMRequireBool(backend, @"runtimeLibraryPresent", error) ||
+        !FMRequireBool(backend, @"runtimeLibrarySecure", error) ||
+        !FMRequireBool(backend, @"compatible", error) ||
+        !FMRequireBool(backend, @"executableSecure", error) ||
+        !FMRequireBool(backend, @"machOExecutable", error) ||
+        !FMRequireBool(backend, @"supportsReadOnlyMount", error) ||
+        !FMRequireBool(backend, @"supportsForceUnmount", error) ||
+        !FMRequireBool(backend, @"storageSupported", error) ||
+        !FMRequireBool(backend, @"legacyProviderPreferencePresent", error) ||
+        !FMRequireBool(
+            backend, @"legacyProviderAutoMountConflictsWithFonts", error)) {
         return error == NULL || *error == nil
-                   ? FMCoordinatorFail(error, @"Invalid Provider evidence.")
+                   ? FMCoordinatorFail(error, @"Invalid mount backend evidence.")
                    : NO;
     }
-    BOOL compatibilityConsistent = [provider[@"compatible"] boolValue]
-        ? [provider[@"compatibility"] isEqual:@"compatible"] &&
-          FMProviderEvidenceSatisfiesCompatibilityContract(provider)
-        : [provider[@"compatibility"] isEqual:@"incompatible"];
+    BOOL compatibilityConsistent = [backend[@"compatible"] boolValue]
+        ? [backend[@"compatibility"] isEqual:@"compatible"] &&
+          FMMountBackendEvidenceSatisfiesCompatibilityContract(backend)
+        : [backend[@"compatibility"] isEqual:@"incompatible"];
     if (!compatibilityConsistent) {
-        return FMCoordinatorFail(error, @"Inconsistent Provider compatibility evidence.");
+        return FMCoordinatorFail(
+            error, @"Inconsistent mount backend compatibility evidence.");
     }
 
     NSSet<NSString *> *mirrorKinds =
@@ -215,7 +216,8 @@ static NSDictionary<NSString *, id> *FMOperation(NSString *kind,
         @"kind" : kind,
         @"title" : title,
         @"dryRun" : @YES,
-        @"executable" : [kind isEqual:@"providerCommand"] ? @"mount_bindfs" : NSNull.null,
+        @"executable" : [kind isEqual:@"mountBackendCommand"]
+            ? @"markfont-bindfs" : NSNull.null,
         @"arguments" : arguments,
     };
 }
@@ -226,14 +228,14 @@ static void FMAddIssue(NSMutableArray<NSString *> *issues, NSString *issue) {
     }
 }
 
-NSDictionary<NSString *, id> *FMCoordinateProviderInspection(
+NSDictionary<NSString *, id> *FMCoordinateMountInspection(
     NSDictionary<NSString *, id> *inspection,
     NSError **error) {
-    if (!FMValidateProviderInspection(inspection, error)) {
+    if (!FMValidateMountInspection(inspection, error)) {
         return nil;
     }
 
-    NSDictionary *provider = inspection[@"provider"];
+    NSDictionary *backend = inspection[@"mountBackend"];
     NSDictionary *fonts = inspection[@"fonts"];
     NSDictionary *mapping = inspection[@"mapping"];
     NSDictionary *manifest = inspection[@"manifest"];
@@ -249,15 +251,16 @@ NSDictionary<NSString *, id> *FMCoordinateProviderInspection(
     NSString *recommendedAction = @"reviewEvidence";
     BOOL requiresConfirmation = NO;
 
-    if (![provider[@"packageInstalled"] boolValue] ||
-        ![provider[@"executablePresent"] boolValue]) {
+    if (![backend[@"executablePresent"] boolValue] ||
+        ![backend[@"runtimeLibraryPresent"] boolValue] ||
+        ![backend[@"runtimeLibrarySecure"] boolValue]) {
         classification = @"unavailable";
-        recommendedAction = @"installProvider";
-        FMAddIssue(issues, @"providerUnavailable");
-    } else if (!FMProviderEvidenceSatisfiesCompatibilityContract(provider)) {
+        recommendedAction = @"repairMountBackend";
+        FMAddIssue(issues, @"mountBackendUnavailable");
+    } else if (!FMMountBackendEvidenceSatisfiesCompatibilityContract(backend)) {
         classification = @"unavailable";
-        recommendedAction = @"updateProviderAdapter";
-        FMAddIssue(issues, @"providerCapabilityMismatch");
+        recommendedAction = @"repairMountBackend";
+        FMAddIssue(issues, @"mountBackendCapabilityMismatch");
     } else if (![fonts[@"systemReadable"] boolValue] ||
                ![fonts[@"rootfsReadable"] boolValue]) {
         classification = @"unavailable";
@@ -299,9 +302,9 @@ NSDictionary<NSString *, id> *FMCoordinateProviderInspection(
                 recommendedAction = @"mountManagedMirror";
                 [allowedActions addObject:@"mountManagedMirror"];
                 [operations addObject:FMOperation(
-                    @"providerCommand",
+                    @"mountBackendCommand",
                     @"Remount the verified managed mirror without copying",
-                    @[ @"--skip-copy", @"/System/Library/Fonts" ])];
+                    @[ @"mount-fonts" ])];
             } else {
                 classification = @"managedReady";
                 recommendedAction = @"none";
@@ -316,9 +319,9 @@ NSDictionary<NSString *, id> *FMCoordinateProviderInspection(
                     FMAddIssue(issues, @"unexpectedEmptyMirrorManifest");
                 } else {
                     classification = @"initializeEmptyMirror";
-                    recommendedAction = @"initializeProvider";
+                    recommendedAction = @"initializeMirror";
                     requiresConfirmation = YES;
-                    [allowedActions addObject:@"initializeProvider"];
+                    [allowedActions addObject:@"initializeMirror"];
                     [operations addObject:FMOperation(@"coordinator",
                                                      @"Capture Stock baseline manifest",
                                                      @[])];
@@ -328,9 +331,9 @@ NSDictionary<NSString *, id> *FMCoordinateProviderInspection(
                     [operations addObject:FMOperation(@"coordinator",
                                                      @"Atomically publish verified Stock mirror",
                                                      @[])];
-                    [operations addObject:FMOperation(@"providerCommand",
+                    [operations addObject:FMOperation(@"mountBackendCommand",
                                                      @"Mount verified Stock mirror without copying",
-                                                     @[ @"--skip-copy", @"/System/Library/Fonts" ])];
+                                                     @[ @"mount-fonts" ])];
                     [operations addObject:FMOperation(@"coordinator",
                                                      @"Verify mapping and published mirror",
                                                      @[])];
@@ -355,9 +358,9 @@ NSDictionary<NSString *, id> *FMCoordinateProviderInspection(
                                                  @"Capture Stock baseline manifest",
                                                  @[])];
                 if (!mappingActive) {
-                    [operations addObject:FMOperation(@"providerCommand",
+                    [operations addObject:FMOperation(@"mountBackendCommand",
                                                      @"Mount verified mirror without copying",
-                                                     @[ @"--skip-copy", @"/System/Library/Fonts" ])];
+                                                     @[ @"mount-fonts" ])];
                 }
                 [operations addObject:FMOperation(@"coordinator",
                                                  @"Create Stock state",
@@ -373,9 +376,9 @@ NSDictionary<NSString *, id> *FMCoordinateProviderInspection(
                                                  @"Create Profile from verified changed files",
                                                  @[])];
                 if (!mappingActive) {
-                    [operations addObject:FMOperation(@"providerCommand",
+                    [operations addObject:FMOperation(@"mountBackendCommand",
                                                      @"Mount adopted mirror without copying",
-                                                     @[ @"--skip-copy", @"/System/Library/Fonts" ])];
+                                                     @[ @"mount-fonts" ])];
                 }
                 [operations addObject:FMOperation(@"coordinator",
                                                  @"Create adopted Profile state",
@@ -389,7 +392,7 @@ NSDictionary<NSString *, id> *FMCoordinateProviderInspection(
     }
 
     return @{
-        @"decisionVersion" : @(FMProviderDecisionVersion),
+        @"decisionVersion" : @(FMMountDecisionVersion),
         @"evidenceMode" : inspection[@"evidenceMode"],
         @"readOnly" : @YES,
         @"executionPolicy" : @"previewOnly",
@@ -403,7 +406,7 @@ NSDictionary<NSString *, id> *FMCoordinateProviderInspection(
     };
 }
 
-NSString *FMProviderDecisionText(NSDictionary<NSString *, id> *decision) {
+NSString *FMMountDecisionText(NSDictionary<NSString *, id> *decision) {
     NSMutableArray<NSString *> *lines = [NSMutableArray arrayWithArray:@[
         [NSString stringWithFormat:@"Classification: %@", decision[@"classification"]],
         [NSString stringWithFormat:@"Recommended: %@", decision[@"recommendedAction"]],
@@ -431,7 +434,7 @@ NSString *FMProviderDecisionText(NSDictionary<NSString *, id> *decision) {
                                                   BOOL *stop) {
             (void)stop;
             NSString *suffix = @"";
-            if ([operation[@"kind"] isEqual:@"providerCommand"]) {
+            if ([operation[@"kind"] isEqual:@"mountBackendCommand"]) {
                 suffix = [NSString stringWithFormat:@"\n    argv: %@ %@",
                                                     operation[@"executable"],
                                                     [operation[@"arguments"]

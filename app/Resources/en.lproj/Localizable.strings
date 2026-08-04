@@ -36,19 +36,20 @@
 "正在检查运行环境" = "Checking Runtime Environment";
 "无法读取运行环境" = "Unable to Read Runtime Environment";
 "基础组件" = "Core Components";
-"等待设备返回 mount_bindfs 状态" = "Waiting for mount_bindfs status from the device";
+"内置挂载后端" = "Built-in Mount Backend";
+"等待设备返回内置挂载后端状态" = "Waiting for built-in mount backend status";
 "字体连接" = "Font Connection";
 "等待设备返回字体镜像连接状态" = "Waiting for font mirror connection status";
 "恢复准备" = "Recovery Readiness";
 "等待设备返回系统字体恢复状态" = "Waiting for system font recovery status";
 "本页只读取状态，不会挂载、替换字体或重启设备" = "This page only reads status. It won't mount or replace fonts, or restart the device";
-"mount_bindfs %@ 已验证" = "mount_bindfs %@ is verified";
-"mount_bindfs %@ 已通过能力检查" = "mount_bindfs %@ passed the capability check";
-"mount_bindfs 已安装并可用" = "mount_bindfs is installed and available";
-"需要先安装 mount_bindfs" = "Install mount_bindfs first";
-"mount_bindfs 已安装，但当前无法调用" = "mount_bindfs is installed but can't be invoked";
-"mount_bindfs 接口或安全属性不兼容" = "The mount_bindfs interface or security attributes are incompatible";
-"挂载组件尚未适配当前越狱环境" = "The mount provider isn't adapted to this jailbreak environment";
+"内置挂载后端 %@ 已验证" = "Built-in mount backend %@ is verified";
+"内置挂载后端 %@ 已通过能力检查" = "Built-in mount backend %@ passed the capability check";
+"内置挂载后端已就绪" = "The built-in mount backend is ready";
+"内置挂载后端缺失或安全属性异常" = "The built-in mount backend is missing or has unsafe metadata";
+"当前越狱环境未提供可用的挂载能力" = "The current jailbreak environment doesn't provide the required mount capability";
+"字体镜像存储位置不可用" = "The font mirror storage location is unavailable";
+"内置挂载后端与当前环境不兼容" = "The built-in mount backend is incompatible with the current environment";
 "字体镜像已通过只读连接生效" = "The font mirror is active through a read-only connection";
 "首次设置完成后会自动建立字体连接" = "The font connection will be created after initial setup";
 "当前无法读取系统字体来源" = "The system font source can't be read";
@@ -91,10 +92,9 @@
 "确认后恢复系统字体" = "Confirm to Restore System Font";
 "检查现有字体差异" = "Review Existing Font Differences";
 "恢复未完成操作" = "Recover Incomplete Operation";
-"安装挂载组件" = "Install Mount Provider";
-"更新挂载组件" = "Update Mount Provider";
+"修复内置挂载后端" = "Repair Built-in Mount Backend";
 "恢复系统字体访问" = "Restore System Font Access";
-"挂载组件不可用" = "Mount provider unavailable";
+"内置挂载后端不可用" = "Built-in mount backend unavailable";
 "挂载能力与当前系统不匹配" = "Mount capability doesn't match the current system";
 "无法读取系统字体" = "Unable to read system fonts";
 "字体镜像位置异常" = "Font mirror location is invalid";
@@ -107,6 +107,7 @@
 "已挂载但找不到字体镜像" = "The font target is mounted, but the mirror is missing";
 "空镜像状态不一致" = "Empty mirror state is inconsistent";
 "字体镜像不完整或包含未知内容" = "The font mirror is incomplete or contains unknown content";
+"提供挂载能力接口设计参考" = "Provides the mount capability API design reference";
 
 /* Font library */
 "删除" = "Delete";
@@ -149,8 +150,8 @@
 "匹配预览" = "Match Preview";
 "存在同名冲突，暂时不能保存。请整理字体包后重新选择；当前字体不会改变。" = "Filename conflicts prevent saving. Organize the font package and select it again; the current font won't change.";
 "没有可保存的本机匹配项；当前字体和字体镜像都不会改变。" = "There are no device matches to save; the current font and mirror won't change.";
-"保存只会把已匹配文件复制进字体库，不会替换镜像、切换字体、调用挂载组件或重启设备。" = "Saving only copies matched files into the font library. It won't replace the mirror, switch fonts, invoke the mount provider, or restart the device.";
-"本页只检查匹配关系，不会保存字体方案、替换镜像、调用挂载组件或重启设备。" = "This page only checks matches. It won't save a profile, replace the mirror, invoke the mount provider, or restart the device.";
+"保存只会把已匹配文件复制进字体库，不会替换镜像、切换字体、调用挂载组件或重启设备。" = "Saving only copies matched files into the font library. It won't replace the mirror, switch fonts, invoke the mount backend, or restart the device.";
+"本页只检查匹配关系，不会保存字体方案、替换镜像、调用挂载组件或重启设备。" = "This page only checks matches. It won't save a profile, replace the mirror, invoke the mount backend, or restart the device.";
 "存入字体库" = "Save to Font Library";
 "请先处理同名冲突" = "Resolve Filename Conflicts First";
 "没有可保存的字体" = "No Fonts to Save";
@@ -237,7 +238,6 @@
 "已关闭" = "Off";
 "提供 RootHide 架构与兼容基础" = "Provides the RootHide architecture and compatibility foundation";
 "提供 iOS 越狱开发与打包工具链" = "Provides the iOS jailbreak development and packaging toolchain";
-"赵楠 · 提供字体目录映射依赖" = "Zhao Nan · Provides the font folder mapping dependency";
 "提供本项目当前适配与测试的越狱环境" = "Provides the jailbreak environment currently supported and tested by this project";
 "致谢" = "Acknowledgements";
 "感谢这些项目及其贡献者\n让 MarkFont 得以构建与运行" = "Thanks to these projects and their contributors\nfor making MarkFont possible";

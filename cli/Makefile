@@ -4,7 +4,6 @@ include $(THEOS)/makefiles/common.mk
 TOOL_NAME = fontmanagerctl
 
 fontmanagerctl_FILES = main.m ../shared/FMStatusContract.m ../shared/FMDataModel.m \
-    ../shared/FMProviderCoordinator.m ../shared/FMProviderCompatibility.m \
     ../shared/FMHelperClient.m
 fontmanagerctl_LIBRARIES = roothide
 fontmanagerctl_CFLAGS = -fobjc-arc -Wall -Wextra

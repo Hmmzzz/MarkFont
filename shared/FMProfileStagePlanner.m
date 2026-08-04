@@ -263,7 +263,7 @@ NSDictionary<NSString *, id> *FMCreateProfileStagePlanAtRoots(
         @"filesystemMutated" : @NO,
         @"mirrorChanged" : @NO,
         @"stateChanged" : @NO,
-        @"providerInvoked" : @NO,
+        @"mountBackendInvoked" : @NO,
         @"restartRequested" : @NO,
     };
 }

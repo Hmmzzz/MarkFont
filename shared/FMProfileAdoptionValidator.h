@@ -7,7 +7,7 @@ FOUNDATION_EXPORT NSString *const FMProfileAdoptionValidatorErrorDomain;
 // Validates one App-owned imported Profile against the current build catalog.
 // The caller supplies an already fixed Profile-library root. This function is
 // strictly read-only: it does not create the privileged Profile copy, touch the
-// Provider mirror, or update state.json.
+// managed mirror, or update state.json.
 NSDictionary<NSString *, id> *_Nullable FMCreateProfileAdoptionPreviewAtRoot(
     NSString *profilesRoot,
     NSString *profileID,

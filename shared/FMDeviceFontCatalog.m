@@ -8,7 +8,7 @@
 #import "FMEnvironmentProbe.h"
 #import "FMFileStore.h"
 #import "FMFontCatalog.h"
-#import "FMProviderPaths.h"
+#import "FMMountPaths.h"
 
 NSString *const FMDeviceFontCatalogErrorDomain =
     @"com.hmmzzz.fontmanager.devicefontcatalog";
@@ -48,7 +48,7 @@ NSDictionary<NSString *, id> *FMCreateDeviceFontCatalogPreview(
         ![state[@"present"] boolValue] || ![state[@"valid"] boolValue] ||
         ![state[@"systemBuild"] isEqual:confirmedSystemBuild] ||
         ![state[@"mirrorState"] isEqual:@"clean"] ||
-        !FMProviderManagedMappingIsActive(error)) {
+        !FMMountManagedMappingIsActive(error)) {
         if (error == NULL || *error == nil) {
             FMDeviceCatalogFail(error,
                                 @"The managed font workspace is unavailable.", nil);

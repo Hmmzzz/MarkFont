@@ -5,9 +5,9 @@ NS_ASSUME_NONNULL_BEGIN
 FOUNDATION_EXPORT NSString *const FMDeviceAutoMountErrorDomain;
 
 // Root-launchd-only entry point used while the RootHide environment is loaded.
-// It accepts no caller-controlled path, Profile, Provider option, or build.
+// It accepts no caller-controlled path, Profile, backend option, or build.
 // The already-confirmed clean working mirror is connected through the fixed
-// read-only Provider operation without rescanning font file contents.
+// read-only mount backend operation without rescanning font file contents.
 NSDictionary<NSString *, id> *_Nullable FMAutomountManagedDeviceFonts(
     NSError **error);
 

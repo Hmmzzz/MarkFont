@@ -90,12 +90,13 @@ static BOOL FMWriteAutomaticMountReceipt(
     } mutableCopy];
     if (report != nil) {
         for (NSString *key in @[
-                 @"status", @"systemBuild", @"providerInvoked",
-                 @"providerReportedSuccess", @"mappingChanged",
+                 @"status", @"systemBuild", @"mountBackendInvoked",
+                 @"mountBackendReportedSuccess", @"mappingChanged",
                  @"mappingActive", @"mappingReadOnly", @"stateChanged",
                  @"springBoardWasRunning",
                  @"springBoardObservationAvailable",
-                 @"activationRefreshRequired", @"restartRequested"
+                 @"activationRefreshRequired", @"lateAutomaticMountPending",
+                 @"restartRequested"
              ]) {
             id value = report[key];
             if (value != nil) receipt[key] = value;
@@ -114,6 +115,13 @@ static BOOL FMAutomaticRespringIsEligible(
     NSDictionary<NSString *, id> *report,
     BOOL exactLaunchdInvocation) {
     return FMAutomaticRespringEligibleForReport(
+        report, exactLaunchdInvocation, FMAutomaticMountIsLaunchdRun());
+}
+
+static BOOL FMLateAutomaticMountNeedsRestartEvidence(
+    NSDictionary<NSString *, id> *report,
+    BOOL exactLaunchdInvocation) {
+    return FMLateAutomaticMountNeedsRestartEvidenceForReport(
         report, exactLaunchdInvocation, FMAutomaticMountIsLaunchdRun());
 }
 
@@ -322,9 +330,14 @@ int main(int argc, const char *argv[]) {
             NSError *autoMountError = nil;
             NSDictionary *report =
                 FMAutomountManagedDeviceFonts(&autoMountError);
+            BOOL restartEvidenceRequired =
+                FMLateAutomaticMountNeedsRestartEvidence(report, argc == 2);
             BOOL automaticRespringEligible = FMAutomaticRespringIsEligible(
                 report, argc == 2);
             NSMutableDictionary<NSString *, id> *automaticRespringFacts = [@{
+                @"restartEvidenceRequired" :
+                    restartEvidenceRequired ? @YES : @NO,
+                @"restartEvidenceArmed" : @NO,
                 @"automaticRespringPolicyEnabled" :
                     [report[@"autoRespringEnabled"] boolValue] ? @YES : @NO,
                 @"automaticRespringEligible" :
@@ -335,19 +348,28 @@ int main(int argc, const char *argv[]) {
             } mutableCopy];
             NSError *automaticRespringError = nil;
             NSDictionary<NSString *, id> *automaticRespringReport = nil;
-            if (automaticRespringEligible) {
-                automaticRespringFacts[@"automaticRespringAttempted"] = @YES;
+            if (restartEvidenceRequired) {
+                if (automaticRespringEligible) {
+                    automaticRespringFacts[@"automaticRespringAttempted"] = @YES;
+                }
                 automaticRespringReport = FMArmDeviceRespring(
                     report[@"systemBuild"], &automaticRespringError);
                 if (automaticRespringReport != nil) {
-                    automaticRespringFacts[@"automaticRespringArmed"] = @YES;
-                    automaticRespringFacts[@"automaticRespringExecutionRequested"] = @YES;
+                    automaticRespringFacts[@"restartEvidenceArmed"] = @YES;
+                    automaticRespringFacts[@"automaticRespringArmed"] =
+                        automaticRespringEligible ? @YES : @NO;
+                    automaticRespringFacts[@"automaticRespringExecutionRequested"] =
+                        automaticRespringEligible ? @YES : @NO;
                     automaticRespringFacts[@"restartRequested"] = @YES;
                     automaticRespringFacts[@"automaticRespringActivationMode"] =
                         automaticRespringReport[@"activationMode"] ?: @"unknown";
                 } else {
-                    automaticRespringFacts[@"automaticRespringErrorChain"] =
+                    automaticRespringFacts[@"restartEvidenceErrorChain"] =
                         FMAutomaticMountErrorChain(automaticRespringError);
+                    if (automaticRespringEligible) {
+                        automaticRespringFacts[@"automaticRespringErrorChain"] =
+                            FMAutomaticMountErrorChain(automaticRespringError);
+                    }
                 }
             }
             NSError *receiptError = nil;
@@ -364,8 +386,9 @@ int main(int argc, const char *argv[]) {
                         FMErrorChainDescription(autoMountError).UTF8String);
                 return 70;
             }
-            if (automaticRespringReport != nil) {
-                if (!FMExecuteDeviceRespring(&automaticRespringError)) {
+            if (automaticRespringReport != nil && automaticRespringEligible) {
+                if (!FMExecuteDeviceRespring(
+                        report[@"systemBuild"], &automaticRespringError)) {
                     automaticRespringFacts[@"automaticRespringExecutionRequested"] = @NO;
                     automaticRespringFacts[@"automaticRespringExecutionFailed"] = @YES;
                     automaticRespringFacts[@"automaticRespringErrorChain"] =
@@ -395,10 +418,10 @@ int main(int argc, const char *argv[]) {
             }
             NSString *text = [NSString stringWithFormat:
                 @"Automatic mount: %@.\n"
-                 "Provider invoked: %@\nMapping changed: %@\n"
+                 "Mount backend invoked: %@\nMapping changed: %@\n"
                  "State changed: %@\nRestart requested: no\n",
                 report[@"status"],
-                [report[@"providerInvoked"] boolValue] ? @"yes" : @"no",
+                [report[@"mountBackendInvoked"] boolValue] ? @"yes" : @"no",
                 [report[@"mappingChanged"] boolValue] ? @"yes" : @"no",
                 [report[@"stateChanged"] boolValue] ? @"yes" : @"no"];
             return FMWriteString(stdout, text) ? 0 : 74;
@@ -535,7 +558,7 @@ int main(int argc, const char *argv[]) {
                     ? [NSString stringWithFormat:
                         @"Profile staged for %@.\n"
                          "Profile: %@ (%@ managed paths)\n"
-                         "Restart required: %@\nProvider invoked: no\nRestart requested: no\n",
+                         "Restart required: %@\nMount backend invoked: no\nRestart requested: no\n",
                         report[@"systemBuild"], report[@"profileName"],
                         report[@"managedPathCount"],
                         [report[@"restartRequired"] boolValue] ? @"yes" : @"no"]
@@ -630,7 +653,7 @@ int main(int argc, const char *argv[]) {
 
             close(STDOUT_FILENO);
             BOOL executed = respringRequestCommand
-                ? FMExecuteDeviceRespring(&restartError)
+                ? FMExecuteDeviceRespring(confirmedBuild, &restartError)
                 : FMExecuteDeviceUserspaceReboot(&restartError);
             if (!executed) {
                 fprintf(stderr, "%s execution failure: %s\n",
@@ -714,33 +737,33 @@ int main(int argc, const char *argv[]) {
             if (prepareCommand) {
                 text = [NSString stringWithFormat:
                     @"Stock mirror prepared for %@.\n"
-                     "Mapping changed: no\nProvider invoked: no\n"
+                     "Mapping changed: no\nMount backend invoked: no\n"
                      "Next classification: %@\n",
                     report[@"systemBuild"], report[@"nextClassification"]];
             } else if (preflightCommand) {
                 text = [NSString stringWithFormat:
                     @"Stock mirror preflight passed for %@.\n"
-                     "Filesystem mutated: no\nProvider invoked: no\n",
+                     "Filesystem mutated: no\nMount backend invoked: no\n",
                     report[@"systemBuild"]];
             } else if (mountPreflightCommand) {
                 text = [NSString stringWithFormat:
                     @"Prepared Stock mount preflight passed for %@.\n"
-                     "Filesystem mutated: no\nProvider invoked: no\n"
-                     "Provider would be invoked: %@\n",
+                     "Filesystem mutated: no\nMount backend invoked: no\n"
+                     "Mount backend would be invoked: %@\n",
                     report[@"systemBuild"],
-                    [report[@"providerWouldBeInvoked"] boolValue] ? @"yes" : @"no"];
+                    [report[@"mountBackendWouldBeInvoked"] boolValue] ? @"yes" : @"no"];
             } else if (mountCommand) {
                 text = [NSString stringWithFormat:
                     @"Prepared Stock mapping is managed for %@.\n"
-                     "Provider invoked: %@\nMapping read-only: yes\n"
+                     "Mount backend invoked: %@\nMapping read-only: yes\n"
                      "State created: yes\nRestart requested: no\n",
                     report[@"systemBuild"],
-                    [report[@"providerInvoked"] boolValue] ? @"yes" : @"no"];
+                    [report[@"mountBackendInvoked"] boolValue] ? @"yes" : @"no"];
             } else if (profileRepairCommand) {
                 text = [NSString stringWithFormat:
                     @"Interrupted Profile transition repaired for %@.\n"
                      "Managed paths: %@\nRestart required: %@\n"
-                     "Provider invoked: no\nRestart requested: no\n",
+                     "Mount backend invoked: no\nRestart requested: no\n",
                     report[@"systemBuild"], report[@"managedPathCount"],
                     [report[@"restartRequired"] boolValue] ? @"yes" : @"no"];
             } else if (stockSnapshotPreflightCommand) {

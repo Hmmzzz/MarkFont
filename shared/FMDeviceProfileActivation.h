@@ -8,7 +8,7 @@ FOUNDATION_EXPORT NSString *const FMDeviceProfileActivationErrorDomain;
 // verifies an exact managed Stock mapping, the build-bound catalog, App-owned
 // Profile metadata/files, and destination capacity. If an identical privileged
 // copy already exists, it validates and reports that copy for idempotent retry.
-// It never adopts the Profile, writes the mirror/state, invokes the Provider,
+// It never adopts the Profile, writes the mirror/state, invokes the mount backend,
 // or restarts userspace.
 NSDictionary<NSString *, id> *_Nullable FMCreateDeviceProfileActivationPreflight(
     NSString *confirmedSystemBuild,

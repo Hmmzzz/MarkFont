@@ -2,7 +2,7 @@
 
 #import <CoreFoundation/CoreFoundation.h>
 
-NSInteger const FMStatusAPIVersion = 1;
+NSInteger const FMStatusAPIVersion = 2;
 NSString *const FMStatusErrorDomain = @"com.hmmzzz.fontmanager.status";
 
 static BOOL FMStatusFail(NSError **error, NSString *message) {
@@ -67,12 +67,12 @@ BOOL FMValidateStatusDocument(id object, NSError **error) {
     }
 
     NSDictionary *system = nil;
-    NSDictionary *provider = nil;
+    NSDictionary *mountBackend = nil;
     NSDictionary *fonts = nil;
     NSDictionary *state = nil;
     NSDictionary *capabilities = nil;
     if (!FMRequireDictionary(document, @"system", &system, error) ||
-        !FMRequireDictionary(document, @"provider", &provider, error) ||
+        !FMRequireDictionary(document, @"mountBackend", &mountBackend, error) ||
         !FMRequireDictionary(document, @"fonts", &fonts, error) ||
         !FMRequireDictionary(document, @"state", &state, error) ||
         !FMRequireDictionary(document, @"capabilities", &capabilities, error)) {
@@ -85,35 +85,41 @@ BOOL FMValidateStatusDocument(id object, NSError **error) {
         }
     }
 
-    if (![provider[@"packageID"] isKindOfClass:NSString.class] ||
-        !FMIsStringOrNull(provider[@"version"]) ||
-        !FMIsStringOrNull(provider[@"architecture"]) ||
-        ![provider[@"contractVersion"] isKindOfClass:NSNumber.class] ||
-        [provider[@"contractVersion"] integerValue] <= 0 ||
-        ![@[ @"known", @"unknown" ] containsObject:provider[@"recognition"]] ||
+    if (![mountBackend[@"identifier"] isKindOfClass:NSString.class] ||
+        ![mountBackend[@"version"] isKindOfClass:NSString.class] ||
+        ![mountBackend[@"executableLogicalPath"] isKindOfClass:NSString.class] ||
+        ![mountBackend[@"runtimeLibraryLogicalPath"] isKindOfClass:NSString.class] ||
+        ![mountBackend[@"contractVersion"] isKindOfClass:NSNumber.class] ||
+        [mountBackend[@"contractVersion"] integerValue] <= 0 ||
+        ![@[ @"known", @"unknown" ]
+            containsObject:mountBackend[@"recognition"]] ||
         ![@[ @"compatible", @"incompatible" ]
-            containsObject:provider[@"compatibility"]]) {
-        return FMStatusFail(error, @"Invalid Provider identity fields.");
+            containsObject:mountBackend[@"compatibility"]]) {
+        return FMStatusFail(error, @"Invalid mount backend identity fields.");
     }
-    if (!FMRequireBool(provider, @"packageInstalled", error) ||
-        !FMRequireBool(provider, @"executablePresent", error) ||
-        !FMRequireBool(provider, @"compatible", error) ||
-        !FMRequireBool(provider, @"executableSecure", error) ||
-        !FMRequireBool(provider, @"boundedTextWrapper", error) ||
-        !FMRequireBool(provider, @"shellWrapper", error) ||
-        !FMRequireBool(provider, @"supportsSkipCopy", error) ||
-        !FMRequireBool(provider, @"supportsUnmount", error)) {
+    if (!FMRequireBool(mountBackend, @"executablePresent", error) ||
+        !FMRequireBool(mountBackend, @"runtimeLibraryPresent", error) ||
+        !FMRequireBool(mountBackend, @"runtimeLibrarySecure", error) ||
+        !FMRequireBool(mountBackend, @"compatible", error) ||
+        !FMRequireBool(mountBackend, @"executableSecure", error) ||
+        !FMRequireBool(mountBackend, @"machOExecutable", error) ||
+        !FMRequireBool(mountBackend, @"supportsReadOnlyMount", error) ||
+        !FMRequireBool(mountBackend, @"supportsForceUnmount", error)) {
         return NO;
     }
-    if ([provider[@"compatible"] boolValue] !=
-        [provider[@"compatibility"] isEqual:@"compatible"]) {
-        return FMStatusFail(error, @"Inconsistent Provider compatibility status.");
+    if ([mountBackend[@"compatible"] boolValue] !=
+        [mountBackend[@"compatibility"] isEqual:@"compatible"]) {
+        return FMStatusFail(
+            error, @"Inconsistent mount backend compatibility status.");
     }
 
     for (NSString *key in @[
-             @"systemDirectoryReadable", @"rootfsDirectoryReadable", @"providerRootShared",
-             @"providerRootIsSymlink",
-             @"mirrorPresent", @"mappingActive"
+             @"systemDirectoryReadable", @"rootfsDirectoryReadable",
+             @"mountStorageSupported", @"mountStorageShared",
+             @"legacyProviderPreferencePresent",
+             @"legacyProviderAutoMountConflictsWithFonts",
+             @"mirrorPresent", @"mappingActive", @"mappingManaged",
+             @"stockSnapshotPresent"
          ]) {
         if (!FMRequireBool(fonts, key, error)) {
             return NO;
@@ -140,7 +146,7 @@ BOOL FMValidateStatusDocument(id object, NSError **error) {
     }
 
     for (NSString *key in @[
-             @"readOnlyStatus", @"initializeProvider", @"stageProfile", @"stageStock",
+             @"readOnlyStatus", @"initializeMirror", @"stageProfile", @"stageStock",
              @"repair", @"safeUnmount", @"respring", @"userspaceReboot"
          ]) {
         if (!FMRequireBool(capabilities, key, error)) {
@@ -161,15 +167,16 @@ BOOL FMValidateStatusDocument(id object, NSError **error) {
     return YES;
 }
 
-NSString *FMEngineStateForFacts(NSDictionary<NSString *, id> *provider,
+NSString *FMEngineStateForFacts(NSDictionary<NSString *, id> *mountBackend,
                                 NSDictionary<NSString *, id> *fonts,
                                 NSDictionary<NSString *, id> *state) {
     BOOL systemReadable = [fonts[@"systemDirectoryReadable"] boolValue];
     BOOL rootfsReadable = [fonts[@"rootfsDirectoryReadable"] boolValue];
-    BOOL providerExecutablePresent = [provider[@"executablePresent"] boolValue];
-    BOOL providerCompatible = [provider[@"compatible"] boolValue];
-    if (!systemReadable || !rootfsReadable || !providerExecutablePresent ||
-        !providerCompatible) {
+    BOOL backendExecutablePresent =
+        [mountBackend[@"executablePresent"] boolValue];
+    BOOL backendCompatible = [mountBackend[@"compatible"] boolValue];
+    if (!systemReadable || !rootfsReadable || !backendExecutablePresent ||
+        !backendCompatible) {
         return @"unavailable";
     }
 
@@ -197,7 +204,7 @@ static NSString *FMStatusYesNo(id value) {
 
 NSString *FMStatusHumanReadableText(NSDictionary<NSString *, id> *document) {
     NSDictionary *system = document[@"system"];
-    NSDictionary *provider = document[@"provider"];
+    NSDictionary *mountBackend = document[@"mountBackend"];
     NSDictionary *fonts = document[@"fonts"];
     NSDictionary *state = document[@"state"];
     NSArray<NSString *> *issues = document[@"issues"];
@@ -209,13 +216,13 @@ NSString *FMStatusHumanReadableText(NSDictionary<NSString *, id> *document) {
                                    FMStatusString(system[@"productType"], @"unknown"),
                                    FMStatusString(system[@"productVersion"], @"unknown"),
                                    FMStatusString(system[@"productBuildVersion"], @"unknown")],
-        [NSString stringWithFormat:@"provider: package=%@ executable=%@ compatible=%@ version=%@ architecture=%@ recognition=%@",
-                                   FMStatusYesNo(provider[@"packageInstalled"]),
-                                   FMStatusYesNo(provider[@"executablePresent"]),
-                                   FMStatusYesNo(provider[@"compatible"]),
-                                   FMStatusString(provider[@"version"], @"unknown"),
-                                   FMStatusString(provider[@"architecture"], @"unknown"),
-                                   FMStatusString(provider[@"recognition"], @"unknown")],
+        [NSString stringWithFormat:@"mount backend: id=%@ executable=%@ runtime=%@ compatible=%@ version=%@ recognition=%@",
+                                   FMStatusString(mountBackend[@"identifier"], @"unknown"),
+                                   FMStatusYesNo(mountBackend[@"executablePresent"]),
+                                   FMStatusYesNo(mountBackend[@"runtimeLibraryPresent"]),
+                                   FMStatusYesNo(mountBackend[@"compatible"]),
+                                   FMStatusString(mountBackend[@"version"], @"unknown"),
+                                   FMStatusString(mountBackend[@"recognition"], @"unknown")],
         [NSString stringWithFormat:@"fonts: system=%@ rootfs=%@ mirror=%@ mapping=%@ filesystem=%@",
                                    FMStatusYesNo(fonts[@"systemDirectoryReadable"]),
                                    FMStatusYesNo(fonts[@"rootfsDirectoryReadable"]),

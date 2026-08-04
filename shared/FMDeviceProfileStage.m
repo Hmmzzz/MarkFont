@@ -14,7 +14,7 @@
 #import "FMProfileAdoptionValidator.h"
 #import "FMProfileEngine.h"
 #import "FMProfileStagePlanner.h"
-#import "FMProviderPaths.h"
+#import "FMMountPaths.h"
 
 NSString *const FMDeviceProfileStageErrorDomain =
     @"com.hmmzzz.fontmanager.device-profile-stage";
@@ -114,7 +114,7 @@ static NSDictionary<NSString *, id> *FMDeviceStageCreateBaseContext(
         ![fonts[@"mirrorPresent"] boolValue] ||
         ![fonts[@"rootfsDirectoryReadable"] boolValue] ||
         ![fonts[@"systemDirectoryReadable"] boolValue] ||
-        ![fonts[@"providerRootSupported"] boolValue] ||
+        ![fonts[@"mountStorageSupported"] boolValue] ||
         ![fonts[@"targetFilesystemType"] isEqual:@"bindfs"] ||
         ![environmentState[@"present"] boolValue] ||
         ![environmentState[@"valid"] boolValue] ||
@@ -124,12 +124,12 @@ static NSDictionary<NSString *, id> *FMDeviceStageCreateBaseContext(
         return nil;
     }
 
-    BOOL providerRootSupported = NO;
-    NSString *mirrorLogicalPath = FMProviderResolvedMirrorLogicalPath(
-        &providerRootSupported, NULL);
-    if (!providerRootSupported) {
+    BOOL mountStorageSupported = NO;
+    NSString *mirrorLogicalPath = FMMountResolvedMirrorLogicalPath(
+        &mountStorageSupported, NULL);
+    if (!mountStorageSupported) {
         FMDeviceStageFail(error, 3,
-                          @"The Provider mirror location is unavailable.", nil);
+                          @"The managed mirror location is unavailable.", nil);
         return nil;
     }
     NSString *mirrorRoot = jbroot(mirrorLogicalPath);
@@ -137,7 +137,7 @@ static NSDictionary<NSString *, id> *FMDeviceStageCreateBaseContext(
         stringByAppendingPathComponent:confirmedSystemBuild];
     if (!FMDeviceStageRequireDirectory(mirrorRoot, @"The font mirror", error) ||
         !FMDeviceStageRequireDirectory(stockRoot, @"The Stock font source", error) ||
-        !FMProviderManagedMappingIsActive(error)) {
+        !FMMountManagedMappingIsActive(error)) {
         return nil;
     }
 
@@ -335,7 +335,7 @@ static NSDictionary<NSString *, id> *FMStageDeviceProfileLocked(
             @"filesystemMutated" : @NO,
             @"mirrorChanged" : @NO,
             @"stateChanged" : @NO,
-            @"providerInvoked" : @NO,
+            @"mountBackendInvoked" : @NO,
             @"restartRequired" : @NO,
             @"restartRequested" : @NO,
         };
@@ -384,7 +384,7 @@ static NSDictionary<NSString *, id> *FMStageDeviceProfileLocked(
         @"filesystemMutated" : @YES,
         @"mirrorChanged" : mirrorChanged ? @YES : @NO,
         @"stateChanged" : @YES,
-        @"providerInvoked" : @NO,
+        @"mountBackendInvoked" : @NO,
         @"restartRequired" : postState[@"restartRequired"],
         @"restartRequested" : @NO,
     };
@@ -484,7 +484,7 @@ static NSDictionary<NSString *, id> *FMRepairDeviceWorkingProfileLocked(
         @"filesystemMutated" : @YES,
         @"mirrorChanged" : managedPaths.count > 0 ? @YES : @NO,
         @"stateChanged" : @YES,
-        @"providerInvoked" : @NO,
+        @"mountBackendInvoked" : @NO,
         @"restartRequired" : postState[@"restartRequired"],
         @"restartRequested" : @NO,
     };

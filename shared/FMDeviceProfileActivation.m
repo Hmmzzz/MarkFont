@@ -12,7 +12,7 @@
 #import "FMFileStore.h"
 #import "FMFontCatalog.h"
 #import "FMProfileAdoptionValidator.h"
-#import "FMProviderPaths.h"
+#import "FMMountPaths.h"
 
 NSString *const FMDeviceProfileActivationErrorDomain =
     @"com.hmmzzz.fontmanager.device-profile-activation";
@@ -137,7 +137,7 @@ NSDictionary<NSString *, id> *FMCreateDeviceProfileActivationPreflight(
         ![environmentState[@"valid"] boolValue] ||
         ![environmentState[@"systemBuild"] isEqual:confirmedSystemBuild] ||
         ![environmentState[@"mirrorState"] isEqual:@"clean"] ||
-        !FMProviderManagedMappingIsActive(error)) {
+        !FMMountManagedMappingIsActive(error)) {
         FMDeviceProfileFail(
             error, FMDeviceProfileActivationErrorEnvironment,
             @"The managed font workspace is unavailable.",
@@ -311,7 +311,7 @@ NSDictionary<NSString *, id> *FMCreateDeviceProfileActivationPreflight(
         @"profileAdopted" : @NO,
         @"mirrorChanged" : @NO,
         @"stateChanged" : @NO,
-        @"providerInvoked" : @NO,
+        @"mountBackendInvoked" : @NO,
         @"restartRequested" : @NO,
     };
 }

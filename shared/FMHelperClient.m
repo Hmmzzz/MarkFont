@@ -214,7 +214,7 @@ NSDictionary<NSString *, id> *FMAdoptProfileFromHelper(
         [report[@"profileID"] isEqual:profileID] &&
         ![report[@"mirrorChanged"] boolValue] &&
         ![report[@"stateChanged"] boolValue] &&
-        ![report[@"providerInvoked"] boolValue] &&
+        ![report[@"mountBackendInvoked"] boolValue] &&
         ![report[@"restartRequested"] boolValue];
     if (report == nil || !valid) {
         if (report != nil && error != NULL) {
@@ -252,7 +252,7 @@ NSDictionary<NSString *, id> *FMStageProfileFromHelper(
          [report[@"status"] isEqual:@"alreadyStaged"]) &&
         [report[@"systemBuild"] isEqual:systemBuild] &&
         [report[@"profileID"] isEqual:expectedProfileID] &&
-        ![report[@"providerInvoked"] boolValue] &&
+        ![report[@"mountBackendInvoked"] boolValue] &&
         ![report[@"restartRequested"] boolValue];
     if (report == nil || !valid) {
         if (report != nil && error != NULL) {
@@ -355,8 +355,8 @@ NSDictionary<NSString *, id> *FMSetAutomaticRespringFromHelper(
         FMHelperIsJSONBoolean(report[@"enabled"]) &&
         [report[@"enabled"] boolValue] == enabled &&
         FMHelperIsJSONBoolean(report[@"stateChanged"]) &&
-        FMHelperIsJSONBoolean(report[@"providerInvoked"]) &&
-        ![report[@"providerInvoked"] boolValue] &&
+        FMHelperIsJSONBoolean(report[@"mountBackendInvoked"]) &&
+        ![report[@"mountBackendInvoked"] boolValue] &&
         FMHelperIsJSONBoolean(report[@"restartRequested"]) &&
         ![report[@"restartRequested"] boolValue];
     if (report == nil || !valid) {

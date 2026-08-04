@@ -25,11 +25,11 @@ fontmanagerd_FILES = main.m \
     ../shared/FMLegacyFontProfileImport.m \
     ../shared/FMDeviceLegacyFontTakeover.m \
     ../shared/FMDevicePackageLifecycle.m \
-    ../shared/FMProviderCoordinator.m ../shared/FMProviderInspection.m \
-    ../shared/FMProviderCompatibility.m \
-    ../shared/FMProviderAutoMountPolicy.m \
-    ../shared/FMProviderPaths.m \
-    ../shared/FMProviderExecutor.m \
+    ../shared/FMMountCoordinator.m ../shared/FMMountInspection.m \
+    ../shared/FMMountBackendCompatibility.m \
+    ../shared/FMLegacyProviderAutoMountPolicy.m \
+    ../shared/FMMountPaths.m \
+    ../shared/FMMountBackendExecutor.m \
     ../shared/FMMirrorPreparation.m ../shared/FMSecureDirectory.m \
     ../shared/FMDeviceMountEngine.m
 fontmanagerd_LIBRARIES = roothide

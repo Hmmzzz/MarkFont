@@ -14,18 +14,24 @@ MarkFont 是一款面向 RootHide 环境的 iOS 全局字体管理器，可在 A
 - 支持 ZIP、TTF、TTC 和 OTF 字体导入
 - 支持多字体方案管理与快速切换
 - 支持恢复系统默认字体
-- 使用只读 bindfs mapping，避免直接修改 iOS 系统字体文件
+- 内置固定路径、只读的 bindfs 挂载后端，避免直接修改 iOS 系统字体文件
 - 支持重新越狱后自动恢复字体 mapping
-- 支持安全接管旧版 bindfs 字体目录
+- 沿用 `/bindfs/System/Library/Fonts`，并支持安全接管旧版字体目录
+- 不依赖 `com.nan.bindfs`、`mount_bindfs` 或 `dash`
 
 ## Compatibility
 
 - iOS 17.0+
 - Relaxin / RootHide
 - `arm64` and `arm64e`
-- `com.nan.bindfs >= 0.6.0`
 
-当前版本已在 iPhone 15 Pro、iOS 17.3.1（21D61）和 Relaxin 0.4.2 上验证。其他环境尚未测试。
+既有发布版已在 iPhone 15 Pro、iOS 17.3.1（21D61）和 Relaxin 0.4.2 上验证。本次内置
+bindfs 后端已通过离线测试、双架构构建和 deb 审计，尚待在该设备基线上完成覆盖升级与
+挂载验证；其他环境尚未测试。
+
+挂载操作由包内的非 setuid 后端以固定参数执行；它只接受系统字体映射的检查、挂载和受管
+强制卸载命令，并通过当前越狱环境提供的 `libjailbreak` 临时取得所需凭据。App 与调用方
+不能传入路径、挂载选项或任意命令。
 
 ## Build
 
@@ -47,8 +53,10 @@ RootHide safe mode 并移除软件包。请勿强制删除 MarkFont 的恢复数
 
 - [RootHide](https://github.com/roothide/Developer)：提供 RootHide 架构与兼容基础
 - [Theos](https://theos.dev/)：提供 iOS 越狱开发与打包工具链
-- [mount_bindfs](https://invalidunit.github.io/repo/)：赵楠提供的字体目录映射依赖
+- [Dopamine](https://github.com/opa334/Dopamine)：提供 `libjailbreak` 挂载能力接口设计参考
 - [Relaxin](https://relaxin.owngoal.dev/)：提供本项目当前适配与测试的越狱环境
+
+第三方许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 ## Disclaimer
 

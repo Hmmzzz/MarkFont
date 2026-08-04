@@ -17,9 +17,9 @@
 #import "FMFileStore.h"
 #import "FMOperationLock.h"
 #import "FMProfileEngine.h"
-#import "FMProviderExecutor.h"
-#import "FMProviderInspection.h"
-#import "FMProviderPaths.h"
+#import "FMMountBackendExecutor.h"
+#import "FMMountInspection.h"
+#import "FMMountPaths.h"
 #import "FMSecureDirectory.h"
 #import "FMTreeManifest.h"
 
@@ -85,10 +85,10 @@ static NSDictionary<NSString *, id> *_Nullable FMPackageTargetFacts(
     NSError **error) {
     BOOL rootSupported = NO;
     NSString *mirrorLogicalPath =
-        FMProviderResolvedMirrorLogicalPath(&rootSupported, NULL);
+        FMMountResolvedMirrorLogicalPath(&rootSupported, NULL);
     struct statfs filesystem = {0};
     if (!rootSupported ||
-        statfs(FMProviderSystemFontsLogicalPath.fileSystemRepresentation,
+        statfs(FMMountSystemFontsLogicalPath.fileSystemRepresentation,
                &filesystem) != 0) {
         int savedError = rootSupported ? errno : 0;
         FMPackageLifecycleFail(
@@ -103,7 +103,7 @@ static NSDictionary<NSString *, id> *_Nullable FMPackageTargetFacts(
     NSString *source = [NSString stringWithUTF8String:filesystem.f_mntfromname];
     BOOL bindfs = filesystemType != nil &&
         [filesystemType caseInsensitiveCompare:@"bindfs"] == NSOrderedSame;
-    BOOL dedicated = [target isEqual:FMProviderSystemFontsLogicalPath];
+    BOOL dedicated = [target isEqual:FMMountSystemFontsLogicalPath];
     NSString *mirrorPath = jbroot(mirrorLogicalPath);
     BOOL managed = bindfs && dedicated && source.length > 0 &&
         [source.stringByResolvingSymlinksInPath
@@ -152,7 +152,7 @@ static BOOL FMPackageEngineRootPresent(BOOL *present, NSError **error) {
 }
 
 static BOOL FMPackageRequirePhysicalStockTarget(NSError **error) {
-    int descriptor = open(FMProviderSystemFontsLogicalPath.fileSystemRepresentation,
+    int descriptor = open(FMMountSystemFontsLogicalPath.fileSystemRepresentation,
                           O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
     if (descriptor < 0) {
         return FMPackageLifecycleFail(
@@ -180,7 +180,7 @@ static BOOL FMPackageRequirePhysicalStockTarget(NSError **error) {
 static BOOL FMPackageRequireSecureManagedMirror(NSError **error) {
     BOOL rootSupported = NO;
     NSString *mirrorLogicalPath =
-        FMProviderResolvedMirrorLogicalPath(&rootSupported, NULL);
+        FMMountResolvedMirrorLogicalPath(&rootSupported, NULL);
     NSString *mirrorPath = rootSupported ? jbroot(mirrorLogicalPath) : nil;
     struct stat info = {0};
     errno = 0;
@@ -424,20 +424,20 @@ FMPackageFinishLegacyProfileLocked(
         return nil;
     }
 
-    BOOL providerInvoked = NO;
+    BOOL mountBackendInvoked = NO;
     BOOL mappingChanged = NO;
     if (disposition == FMFontTargetDispositionInactive) {
         NSDictionary *mount =
-            FMInvokeProviderForPreparedSystemFonts(&operationError);
+            FMInvokeMountBackendForPreparedSystemFonts(&operationError);
         if (mount == nil || ![mount[@"reportedSuccess"] boolValue] ||
-            !FMProviderManagedMappingIsActive(&operationError)) {
+            !FMMountManagedMappingIsActive(&operationError)) {
             FMPackageLifecycleFail(
                 error, 8,
                 @"The initialized font mapping could not be restored.",
                 operationError);
             return nil;
         }
-        providerInvoked = YES;
+        mountBackendInvoked = YES;
         mappingChanged = YES;
     }
 
@@ -447,7 +447,7 @@ FMPackageFinishLegacyProfileLocked(
             @"profileImported" : imported ? @YES : @NO,
             @"profileActivated" : @NO,
             @"profileID" : profileID ?: NSNull.null,
-            @"providerInvoked" : providerInvoked ? @YES : @NO,
+            @"mountBackendInvoked" : mountBackendInvoked ? @YES : @NO,
             @"mappingChanged" : mappingChanged ? @YES : @NO,
             @"stateChanged" : @NO,
         };
@@ -492,9 +492,9 @@ FMPackageFinishLegacyProfileLocked(
 
     if (!alreadyConfirmed) {
         NSDictionary *refresh =
-            FMRefreshProviderForPreparedSystemFonts(&operationError);
+            FMRefreshMountBackendForPreparedSystemFonts(&operationError);
         if (refresh == nil ||
-            !FMProviderManagedMappingIsActive(&operationError) ||
+            !FMMountManagedMappingIsActive(&operationError) ||
             !FMConfirmWorkingProfileAtStatePath(
                 jbroot(FMStateLogicalPath), &operationError)) {
             FMPackageLifecycleFail(
@@ -503,7 +503,7 @@ FMPackageFinishLegacyProfileLocked(
                 operationError);
             return nil;
         }
-        providerInvoked = YES;
+        mountBackendInvoked = YES;
         mappingChanged = YES;
     }
 
@@ -527,7 +527,7 @@ FMPackageFinishLegacyProfileLocked(
         @"profileImported" : @YES,
         @"profileActivated" : @YES,
         @"profileID" : profileID,
-        @"providerInvoked" : providerInvoked ? @YES : @NO,
+        @"mountBackendInvoked" : mountBackendInvoked ? @YES : @NO,
         @"mappingChanged" : mappingChanged ? @YES : @NO,
         @"stateChanged" : stageChanged || !alreadyConfirmed ? @YES : @NO,
     };
@@ -635,10 +635,10 @@ FMPackageConfigureFreshInstallation(NSString *systemBuild, NSError **error) {
             @"legacySourceRemoved" : takeover[@"legacySourceRemoved"],
             @"legacyContentCompared" : takeover[@"contentCompared"],
             @"mirrorPrepared" : preparation != nil ? @YES : @NO,
-            @"providerInvoked" :
-                [activation[@"providerInvoked"] boolValue] ||
-                    [legacyActivation[@"providerInvoked"] boolValue] ||
-                    [takeover[@"providerInvoked"] boolValue]
+            @"mountBackendInvoked" :
+                [activation[@"mountBackendInvoked"] boolValue] ||
+                    [legacyActivation[@"mountBackendInvoked"] boolValue] ||
+                    [takeover[@"mountBackendInvoked"] boolValue]
                 ? @YES : @NO,
             @"filesystemMutated" : @YES,
             @"mappingChanged" :
@@ -664,19 +664,99 @@ FMPackageConfigureFreshInstallation(NSString *systemBuild, NSError **error) {
     return result;
 }
 
-static NSDictionary<NSString *, id> *FMPackageReportWithProviderAdjustment(
+static NSDictionary<NSString *, id> *FMPackageReportWithLegacyProviderAdjustment(
     NSDictionary<NSString *, id> *report,
     NSDictionary<NSString *, id> *adjustment) {
     if (report == nil || adjustment == nil) return report;
     NSMutableDictionary *result = [report mutableCopy];
-    result[@"providerPreferencePresent"] = adjustment[@"preferencePresent"];
-    result[@"providerFontsAutoMountChanged"] = adjustment[@"changed"];
-    result[@"providerFontsAutoMountConflictedBefore"] =
+    result[@"legacyProviderPreferencePresent"] = adjustment[@"preferencePresent"];
+    result[@"legacyProviderFontsAutoMountChanged"] = adjustment[@"changed"];
+    result[@"legacyProviderFontsAutoMountConflictedBefore"] =
         adjustment[@"conflictedBefore"];
-    result[@"providerAutoMountEnabledAfter"] = adjustment[@"enabledAfter"];
-    result[@"providerAutoMountRemainingPathCount"] =
+    result[@"legacyProviderAutoMountEnabledAfter"] = adjustment[@"enabledAfter"];
+    result[@"legacyProviderAutoMountRemainingPathCount"] =
         @([adjustment[@"remainingPaths"] count]);
+    result[@"baselineIdentityMigrated"] =
+        adjustment[@"baselineIdentityMigrated"] ?: @NO;
     return result;
+}
+
+static BOOL FMPackageMigrateBaselineIdentity(
+    NSString *systemBuild,
+    BOOL *changed,
+    NSError **error) {
+    if (changed != NULL) *changed = NO;
+    NSError *migrationError = nil;
+    BOOL engineRootPresent = NO;
+    if (!FMPackageEngineRootPresent(
+            &engineRootPresent, &migrationError)) {
+        if (error != NULL) *error = migrationError;
+        return NO;
+    }
+    if (!engineRootPresent) return YES;
+
+    NSString *engineRoot = jbroot(FMEngineRootLogicalPath);
+    int lock = FMAcquireExclusiveDirectoryLock(
+        engineRoot, 0, 0, &migrationError);
+    if (lock < 0) {
+        return FMPackageLifecycleFail(
+            error, 9, @"Another MarkFont operation is still running.",
+            migrationError);
+    }
+
+    NSString *identityPath = [[[jbroot(@"/var/lib/fontmanager/baseline")
+        stringByAppendingPathComponent:systemBuild]
+        stringByAppendingPathComponent:@"identity.json"]
+        stringByStandardizingPath];
+    BOOL succeeded = NO;
+    BOOL migratedIdentity = NO;
+    do {
+        struct stat info = {0};
+        errno = 0;
+        if (lstat(identityPath.fileSystemRepresentation, &info) != 0) {
+            if (errno == ENOENT) {
+                succeeded = YES;
+            } else {
+                migrationError = FMPackagePOSIXError(errno);
+            }
+            break;
+        }
+        if (!FMPackageRequireSecureRegularFile(
+                identityPath, &migrationError)) {
+            break;
+        }
+
+        id existing = FMReadJSONObjectAtPath(identityPath, &migrationError);
+        NSDictionary *migrated =
+            FMMigrateBaselineIdentityToBuiltInBackend(
+                existing, &migrationError);
+        if (migrated == nil) break;
+        if ([migrated isEqual:existing]) {
+            succeeded = YES;
+            break;
+        }
+
+        BOOL written = FMWriteJSONObjectAtomically(
+            migrated, identityPath, 0644, &migrationError);
+        id readback = written
+            ? FMReadJSONObjectAtPath(identityPath, &migrationError) : nil;
+        succeeded = written && [readback isEqual:migrated] &&
+            FMValidateBaselineIdentity(readback, &migrationError);
+        migratedIdentity = succeeded;
+    } while (NO);
+
+    NSError *releaseError = nil;
+    BOOL released = FMReleaseExclusiveDirectoryLock(lock, &releaseError);
+    if (!succeeded || !released) {
+        return FMPackageLifecycleFail(
+            error, succeeded ? 9 : 3,
+            succeeded
+                ? @"The baseline migration lock could not be released."
+                : @"The baseline identity is invalid or could not be migrated.",
+            migrationError ?: releaseError);
+    }
+    if (changed != NULL) *changed = migratedIdentity;
+    return YES;
 }
 
 NSDictionary<NSString *, id> *FMConfigureInstalledDevicePackage(
@@ -692,15 +772,25 @@ NSDictionary<NSString *, id> *FMConfigureInstalledDevicePackage(
     }
 
     NSError *inspectionError = nil;
-    NSDictionary *providerAdjustment =
-        FMDisableProviderAutoMountForSystemFonts(&inspectionError);
-    if (providerAdjustment == nil) {
+    NSDictionary *legacyProviderAdjustment =
+        FMDisableLegacyProviderAutoMountForSystemFonts(&inspectionError);
+    if (legacyProviderAdjustment == nil) {
         FMPackageLifecycleFail(
             error, 2,
-            @"Provider automatic mounting for the system Fonts tree could not be disabled.",
+            @"Legacy Provider automatic mounting for the system Fonts tree could not be disabled.",
             inspectionError);
         return nil;
     }
+    BOOL baselineIdentityMigrated = NO;
+    if (!FMPackageMigrateBaselineIdentity(
+            systemBuild, &baselineIdentityMigrated, &inspectionError)) {
+        if (error != NULL) *error = inspectionError;
+        return nil;
+    }
+    NSMutableDictionary *packageAdjustment = [legacyProviderAdjustment mutableCopy];
+    packageAdjustment[@"baselineIdentityMigrated"] =
+        baselineIdentityMigrated ? @YES : @NO;
+    legacyProviderAdjustment = packageAdjustment;
 
     BOOL statePresent = NO;
     NSDictionary *state = FMPackageReadState(
@@ -758,7 +848,7 @@ NSDictionary<NSString *, id> *FMConfigureInstalledDevicePackage(
                 inspectionError ?: releaseError);
             return nil;
         }
-        return FMPackageReportWithProviderAdjustment(@{
+        return FMPackageReportWithLegacyProviderAdjustment(@{
             @"schemaVersion" : @1,
             @"operation" : @"packageConfigure",
             @"status" : @"legacyImportResumed",
@@ -773,16 +863,16 @@ NSDictionary<NSString *, id> *FMConfigureInstalledDevicePackage(
             @"legacyReplacementCount" : takeover[@"replacementCount"],
             @"legacySourceRemoved" : takeover[@"legacySourceRemoved"],
             @"legacyContentCompared" : takeover[@"contentCompared"],
-            @"providerInvoked" :
-                [legacyActivation[@"providerInvoked"] boolValue] ||
-                    [takeover[@"providerInvoked"] boolValue]
+            @"mountBackendInvoked" :
+                [legacyActivation[@"mountBackendInvoked"] boolValue] ||
+                    [takeover[@"mountBackendInvoked"] boolValue]
                 ? @YES : @NO,
             @"filesystemMutated" : @YES,
             @"mappingChanged" : legacyActivation[@"mappingChanged"],
             @"stateChanged" : legacyActivation[@"stateChanged"],
             @"restartRequired" : @NO,
             @"restartRequested" : @NO,
-        }, providerAdjustment);
+        }, legacyProviderAdjustment);
     }
     if (statePresent) {
         NSDictionary *targetFacts = FMPackageTargetFacts(&inspectionError);
@@ -825,7 +915,7 @@ NSDictionary<NSString *, id> *FMConfigureInstalledDevicePackage(
             mappingManaged = [autoMountReport[@"status"] isEqual:@"mounted"] ||
                 [autoMountReport[@"status"] isEqual:@"alreadyMounted"];
         }
-        return FMPackageReportWithProviderAdjustment(@{
+        return FMPackageReportWithLegacyProviderAdjustment(@{
             @"schemaVersion" : @1,
             @"operation" : @"packageConfigure",
             @"status" : mappingManaged ? @"alreadyConfigured"
@@ -833,18 +923,18 @@ NSDictionary<NSString *, id> *FMConfigureInstalledDevicePackage(
             @"systemBuild" : systemBuild,
             @"initializationAttempted" : @NO,
             @"existingStatePreserved" : @YES,
-            @"providerInvoked" : autoMountReport != nil
-                ? autoMountReport[@"providerInvoked"] : @NO,
+            @"mountBackendInvoked" : autoMountReport != nil
+                ? autoMountReport[@"mountBackendInvoked"] : @NO,
             @"filesystemMutated" : mirrorOwnershipPresent ? @NO : @YES,
             @"mappingChanged" : autoMountReport != nil
                 ? autoMountReport[@"mappingChanged"] : @NO,
             @"stateChanged" : @NO,
             @"restartRequested" : @NO,
-        }, providerAdjustment);
+        }, legacyProviderAdjustment);
     }
-    return FMPackageReportWithProviderAdjustment(
+    return FMPackageReportWithLegacyProviderAdjustment(
         FMPackageConfigureFreshInstallation(systemBuild, error),
-        providerAdjustment);
+        legacyProviderAdjustment);
 }
 
 static BOOL FMPackageRemovalInspectionIsExactStock(
@@ -893,7 +983,7 @@ static BOOL FMPackageVerifyExposedStock(NSString *systemBuild,
         ? FMReadJSONObjectAtPath(baselinePath, &manifestError)
         : nil;
     NSDictionary *exposed = FMCreateTreeManifestAtPath(
-        FMProviderSystemFontsLogicalPath, &manifestError);
+        FMMountSystemFontsLogicalPath, &manifestError);
     if (![baseline isKindOfClass:NSDictionary.class] ||
         !FMValidateManifestDocument(baseline, &manifestError) ||
         exposed == nil || ![exposed isEqual:baseline]) {
@@ -942,8 +1032,8 @@ static NSDictionary<NSString *, id> *_Nullable FMPackageMarkInactiveRemovalReady
         @"mappingChanged" : @NO,
         @"unmountAttempted" : @NO,
         @"unmountMethod" : @"notRequired",
-        @"providerDetachMayForce" : @NO,
-        @"providerInvoked" : @NO,
+        @"backendDetachMayForce" : @NO,
+        @"mountBackendInvoked" : @NO,
         @"cleanupAuthorized" : @YES,
         @"filesystemMutated" : @YES,
         @"stateChanged" : @NO,
@@ -965,8 +1055,8 @@ static NSDictionary<NSString *, id> *FMPackageExternalDataPreserved(
         @"mappingChanged" : @NO,
         @"unmountAttempted" : @NO,
         @"unmountMethod" : @"notRequired",
-        @"providerDetachMayForce" : @NO,
-        @"providerInvoked" : @NO,
+        @"backendDetachMayForce" : @NO,
+        @"mountBackendInvoked" : @NO,
         @"cleanupAuthorized" : @NO,
         @"filesystemMutated" : @NO,
         @"stateChanged" : @NO,
@@ -999,8 +1089,8 @@ FMPackageMarkExternalRemovalReady(NSString *systemBuild,
         @"mappingChanged" : @NO,
         @"unmountAttempted" : @NO,
         @"unmountMethod" : @"notRequired",
-        @"providerDetachMayForce" : @NO,
-        @"providerInvoked" : @NO,
+        @"backendDetachMayForce" : @NO,
+        @"mountBackendInvoked" : @NO,
         @"cleanupAuthorized" : @YES,
         @"filesystemMutated" : @YES,
         @"stateChanged" : @NO,
@@ -1037,7 +1127,7 @@ NSDictionary<NSString *, id> *FMPrepareDevicePackageRemoval(
             operationError);
         return nil;
     }
-    NSDictionary *providerAdjustment = nil;
+    NSDictionary *legacyProviderAdjustment = nil;
     if (engineOwned) {
         BOOL mirrorOwned = NO;
         if (!FMPackageMarkerPresent(FMMirrorOwnershipLogicalPath,
@@ -1079,12 +1169,12 @@ NSDictionary<NSString *, id> *FMPrepareDevicePackageRemoval(
         if (error != NULL) *error = operationError;
         return nil;
     }
-    providerAdjustment =
-        FMDisableProviderAutoMountForSystemFonts(&operationError);
-    if (providerAdjustment == nil) {
+    legacyProviderAdjustment =
+        FMDisableLegacyProviderAutoMountForSystemFonts(&operationError);
+    if (legacyProviderAdjustment == nil) {
         FMPackageLifecycleFail(
             error, 3,
-            @"Provider automatic mounting for Fonts could not be disabled before removal.",
+            @"Legacy Provider automatic mounting for Fonts could not be disabled before removal.",
             operationError);
         return nil;
     }
@@ -1096,9 +1186,9 @@ NSDictionary<NSString *, id> *FMPrepareDevicePackageRemoval(
         return nil;
     }
     if (targetDisposition == FMFontTargetDispositionInactive) {
-        return FMPackageReportWithProviderAdjustment(
+        return FMPackageReportWithLegacyProviderAdjustment(
             FMPackageMarkInactiveRemovalReady(systemBuild, error),
-            providerAdjustment);
+            legacyProviderAdjustment);
     }
 
     BOOL statePresent = NO;
@@ -1148,7 +1238,7 @@ NSDictionary<NSString *, id> *FMPrepareDevicePackageRemoval(
         return nil;
     }
 
-    NSDictionary *inspection = FMCreateDeviceProviderInspection(&operationError);
+    NSDictionary *inspection = FMCreateDeviceMountInspection(&operationError);
     BOOL exactStock = inspection != nil &&
         FMPackageRemovalInspectionIsExactStock(
             inspection, systemBuild, statePresent);
@@ -1161,13 +1251,13 @@ NSDictionary<NSString *, id> *FMPrepareDevicePackageRemoval(
         return nil;
     }
 
-    NSDictionary *providerDetachment =
-        FMDetachProviderSystemFontsForPackageLifecycle(&operationError);
-    if (providerDetachment == nil) {
+    NSDictionary *backendDetachment =
+        FMDetachManagedSystemFontsForPackageLifecycle(&operationError);
+    if (backendDetachment == nil) {
         FMReleaseExclusiveDirectoryLock(lock, NULL);
         FMPackageLifecycleFail(
             error, 7,
-            @"The verified Provider could not detach the Stock font mapping for removal.",
+            @"The built-in mount backend could not detach the Stock font mapping for removal.",
             operationError);
         return nil;
     }
@@ -1189,7 +1279,7 @@ NSDictionary<NSString *, id> *FMPrepareDevicePackageRemoval(
         return nil;
     }
 
-    return FMPackageReportWithProviderAdjustment(@{
+    return FMPackageReportWithLegacyProviderAdjustment(@{
         @"schemaVersion" : @1,
         @"operation" : @"packagePrepareRemoval",
         @"status" : @"ready",
@@ -1200,15 +1290,15 @@ NSDictionary<NSString *, id> *FMPrepareDevicePackageRemoval(
         @"mappingChanged" : @YES,
         @"stockStagePerformed" : stockStagePerformed ? @YES : @NO,
         @"unmountAttempted" : @YES,
-        @"unmountMethod" : @"providerFixedUnmount",
-        @"providerDetachMayForce" :
-            providerDetachment[@"providerDetachMayForce"],
-        @"providerInvoked" : @YES,
-        @"providerDetachReportedSuccess" :
-            providerDetachment[@"reportedSuccess"],
+        @"unmountMethod" : @"builtInBackendForceUnmount",
+        @"backendDetachMayForce" :
+            backendDetachment[@"backendDetachMayForce"],
+        @"mountBackendInvoked" : @YES,
+        @"mountBackendDetachReportedSuccess" :
+            backendDetachment[@"reportedSuccess"],
         @"cleanupAuthorized" : @YES,
         @"filesystemMutated" : @YES,
         @"stateChanged" : stateChanged ? @YES : @NO,
         @"restartRequested" : @NO,
-    }, providerAdjustment);
+    }, legacyProviderAdjustment);
 }

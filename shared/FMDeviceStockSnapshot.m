@@ -11,8 +11,8 @@
 #import "FMFileStore.h"
 #import "FMMirrorPreparation.h"
 #import "FMOperationLock.h"
-#import "FMProviderExecutor.h"
-#import "FMProviderPaths.h"
+#import "FMMountBackendExecutor.h"
+#import "FMMountPaths.h"
 #import "FMSecureDirectory.h"
 #import "FMTreeManifest.h"
 
@@ -84,7 +84,7 @@ static BOOL FMStockTargetHasDedicatedMount(BOOL *hasDedicatedMount,
             error, 3, @"The font mount inspection output is unavailable.", nil);
     }
     struct statfs filesystem = {0};
-    if (statfs(FMProviderSystemFontsLogicalPath.fileSystemRepresentation,
+    if (statfs(FMMountSystemFontsLogicalPath.fileSystemRepresentation,
                &filesystem) != 0) {
         return FMStockSnapshotFail(
             error, 3, @"The system font mount could not be inspected.",
@@ -95,7 +95,7 @@ static BOOL FMStockTargetHasDedicatedMount(BOOL *hasDedicatedMount,
     NSString *mountTarget =
         [NSString stringWithUTF8String:filesystem.f_mntonname];
     *hasDedicatedMount =
-        [mountTarget isEqual:FMProviderSystemFontsLogicalPath];
+        [mountTarget isEqual:FMMountSystemFontsLogicalPath];
     return YES;
 }
 
@@ -135,7 +135,7 @@ static NSDictionary<NSString *, id> *FMStockSnapshotCreateContext(
     BOOL mappingActive = [fonts[@"mappingActive"] boolValue];
     BOOL targetHasDedicatedMount = NO;
     if (![fonts[@"mirrorPresent"] boolValue] ||
-        ![fonts[@"providerRootSupported"] boolValue] ||
+        ![fonts[@"mountStorageSupported"] boolValue] ||
         ![fonts[@"systemDirectoryReadable"] boolValue] ||
         ![fonts[@"rootfsDirectoryReadable"] boolValue] ||
         !FMStockTargetHasDedicatedMount(&targetHasDedicatedMount, error)) {
@@ -154,11 +154,11 @@ static NSDictionary<NSString *, id> *FMStockSnapshotCreateContext(
 
     NSError *inspectionError = nil;
     BOOL autoMountConflict = NO;
-    if (!FMProviderAutoMountConflictsWithSystemFonts(
+    if (!FMLegacyProviderAutoMountConflictsWithSystemFonts(
             &autoMountConflict, &inspectionError) || autoMountConflict) {
         FMStockSnapshotFail(
             error, 3,
-            @"Provider automatic mounting must not target the system Fonts tree.",
+            @"Legacy Provider automatic mounting must not target the system Fonts tree.",
             inspectionError);
         return nil;
     }
@@ -235,7 +235,7 @@ NSDictionary<NSString *, id> *FMCreateDeviceStockSnapshotPreflight(
         @"forceUnmount" : @NO,
         @"mappingWasActive" : @NO,
         @"unmountRequired" : @NO,
-        @"providerWouldBeInvoked" : @YES,
+        @"mountBackendWouldBeInvoked" : @YES,
         @"mirrorContentScanned" : @NO,
         @"filesystemMutated" : @NO,
         @"mappingChanged" : @NO,
@@ -257,14 +257,14 @@ static BOOL FMStockSourceIsReadOnly(NSString *stockRoot, NSError **error) {
 }
 
 static BOOL FMStockRemountManagedMirror(NSError **error) {
-    NSError *providerError = nil;
-    NSDictionary *providerReport = FMInvokeProviderForPreparedSystemFonts(
-        &providerError);
-    if (providerReport == nil ||
-        ![providerReport[@"reportedSuccess"] boolValue]) {
+    NSError *backendError = nil;
+    NSDictionary *backendReport = FMInvokeMountBackendForPreparedSystemFonts(
+        &backendError);
+    if (backendReport == nil ||
+        ![backendReport[@"reportedSuccess"] boolValue]) {
         return FMStockSnapshotFail(
             error, 7, @"The unchanged font mirror could not be remounted.",
-            providerError);
+            backendError);
     }
     return YES;
 }
@@ -277,7 +277,7 @@ static NSDictionary<NSString *, id> *FMCaptureDeviceStockSnapshotLocked(
     if (context == nil) return nil;
 
     NSError *operationError = nil;
-    NSString *stockRoot = jbroot(FMProviderRootfsFontsLogicalPath);
+    NSString *stockRoot = jbroot(FMMountRootfsFontsLogicalPath);
     BOOL sourceReady = FMStockSourceIsReadOnly(stockRoot, &operationError);
     NSString *varLibrary = jbroot(@"/var/lib").stringByResolvingSymlinksInPath;
     BOOL parentReady = sourceReady && FMEnsureSecureDirectoryTree(
@@ -312,7 +312,7 @@ static NSDictionary<NSString *, id> *FMCaptureDeviceStockSnapshotLocked(
         ![finalState[@"valid"] boolValue] ||
         ![finalState[@"systemBuild"] isEqual:confirmedSystemBuild] ||
         ![finalState[@"mirrorState"] isEqual:@"clean"] ||
-        !FMProviderManagedMappingIsActive(error)) {
+        !FMMountManagedMappingIsActive(error)) {
         if (error == NULL || *error == nil) {
             FMStockSnapshotFail(
                 error, 8, @"The managed font mapping was not restored.", nil);
@@ -332,7 +332,7 @@ static NSDictionary<NSString *, id> *FMCaptureDeviceStockSnapshotLocked(
         @"forceUnmount" : @NO,
         @"mappingWasActive" : @NO,
         @"unmountPerformed" : @NO,
-        @"providerInvoked" : @YES,
+        @"mountBackendInvoked" : @YES,
         @"mappingActive" : @YES,
         @"mappingReadOnly" : @YES,
         @"sourceAndSnapshotVerified" : @YES,

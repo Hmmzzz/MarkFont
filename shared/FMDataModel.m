@@ -3,6 +3,7 @@
 #import <CoreFoundation/CoreFoundation.h>
 
 NSInteger const FMDataSchemaVersion = 2;
+NSInteger const FMBaselineIdentitySchemaVersion = 3;
 NSString *const FMDataErrorDomain = @"com.hmmzzz.fontmanager.data";
 
 static BOOL FMDataFail(NSError **error, FMDataErrorCode code, NSString *message) {
@@ -121,26 +122,83 @@ BOOL FMValidateBaselineIdentity(id object, NSError **error) {
                           @"Baseline identity root must be a dictionary.");
     }
     NSDictionary *document = object;
-    if (!FMHasSchemaVersionTwo(document)) {
+    id schemaValue = document[@"schemaVersion"];
+    if (![schemaValue isKindOfClass:NSNumber.class] ||
+        FMIsJSONBoolean(schemaValue)) {
         return FMDataFail(error, FMDataErrorInvalidDocument,
                           @"Unsupported baseline identity schema version.");
     }
 
     for (NSString *key in @[
-             @"productType", @"productVersion", @"productBuildVersion", @"providerVersion",
-             @"createdAt"
+             @"productType", @"productVersion", @"productBuildVersion", @"createdAt"
          ]) {
         if (!FMIsNonemptyString(document[key])) {
             return FMDataFail(error, FMDataErrorInvalidDocument,
                               [NSString stringWithFormat:@"Invalid baseline field: %@", key]);
         }
     }
-    if (![document[@"sourceLogicalPath"] isEqual:@"/System/Library/Fonts"] ||
-        ![document[@"providerPackage"] isEqual:@"com.nan.bindfs"]) {
+    if (![document[@"sourceLogicalPath"] isEqual:@"/System/Library/Fonts"]) {
         return FMDataFail(error, FMDataErrorInvalidDocument,
-                          @"Baseline is bound to an unexpected source or Provider.");
+                          @"Baseline is bound to an unexpected source.");
+    }
+
+    NSInteger schemaVersion = [schemaValue integerValue];
+    BOOL legacyIdentity = schemaVersion == FMDataSchemaVersion &&
+        [document[@"providerPackage"] isEqual:@"com.nan.bindfs"] &&
+        FMIsNonemptyString(document[@"providerVersion"]);
+    BOOL builtInIdentity = schemaVersion == FMBaselineIdentitySchemaVersion &&
+        [document[@"mountBackend"] isEqual:@"markfont-bindfs"] &&
+        FMIsNonemptyString(document[@"mountBackendVersion"]) &&
+        [document[@"mirrorLogicalPath"]
+            isEqual:@"/bindfs/System/Library/Fonts"];
+    if (!legacyIdentity && !builtInIdentity) {
+        return FMDataFail(
+            error, FMDataErrorInvalidDocument,
+            @"Baseline is bound to an unsupported mount backend.");
     }
     return YES;
+}
+
+BOOL FMBaselineIdentityUsesLegacyProvider(id object) {
+    if (![object isKindOfClass:NSDictionary.class]) return NO;
+    NSDictionary *document = object;
+    id schemaValue = document[@"schemaVersion"];
+    return [schemaValue isKindOfClass:NSNumber.class] &&
+        !FMIsJSONBoolean(schemaValue) &&
+        [schemaValue integerValue] == FMDataSchemaVersion &&
+        [document[@"providerPackage"] isEqual:@"com.nan.bindfs"] &&
+        FMIsNonemptyString(document[@"providerVersion"]);
+}
+
+NSDictionary<NSString *, id> *FMMigrateBaselineIdentityToBuiltInBackend(
+    id object,
+    NSError **error) {
+    if (!FMValidateBaselineIdentity(object, error)) return nil;
+    NSDictionary *document = object;
+    if (!FMBaselineIdentityUsesLegacyProvider(document)) {
+        return document;
+    }
+
+    NSISO8601DateFormatter *formatter = [[NSISO8601DateFormatter alloc] init];
+    formatter.formatOptions = NSISO8601DateFormatWithInternetDateTime;
+    NSDictionary *migrated = @{
+        @"schemaVersion" : @(FMBaselineIdentitySchemaVersion),
+        @"productType" : document[@"productType"],
+        @"productVersion" : document[@"productVersion"],
+        @"productBuildVersion" : document[@"productBuildVersion"],
+        @"sourceLogicalPath" : @"/System/Library/Fonts",
+        @"mirrorLogicalPath" : @"/bindfs/System/Library/Fonts",
+        @"mountBackend" : @"markfont-bindfs",
+        @"mountBackendVersion" : @"1",
+        @"createdAt" : document[@"createdAt"],
+        @"migration" : @{
+            @"fromSchemaVersion" : @(FMDataSchemaVersion),
+            @"fromMountBackend" : document[@"providerPackage"],
+            @"fromMountBackendVersion" : document[@"providerVersion"],
+            @"migratedAt" : [formatter stringFromDate:NSDate.date],
+        },
+    };
+    return FMValidateBaselineIdentity(migrated, error) ? migrated : nil;
 }
 
 static BOOL FMValidateReplacementFileName(id value, NSError **error) {

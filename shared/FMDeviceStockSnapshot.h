@@ -12,7 +12,7 @@ NSDictionary<NSString *, id> *_Nullable FMCreateDeviceStockSnapshotPreflight(
 
 // One-time maintenance operation: attempts a non-force unmount, verifies the
 // exposed immutable Stock tree against the saved baseline, copies a durable
-// snapshot, then remounts the unchanged mirror through the fixed Provider adapter.
+// snapshot, then remounts the unchanged mirror through the fixed mount backend.
 NSDictionary<NSString *, id> *_Nullable FMCaptureDeviceStockSnapshot(
     NSString *confirmedSystemBuild,
     NSError **error);

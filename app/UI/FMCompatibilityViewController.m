@@ -435,8 +435,8 @@ static NSDictionary<NSString *, id> *FMEnvironmentItem(
                                       detail:detail
                                        state:state];
         self.items = @[
-            FMEnvironmentItem(@"environment_provider", FMLocalized(@"基础组件"),
-                              FMLocalized(@"等待设备返回 mount_bindfs 状态"),
+            FMEnvironmentItem(@"environment_mount_backend", FMLocalized(@"内置挂载后端"),
+                              FMLocalized(@"等待设备返回内置挂载后端状态"),
                               @"shippingbox.fill", state),
             FMEnvironmentItem(@"environment_mapping", FMLocalized(@"字体连接"),
                               FMLocalized(@"等待设备返回字体镜像连接状态"),
@@ -451,39 +451,44 @@ static NSDictionary<NSString *, id> *FMEnvironmentItem(
 
     NSDictionary *system = [self.status[@"system"] isKindOfClass:NSDictionary.class]
         ? self.status[@"system"] : @{};
-    NSDictionary *provider = [self.status[@"provider"] isKindOfClass:NSDictionary.class]
-        ? self.status[@"provider"] : @{};
+    NSDictionary *mountBackend = [self.status[@"mountBackend"] isKindOfClass:NSDictionary.class]
+        ? self.status[@"mountBackend"] : @{};
     NSDictionary *fonts = [self.status[@"fonts"] isKindOfClass:NSDictionary.class]
         ? self.status[@"fonts"] : @{};
     NSDictionary *state = [self.status[@"state"] isKindOfClass:NSDictionary.class]
         ? self.status[@"state"] : @{};
     NSString *engineState = FMEnvironmentString(self.status[@"engineState"], @"unavailable");
 
-    BOOL packageInstalled = FMEnvironmentBool(provider, @"packageInstalled");
-    BOOL executablePresent = FMEnvironmentBool(provider, @"executablePresent");
-    BOOL rootSupported = FMEnvironmentBoolOrDefault(
-        fonts, @"providerRootSupported", packageInstalled && executablePresent);
-    BOOL providerCompatible = FMEnvironmentBoolOrDefault(
-        provider, @"compatible", NO);
-    BOOL providerReady = packageInstalled && executablePresent && rootSupported &&
-        providerCompatible;
-    BOOL versionKnown = [provider[@"recognition"] isEqual:@"known"];
-    NSString *providerVersion = FMEnvironmentString(provider[@"version"], nil);
-    NSString *providerDetail = providerReady
-        ? (providerVersion.length > 0
+    BOOL executablePresent = FMEnvironmentBool(
+        mountBackend, @"executablePresent");
+    BOOL runtimePresent = FMEnvironmentBool(
+        mountBackend, @"runtimeLibraryPresent");
+    BOOL runtimeSecure = FMEnvironmentBool(
+        mountBackend, @"runtimeLibrarySecure");
+    BOOL storageSupported = FMEnvironmentBoolOrDefault(
+        fonts, @"mountStorageSupported", NO);
+    BOOL backendCompatible = FMEnvironmentBoolOrDefault(
+        mountBackend, @"compatible", NO);
+    BOOL backendReady = executablePresent && runtimePresent && runtimeSecure &&
+        storageSupported && backendCompatible;
+    BOOL versionKnown = [mountBackend[@"recognition"] isEqual:@"known"];
+    NSString *mountBackendVersion = FMEnvironmentString(
+        mountBackend[@"version"], nil);
+    NSString *backendDetail = backendReady
+        ? (mountBackendVersion.length > 0
             ? (versionKnown
-                ? [NSString stringWithFormat:FMLocalized(@"mount_bindfs %@ 已验证"),
-                                             providerVersion]
-                : [NSString stringWithFormat:FMLocalized(@"mount_bindfs %@ 已通过能力检查"),
-                                             providerVersion])
-            : FMLocalized(@"mount_bindfs 已安装并可用"))
-        : (!packageInstalled
-            ? FMLocalized(@"需要先安装 mount_bindfs")
-            : (!executablePresent
-                ? FMLocalized(@"mount_bindfs 已安装，但当前无法调用")
-                : (!providerCompatible
-                    ? FMLocalized(@"mount_bindfs 接口或安全属性不兼容")
-                    : FMLocalized(@"挂载组件尚未适配当前越狱环境"))));
+                ? [NSString stringWithFormat:FMLocalized(@"内置挂载后端 %@ 已验证"),
+                                             mountBackendVersion]
+                : [NSString stringWithFormat:FMLocalized(@"内置挂载后端 %@ 已通过能力检查"),
+                                             mountBackendVersion])
+            : FMLocalized(@"内置挂载后端已就绪"))
+        : (!executablePresent
+            ? FMLocalized(@"内置挂载后端缺失或安全属性异常")
+            : (!runtimePresent || !runtimeSecure
+                ? FMLocalized(@"当前越狱环境未提供可用的挂载能力")
+                : (!storageSupported
+                    ? FMLocalized(@"字体镜像存储位置不可用")
+                    : FMLocalized(@"内置挂载后端与当前环境不兼容"))));
 
     BOOL sourceReady = FMEnvironmentBool(fonts, @"systemDirectoryReadable") &&
                        FMEnvironmentBool(fonts, @"rootfsDirectoryReadable");
@@ -511,7 +516,7 @@ static NSDictionary<NSString *, id> *FMEnvironmentItem(
         ? FMLocalized(@"当前系统的原始字体恢复副本已准备")
         : FMLocalized(@"首次设置完成后会生成恢复副本");
 
-    FMEnvironmentState providerState = providerReady
+    FMEnvironmentState backendState = backendReady
         ? FMEnvironmentStateReady : FMEnvironmentStateUnavailable;
     FMEnvironmentState connectionState = connectionReady
         ? FMEnvironmentStateReady
@@ -519,15 +524,15 @@ static NSDictionary<NSString *, id> *FMEnvironmentItem(
     FMEnvironmentState recoveryState = recoveryReady
         ? FMEnvironmentStateReady : FMEnvironmentStateAttention;
     self.items = @[
-        FMEnvironmentItem(@"environment_provider", FMLocalized(@"基础组件"), providerDetail,
-                          @"shippingbox.fill", providerState),
+        FMEnvironmentItem(@"environment_mount_backend", FMLocalized(@"内置挂载后端"), backendDetail,
+                          @"shippingbox.fill", backendState),
         FMEnvironmentItem(@"environment_mapping", FMLocalized(@"字体连接"), connectionDetail,
                           @"link", connectionState),
         FMEnvironmentItem(@"environment_recovery", FMLocalized(@"恢复准备"), recoveryDetail,
                           @"arrow.uturn.backward.circle.fill", recoveryState),
     ];
 
-    if (!providerReady || !sourceReady ||
+    if (!backendReady || !sourceReady ||
         ([engineState isEqual:@"unavailable"] ||
          [engineState isEqual:@"attentionRequired"])) {
         [self.heroView configureWithTitle:FMLocalized(@"运行环境需要处理")

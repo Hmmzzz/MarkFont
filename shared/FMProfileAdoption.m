@@ -141,7 +141,7 @@ static NSDictionary<NSString *, id> *FMAdoptionReport(
         @"sourceModified" : @NO,
         @"mirrorChanged" : @NO,
         @"stateChanged" : @NO,
-        @"providerInvoked" : @NO,
+        @"mountBackendInvoked" : @NO,
         @"restartRequested" : @NO,
     };
 }

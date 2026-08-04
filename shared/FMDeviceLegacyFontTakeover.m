@@ -13,8 +13,8 @@
 #import "FMDeviceMountTopology.h"
 #import "FMFileStore.h"
 #import "FMLegacyFontProfileImport.h"
-#import "FMProviderExecutor.h"
-#import "FMProviderPaths.h"
+#import "FMMountBackendExecutor.h"
+#import "FMMountPaths.h"
 #import "FMSecureDirectory.h"
 
 NSString *const FMDeviceLegacyFontTakeoverErrorDomain =
@@ -161,7 +161,7 @@ static BOOL FMLegacyMirrorOwnershipMarkerPresent(BOOL *present,
 }
 
 static BOOL FMLegacyRequirePhysicalStockTarget(NSError **error) {
-    int descriptor = open(FMProviderSystemFontsLogicalPath.fileSystemRepresentation,
+    int descriptor = open(FMMountSystemFontsLogicalPath.fileSystemRepresentation,
                           O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
     if (descriptor < 0) {
         return FMLegacyFail(
@@ -180,7 +180,7 @@ static BOOL FMLegacyRequirePhysicalStockTarget(NSError **error) {
             savedError != 0 ? savedError : closeResult != 0 ? errno : EPERM);
     }
     struct statfs filesystem = {0};
-    if (statfs(FMProviderSystemFontsLogicalPath.fileSystemRepresentation,
+    if (statfs(FMMountSystemFontsLogicalPath.fileSystemRepresentation,
                &filesystem) != 0) {
         return FMLegacyFail(
             error, 4, @"The exposed Stock font filesystem is unavailable.",
@@ -312,9 +312,9 @@ static NSDictionary<NSString *, id> *FMLegacyReport(
         @"contentCompared" : journal[@"legacyContentCompared"],
         @"unmountAttempted" : journal[@"legacyMappingWasActive"],
         @"unmountMethod" : [journal[@"legacyMappingWasActive"] boolValue]
-            ? @"providerFixedUnmount" : @"notRequired",
-        @"providerDetachMayForce" : journal[@"legacyMappingWasActive"],
-        @"providerInvoked" : journal[@"legacyMappingWasActive"],
+            ? @"builtInBackendForceUnmount" : @"notRequired",
+        @"backendDetachMayForce" : journal[@"legacyMappingWasActive"],
+        @"mountBackendInvoked" : journal[@"legacyMappingWasActive"],
         @"journalResumed" : resumed ? @YES : @NO,
         @"filesystemMutated" : mutated ? @YES : @NO,
     };
@@ -324,22 +324,22 @@ NSDictionary<NSString *, id> *FMCreateLegacyFontTakeoverPreflight(
     NSError **error) {
     BOOL rootSupported = NO;
     NSString *mirrorLogicalPath =
-        FMProviderResolvedMirrorLogicalPath(&rootSupported, NULL);
+        FMMountResolvedMirrorLogicalPath(&rootSupported, NULL);
     if (!rootSupported ||
         ![mirrorLogicalPath isEqual:FMLegacyMirrorLogicalPath]) {
         FMLegacyFail(
-            error, 2, @"The Provider root is unsupported for legacy takeover.",
+            error, 2, @"The mount storage root is unavailable for legacy takeover.",
             EINVAL);
         return nil;
     }
 
     BOOL autoMountConflict = NO;
-    if (!FMProviderAutoMountConflictsWithSystemFonts(
+    if (!FMLegacyProviderAutoMountConflictsWithSystemFonts(
             &autoMountConflict, error)) return nil;
     if (autoMountConflict) {
         FMLegacyFail(
             error, 2,
-            @"Provider automatic mounting still targets the system Fonts tree.",
+            @"Legacy Provider automatic mounting still targets the system Fonts tree.",
             EBUSY);
         return nil;
     }
@@ -508,8 +508,8 @@ NSDictionary<NSString *, id> *FMPerformLegacyFontTakeover(
                 @"contentCompared" : @NO,
                 @"unmountAttempted" : @NO,
                 @"unmountMethod" : @"notRequired",
-                @"providerDetachMayForce" : @NO,
-                @"providerInvoked" : @NO,
+                @"backendDetachMayForce" : @NO,
+                @"mountBackendInvoked" : @NO,
                 @"journalResumed" : @NO,
                 @"filesystemMutated" : @NO,
             };
@@ -556,7 +556,7 @@ NSDictionary<NSString *, id> *FMPerformLegacyFontTakeover(
         if (active) {
             NSError *detachError = nil;
             NSDictionary *detachment =
-                FMDetachProviderSystemFontsForPackageLifecycle(&detachError);
+                FMDetachManagedSystemFontsForPackageLifecycle(&detachError);
             if (detachment == nil) {
                 if (error != NULL) *error = detachError;
                 return nil;
@@ -587,7 +587,7 @@ NSDictionary<NSString *, id> *FMPerformLegacyFontTakeover(
         if (profilesRoot == nil) return nil;
         NSError *importError = nil;
         NSDictionary *import = FMImportLegacyFontTreeAsProfile(
-            sourcePath, FMProviderSystemFontsLogicalPath, profilesRoot,
+            sourcePath, FMMountSystemFontsLogicalPath, profilesRoot,
             systemBuild, journal[@"profileID"], journal[@"profileName"],
             501, 501, &importError);
         if (import == nil) {

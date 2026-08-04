@@ -55,21 +55,21 @@ remove_exact_tree() {
   fi
 }
 
-require_physical_provider_parent() {
+require_physical_mount_parent() {
   case "$1" in
     /bindfs|/bindfs/System|/bindfs/System/Library)
       ;;
     *)
-      echo "MarkFont refused an unknown Provider parent: $1" >&2
+      echo "MarkFont refused an unknown mount storage parent: $1" >&2
       exit 70
       ;;
   esac
 
   if [ -L "$1" ]; then
-    echo "MarkFont Provider parent is a symbolic link: $1" >&2
+    echo "MarkFont mount storage parent is a symbolic link: $1" >&2
     exit 70
   elif [ -e "$1" ] && [ ! -d "$1" ]; then
-    echo "MarkFont Provider parent is not a directory: $1" >&2
+    echo "MarkFont mount storage parent is not a directory: $1" >&2
     exit 70
   fi
 }
@@ -96,20 +96,20 @@ case "${1:-}" in
 
     if [ "$engine_owned" -eq 1 ]; then
       if [ -L /var/lib/fontmanager/.mirror-owned ]; then
-        echo "MarkFont mirror ownership marker is unsafe; Provider cleanup stopped." >&2
+        echo "MarkFont mirror ownership marker is unsafe; managed mirror cleanup stopped." >&2
         exit 70
       elif [ -f /var/lib/fontmanager/.mirror-owned ]; then
         mirror_owned=1
       elif [ -e /var/lib/fontmanager/.mirror-owned ]; then
-        echo "MarkFont mirror ownership marker is not a file; Provider cleanup stopped." >&2
+        echo "MarkFont mirror ownership marker is not a file; managed mirror cleanup stopped." >&2
         exit 70
       fi
     fi
 
     if [ "$engine_owned" -eq 1 ] && [ "$mirror_owned" -eq 1 ]; then
-      require_physical_provider_parent /bindfs
-      require_physical_provider_parent /bindfs/System
-      require_physical_provider_parent /bindfs/System/Library
+      require_physical_mount_parent /bindfs
+      require_physical_mount_parent /bindfs/System
+      require_physical_mount_parent /bindfs/System/Library
       remove_exact_tree /bindfs/System/Library/.Fonts.fontmanager-staging
       remove_exact_tree /bindfs/System/Library/Fonts
       rmdir /bindfs/System/Library 2>/dev/null || true

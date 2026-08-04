@@ -13,7 +13,7 @@ NSDictionary<NSString *, NSString *> *FMFontProfilePreviewPaths(
     NSString *replacementsDirectory);
 
 // App-owned Profile library. The caller supplies a current-build directory;
-// these functions never read or write the Provider mirror, state.json, rootfs,
+// these functions never read or write the managed mirror, state.json, rootfs,
 // or any mount configuration.
 NSArray<NSDictionary<NSString *, id> *> * _Nullable FMListFontProfilesAtRoot(
     NSString *profilesRoot,

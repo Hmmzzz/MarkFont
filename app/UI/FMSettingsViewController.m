@@ -321,10 +321,10 @@ static UIView *FMSettingsSectionHeaderView(NSString *title) {
                 @"url" : @"https://theos.dev/",
             },
             @{
-                @"title" : @"mount_bindfs",
-                @"subtitle" : FMLocalized(@"赵楠 · 提供字体目录映射依赖"),
+                @"title" : @"Dopamine / libjailbreak",
+                @"subtitle" : FMLocalized(@"提供挂载能力接口设计参考"),
                 @"symbol" : @"arrow.triangle.2.circlepath",
-                @"url" : @"https://invalidunit.github.io/repo/",
+                @"url" : @"https://github.com/opa334/Dopamine",
             },
             @{
                 @"title" : @"Relaxin",

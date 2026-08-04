@@ -5,6 +5,7 @@ include Config.mk
 include $(THEOS)/makefiles/common.mk
 
 SUBPROJECTS += app
+SUBPROJECTS += bindfs
 SUBPROJECTS += daemon
 SUBPROJECTS += cli
 

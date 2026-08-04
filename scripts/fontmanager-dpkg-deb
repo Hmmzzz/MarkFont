@@ -30,6 +30,20 @@ if [[ ! -f "$helper" || -L "$helper" ]]; then
   exit 66
 fi
 
+mount_backend="$staging_root/usr/libexec/markfont-bindfs"
+if [[ ! -f "$mount_backend" || -L "$mount_backend" ]]; then
+  printf 'MarkFont bindfs backend is missing or is not a regular staged file.\n' >&2
+  exit 66
+fi
+
+/bin/chmod 0755 "$mount_backend"
+mount_backend_mode=$(/usr/bin/stat -f '%Mp%Lp' "$mount_backend")
+if [[ "$mount_backend_mode" != "0755" ]]; then
+  printf 'Unable to stage markfont-bindfs with mode 0755; found %s.\n' \
+    "$mount_backend_mode" >&2
+  exit 77
+fi
+
 /bin/chmod 4755 "$helper"
 helper_mode=$(/usr/bin/stat -f '%Mp%Lp' "$helper")
 if [[ "$helper_mode" != "4755" ]]; then

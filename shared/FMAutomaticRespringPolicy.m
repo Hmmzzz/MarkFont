@@ -8,7 +8,7 @@ static BOOL FMAutomaticRespringPolicyBoolean(id value, BOOL expected) {
         [value boolValue] == expected;
 }
 
-BOOL FMAutomaticRespringEligibleForReport(
+BOOL FMLateAutomaticMountNeedsRestartEvidenceForReport(
     NSDictionary<NSString *, id> *report,
     BOOL exactLaunchdInvocation,
     BOOL launchdService) {
@@ -20,16 +20,25 @@ BOOL FMAutomaticRespringEligibleForReport(
         [report[@"workingProfileID"] isKindOfClass:NSString.class] &&
         [report[@"workingProfileID"] length] > 0 &&
         FMAutomaticRespringPolicyBoolean(report[@"autoMountEnabled"], YES) &&
-        FMAutomaticRespringPolicyBoolean(report[@"autoRespringEnabled"], YES) &&
-        FMAutomaticRespringPolicyBoolean(report[@"providerInvoked"], YES) &&
-        FMAutomaticRespringPolicyBoolean(report[@"providerReportedSuccess"], YES) &&
+        FMAutomaticRespringPolicyBoolean(report[@"mountBackendInvoked"], YES) &&
+        FMAutomaticRespringPolicyBoolean(report[@"mountBackendReportedSuccess"], YES) &&
         FMAutomaticRespringPolicyBoolean(report[@"mappingChanged"], YES) &&
         FMAutomaticRespringPolicyBoolean(report[@"mappingActive"], YES) &&
         FMAutomaticRespringPolicyBoolean(report[@"mappingReadOnly"], YES) &&
-        FMAutomaticRespringPolicyBoolean(report[@"stateChanged"], YES) &&
+        FMAutomaticRespringPolicyBoolean(
+            report[@"lateAutomaticMountPending"], YES) &&
         FMAutomaticRespringPolicyBoolean(report[@"activationRefreshRequired"], YES) &&
         FMAutomaticRespringPolicyBoolean(
             report[@"springBoardObservationAvailable"], YES) &&
         FMAutomaticRespringPolicyBoolean(report[@"springBoardWasRunning"], YES) &&
         FMAutomaticRespringPolicyBoolean(report[@"restartRequested"], NO);
+}
+
+BOOL FMAutomaticRespringEligibleForReport(
+    NSDictionary<NSString *, id> *report,
+    BOOL exactLaunchdInvocation,
+    BOOL launchdService) {
+    return FMLateAutomaticMountNeedsRestartEvidenceForReport(
+               report, exactLaunchdInvocation, launchdService) &&
+        FMAutomaticRespringPolicyBoolean(report[@"autoRespringEnabled"], YES);
 }
