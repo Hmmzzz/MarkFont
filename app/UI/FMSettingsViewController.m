@@ -812,7 +812,7 @@ static UIView *FMSettingsDisclaimerReminderView(void) {
                              UIColor.tertiaryLabelColor);
     label.translatesAutoresizingMaskIntoConstraints = NO;
     NSString *version = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
-    if (version.length == 0) version = @"0.1.1";
+    if (version.length == 0) version = @"0.2.0";
     label.text = [NSString stringWithFormat:FMLocalized(@"MarkFont · 版本 %@\n由 Hmmzzz 设计与开发"),
                                             version];
     label.textAlignment = NSTextAlignmentCenter;
