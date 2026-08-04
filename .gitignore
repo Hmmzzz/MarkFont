@@ -16,6 +16,7 @@ xcuserdata/
 *.xcuserstate
 
 # Local editor and scratch files
+CLAUDE.md
 *.swp
 *.tmp
 .work/

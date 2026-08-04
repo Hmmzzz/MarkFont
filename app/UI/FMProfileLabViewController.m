@@ -715,7 +715,7 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
 
     self.titleLabel = [[UILabel alloc] initWithFrame:CGRectZero];
     self.titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
-    self.titleLabel.text = FMLocalized(@"字体");
+    self.titleLabel.text = @"MarkFont";
     self.titleLabel.font = [UIFont systemFontOfSize:38 weight:UIFontWeightBold];
     self.titleLabel.textColor = UIColor.labelColor;
     [self.contentView addSubview:self.titleLabel];
