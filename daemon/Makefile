@@ -32,8 +32,8 @@ fontmanagerd_FILES = main.m \
     ../shared/FMMountBackendExecutor.m \
     ../shared/FMMirrorPreparation.m ../shared/FMSecureDirectory.m \
     ../shared/FMDeviceMountEngine.m
-fontmanagerd_LIBRARIES = roothide
-fontmanagerd_CFLAGS = -fobjc-arc -Wall -Wextra
+fontmanagerd_LIBRARIES = $(MARKFONT_PATH_LIBRARIES)
+fontmanagerd_CFLAGS = -fobjc-arc -Wall -Wextra $(MARKFONT_PATH_CFLAGS)
 fontmanagerd_CODESIGN_FLAGS = -Sentitlements.plist
 fontmanagerd_INSTALL_PATH = /usr/libexec
 

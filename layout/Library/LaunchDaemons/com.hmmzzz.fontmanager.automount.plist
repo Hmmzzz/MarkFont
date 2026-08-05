@@ -6,7 +6,7 @@
     <string>com.hmmzzz.fontmanager.automount</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/libexec/fontmanagerd</string>
+        <string>@MARKFONT_PACKAGE_PREFIX@/usr/libexec/fontmanagerd</string>
         <string>auto-mount</string>
     </array>
     <key>RunAtLoad</key>

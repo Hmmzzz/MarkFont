@@ -93,7 +93,7 @@ static NSString *FMMountBackendFailureDescription(
         ? [report[@"exitStatus"] integerValue] : -1;
     switch (status) {
         case FMMountBackendProcessExitUnavailable:
-            return @"The Relaxin mount capability is unavailable.";
+            return @"The jailbreak mount capability is unavailable.";
         case FMMountBackendProcessExitCredentialBorrow:
             return @"The mount backend could not borrow the required credential.";
         case FMMountBackendProcessExitCredentialRestore:

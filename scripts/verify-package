@@ -1,0 +1,285 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [[ $# -ne 1 ]]; then
+  printf 'Usage: %s <markfont.deb>\n' "$0" >&2
+  exit 64
+fi
+
+deb_input=$1
+if [[ ! -f "$deb_input" ]]; then
+  printf 'Package does not exist: %s\n' "$deb_input" >&2
+  exit 66
+fi
+
+deb_dir=$(CDPATH= cd -- "$(dirname -- "$deb_input")" && pwd)
+deb_path="$deb_dir/$(basename -- "$deb_input")"
+verify_dir=$(mktemp -d /tmp/markfont-package-verify.XXXXXX)
+
+cleanup() {
+  if [[ "$verify_dir" == /tmp/markfont-package-verify.* && -d "$verify_dir" ]]; then
+    find "$verify_dir" -depth -delete
+  fi
+}
+trap cleanup EXIT INT TERM
+
+fail() {
+  printf 'MarkFont package verification failed: %s\n' "$1" >&2
+  exit 65
+}
+
+mkdir -p "$verify_dir/ar" "$verify_dir/control" "$verify_dir/data"
+(cd "$verify_dir/ar" && /usr/bin/ar -x "$deb_path")
+
+control_archive=$(find "$verify_dir/ar" -maxdepth 1 -type f \
+  -name 'control.tar*' -print | head -n 1)
+data_archive=$(find "$verify_dir/ar" -maxdepth 1 -type f \
+  -name 'data.tar*' -print | head -n 1)
+[[ -n "$control_archive" && -n "$data_archive" ]] || \
+  fail 'control/data archive member is missing'
+
+/usr/bin/tar -xf "$control_archive" -C "$verify_dir/control"
+/usr/bin/tar -xf "$data_archive" -C "$verify_dir/data"
+
+control_file="$verify_dir/control/control"
+[[ -f "$control_file" && ! -L "$control_file" ]] || \
+  fail 'control metadata is missing or unsafe'
+package_arch=$(awk -F ': ' 'tolower($1) == "architecture" { print $2 }' \
+  "$control_file")
+package_depends=$(awk -F ': ' 'tolower($1) == "depends" { print $2 }' \
+  "$control_file")
+
+case "$package_arch" in
+  iphoneos-arm64e)
+    package_scheme=roothide
+    runtime_prefix=
+    archive_prefix=
+    ;;
+  iphoneos-arm64)
+    package_scheme=rootless
+    runtime_prefix=/var/jb
+    archive_prefix=var/jb
+    ;;
+  *)
+    fail "unsupported package architecture: $package_arch"
+    ;;
+esac
+
+if [[ "$package_depends" != *"firmware (>= 16.0)"* || \
+      "$package_depends" != *"uikittools"* || \
+      "$package_depends" == *"com.nan.bindfs"* || \
+      "$package_depends" == *"dash"* ]]; then
+  fail 'runtime dependencies do not match the built-in backend contract'
+fi
+
+archive_record() {
+  local archive=$1
+  local name=$2
+  /usr/bin/tar -tvf "$archive" | \
+    awk -v name="$name" '$NF == name || $NF == "./" name { print; exit }'
+}
+
+for script_name in postinst prerm postrm; do
+  script_path="$verify_dir/control/$script_name"
+  [[ -f "$script_path" && ! -L "$script_path" ]] || \
+    fail "$script_name is missing or unsafe"
+  /bin/sh -n "$script_path" || fail "$script_name is not valid POSIX shell"
+  script_record=$(archive_record "$control_archive" "$script_name")
+  [[ $(awk '{ print $1 }' <<<"$script_record") == '-rwxr-xr-x' && \
+     "$script_record" =~ [[:space:]]root[[:space:]]+wheel[[:space:]] ]] || \
+    fail "$script_name is not archived root:wheel mode 0755"
+done
+
+expected_prefix_assignment="package_prefix='$runtime_prefix'"
+for script_name in postinst prerm postrm; do
+  rg -F -q "$expected_prefix_assignment" \
+    "$verify_dir/control/$script_name" || \
+    fail "$script_name contains the wrong package prefix"
+done
+postinst="$verify_dir/control/postinst"
+prerm="$verify_dir/control/prerm"
+postrm="$verify_dir/control/postrm"
+rg -F -q '"$helper" package-configure' "$postinst" || \
+  fail 'postinst does not use the fixed rendered helper'
+rg -F -q '"$helper" package-prepare-removal' "$prerm" || \
+  fail 'prerm does not use the fixed rendered helper'
+for required_postrm_text in \
+    '.package-removal-ready' \
+    '.mirror-owned' \
+    'remove_exact_tree "$mirror_staging_root"' \
+    'remove_exact_tree "$mirror_fonts_root"' \
+    'remove_exact_tree "$engine_root"' \
+    'request_sileo_reload'; do
+  rg -F -q "$required_postrm_text" "$postrm" || \
+    fail "postrm lost its marker-gated cleanup boundary: $required_postrm_text"
+done
+
+data_root="$verify_dir/data$runtime_prefix"
+[[ -d "$data_root" && ! -L "$data_root" ]] || \
+  fail 'scheme data root is missing or unsafe'
+if [[ "$package_scheme" == rootless ]]; then
+  unexpected_top=$(find "$verify_dir/data" -mindepth 1 -maxdepth 1 \
+    ! -name var -print -quit)
+  [[ -z "$unexpected_top" ]] || fail 'rootless data escaped /var/jb packaging'
+  unexpected_var=$(find "$verify_dir/data/var" -mindepth 1 -maxdepth 1 \
+    ! -name jb -print -quit)
+  [[ -z "$unexpected_var" ]] || fail 'rootless data escaped /var/jb packaging'
+else
+  [[ ! -e "$verify_dir/data/var/jb" ]] || \
+    fail 'RootHide package unexpectedly contains /var/jb data'
+fi
+
+binary_paths=(
+  'Applications/FontManager.app/FontManager'
+  'usr/libexec/markfont-bindfs'
+  'usr/libexec/fontmanagerd'
+  'usr/bin/fontmanagerctl'
+)
+
+for relative_binary in "${binary_paths[@]}"; do
+  binary="$data_root/$relative_binary"
+  [[ -f "$binary" && ! -L "$binary" ]] || \
+    fail "binary is missing or unsafe: $relative_binary"
+  binary_arches=" $(xcrun lipo -archs "$binary") "
+  [[ "$binary_arches" == *' arm64 '* && "$binary_arches" == *' arm64e '* ]] || \
+    fail "binary is not arm64+arm64e: $relative_binary"
+  minos_count=$(xcrun vtool -show-build "$binary" | \
+    rg -c '^    minos 16\.0$' || true)
+  [[ "$minos_count" -eq 2 ]] || \
+    fail "binary does not declare iOS 16.0 on both slices: $relative_binary"
+
+  linked_libraries=$(xcrun otool -L "$binary")
+  load_commands=$(xcrun otool -l "$binary")
+  if [[ "$package_scheme" == roothide ]]; then
+    rg -q '@loader_path/\.jbroot/usr/lib/libroothide\.dylib' \
+      <<<"$linked_libraries" || \
+      fail "RootHide library install name is missing: $relative_binary"
+  else
+    ! rg -q 'libroothide\.dylib' <<<"$linked_libraries" || \
+      fail "rootless binary links the RootHide-only library: $relative_binary"
+    rg -q 'path /var/jb/usr/lib ' <<<"$load_commands" || \
+      fail "rootless /var/jb library rpath is missing: $relative_binary"
+    rg -q 'path @loader_path/\.jbroot/usr/lib ' <<<"$load_commands" || \
+      fail "relocatable rootless library rpath is missing: $relative_binary"
+  fi
+
+  entitlements=$(ldid -e "$binary")
+  [[ "$entitlements" == *'<key>platform-application</key>'* && \
+     "$entitlements" == *'<key>com.apple.private.security.no-sandbox</key>'* ]] || \
+    fail "required executable entitlements are missing: $relative_binary"
+done
+
+app_info="$data_root/Applications/FontManager.app/Info.plist"
+[[ -f "$app_info" && \
+   $(plutil -extract MinimumOSVersion raw -o - "$app_info") == '16.0' ]] || \
+  fail 'application Info.plist does not require iOS 16.0'
+
+mount_backend="$data_root/usr/libexec/markfont-bindfs"
+helper="$data_root/usr/libexec/fontmanagerd"
+mount_backend_name="${archive_prefix:+$archive_prefix/}usr/libexec/markfont-bindfs"
+helper_name="${archive_prefix:+$archive_prefix/}usr/libexec/fontmanagerd"
+mount_backend_record=$(archive_record "$data_archive" "$mount_backend_name")
+helper_record=$(archive_record "$data_archive" "$helper_name")
+[[ $(awk '{ print $1 }' <<<"$mount_backend_record") == '-rwxr-xr-x' && \
+   "$mount_backend_record" =~ [[:space:]]root[[:space:]]+wheel[[:space:]] ]] || \
+  fail 'markfont-bindfs is not archived root:wheel mode 0755'
+[[ $(awk '{ print $1 }' <<<"$helper_record") == '-rwsr-xr-x' && \
+   "$helper_record" =~ [[:space:]]root[[:space:]]+wheel[[:space:]] ]] || \
+  fail 'fontmanagerd is not archived root:wheel mode 4755'
+
+backend_entitlements=$(ldid -e "$mount_backend")
+[[ "$backend_entitlements" == *'<key>com.apple.private.bindfs-allow</key>'* ]] || \
+  fail 'markfont-bindfs is missing its isolated bindfs entitlement'
+for relative_binary in \
+    'Applications/FontManager.app/FontManager' \
+    'usr/libexec/fontmanagerd' \
+    'usr/bin/fontmanagerctl'; do
+  if ldid -e "$data_root/$relative_binary" | \
+      rg -q 'com\.apple\.private\.bindfs-allow'; then
+    fail "bindfs entitlement escaped the backend: $relative_binary"
+  fi
+done
+
+# The helper performs direct filesystem access. RootHide therefore needs the
+# jbroot-based /rootfs view compiled in, while conventional rootless must use
+# the visible rootfs path and must not inherit that RootHide-only namespace.
+if xcrun nm -u "$helper" | rg -q 'rootfs'; then
+  fail 'fontmanagerd still calls the inverse rootfs path-conversion API'
+fi
+if [[ "$package_scheme" == roothide ]]; then
+  rg -a -F -q '/rootfs' "$helper" || \
+    fail 'RootHide helper is missing its original-rootfs namespace adapter'
+else
+  ! rg -a -F -q '/rootfs' "$helper" || \
+    fail 'rootless helper contains a RootHide-only /rootfs path'
+fi
+for recovery_literal in \
+    'Automatic mounting requires a clean, recoverable current-build mirror.' \
+    'clearRecoveredProfileRestartEvidence' \
+    'staleRestartEvidenceCleared'; do
+  rg -a -F -q "$recovery_literal" "$helper" || \
+    fail "pending Profile recovery is missing: $recovery_literal"
+done
+! rg -a -F -q \
+    'Automatic mounting requires a clean, confirmed current-build mirror.' \
+    "$helper" || \
+  fail 'the helper still rejects every unconfirmed pending Profile'
+if rg -a -F -q 'armRecoveredProfileRespring' "$helper" || \
+   rg -a -F -q 'currentSessionEvidenceArmed' "$helper"; then
+  fail 'automatic mounting still pre-arms a recovered Profile Respring'
+fi
+
+for backend_literal in \
+    '/System/Library/Fonts' \
+    '/bindfs/System/Library/Fonts' \
+    '/basebin/libjailbreak.dylib' \
+    'jbclient_root_steal_ucred'; do
+  rg -a -F -q "$backend_literal" "$mount_backend" || \
+    fail "fixed backend literal is missing: $backend_literal"
+done
+
+auto_mount_relative="${archive_prefix:+$archive_prefix/}Library/LaunchDaemons/com.hmmzzz.fontmanager.automount.plist"
+auto_mount_plist="$verify_dir/data/$auto_mount_relative"
+[[ -f "$auto_mount_plist" && ! -L "$auto_mount_plist" ]] || \
+  fail 'automatic-mount launchd plist is missing or unsafe'
+plutil -lint "$auto_mount_plist" >/dev/null || \
+  fail 'automatic-mount launchd plist is invalid'
+expected_helper="$runtime_prefix/usr/libexec/fontmanagerd"
+[[ $(plutil -extract Label raw -o - "$auto_mount_plist") == \
+      'com.hmmzzz.fontmanager.automount' && \
+   $(plutil -extract ProgramArguments.0 raw -o - "$auto_mount_plist") == \
+      "$expected_helper" && \
+   $(plutil -extract ProgramArguments.1 raw -o - "$auto_mount_plist") == \
+      'auto-mount' && \
+   $(plutil -extract RunAtLoad raw -o - "$auto_mount_plist") == 'true' && \
+   $(plutil -extract KeepAlive raw -o - "$auto_mount_plist") == 'false' && \
+   $(plutil -extract UserName raw -o - "$auto_mount_plist") == 'root' && \
+   $(plutil -extract GroupName raw -o - "$auto_mount_plist") == 'wheel' ]] || \
+  fail 'automatic-mount launchd contract is malformed'
+if plutil -extract Program raw -o - "$auto_mount_plist" >/dev/null 2>&1; then
+  fail 'automatic-mount launchd plist must use only fixed ProgramArguments'
+fi
+auto_mount_record=$(archive_record "$data_archive" "$auto_mount_relative")
+[[ $(awk '{ print $1 }' <<<"$auto_mount_record") == '-rw-r--r--' && \
+   "$auto_mount_record" =~ [[:space:]]root[[:space:]]+wheel[[:space:]] ]] || \
+  fail 'automatic-mount launchd plist is not root:wheel mode 0644'
+
+if rg -a -n '@MARKFONT_PACKAGE_PREFIX@|/private/preboot/|/usr/bin/dash|/usr/bin/mount_bindfs' \
+    "$verify_dir/control" "$verify_dir/data" >/dev/null; then
+  fail 'a template token, randomized path, or external backend escaped into the package'
+fi
+if [[ "$package_scheme" == roothide ]] && \
+   rg -a -n '/var/jb' "$verify_dir/control" "$verify_dir/data" >/dev/null; then
+  fail 'RootHide package embeds a conventional rootless /var/jb path'
+fi
+
+package_sha256=$(/usr/bin/shasum -a 256 "$deb_path" | awk '{ print $1 }')
+printf 'Verified MarkFont %s package: %s\n' "$package_scheme" "$deb_path"
+printf '  SHA-256:             %s\n' "$package_sha256"
+printf '  architecture:        %s\n' "$package_arch"
+printf '  Mach-O slices:       arm64 arm64e (4 executables)\n'
+printf '  minimum iOS:         16.0\n'
+printf '  package/runtime path:%s\n' " ${runtime_prefix:-/}"
+printf '  helper/backend modes:4755 / 0755\n'
+printf '  launchd argv:        %s auto-mount\n' "$expected_helper"

@@ -12,10 +12,12 @@
 #import <unistd.h>
 
 #import "FMDataModel.h"
+#import "FMAutomaticRespringPolicy.h"
 #import "FMFileStore.h"
 #import "FMOperationLock.h"
 #import "FMMountBackendExecutor.h"
 #import "FMMountPaths.h"
+#import "FMDeviceRestartCoordinator.h"
 #import "FMSecureDirectory.h"
 
 NSString *const FMDeviceAutoMountErrorDomain =
@@ -25,14 +27,14 @@ static NSString *const FMEngineRootLogicalPath = @"/var/lib/fontmanager";
 static NSString *const FMStateLogicalPath = @"/var/lib/fontmanager/state.json";
 static NSString *const FMDisableMountLogicalPath =
     @"/var/lib/fontmanager/disable-mount";
-static NSString *const FMRootHideSafeModeLogicalPath = @"/basebin/.safe_mode";
+static NSString *const FMJailbreakSafeModeLogicalPath = @"/basebin/.safe_mode";
 static NSString *const FMLegacyProviderGlobalDisableLogicalPath =
-    @"/rootfs/var/mobile/.not_auto_mount";
+    @"/var/mobile/.not_auto_mount";
 static NSString *const FMSpringBoardProcessPath =
     @"/System/Library/CoreServices/SpringBoard.app/SpringBoard";
 
 // libproc is available through libSystem on iOS, but the public SDK used by
-// this RootHide build does not ship its declarations.
+// this jailbreak build does not ship its declarations.
 extern int proc_listpids(uint32_t type,
                          uint32_t typeinfo,
                          void *buffer,
@@ -110,16 +112,18 @@ static NSDictionary<NSString *, id> *_Nullable FMAutoMountGateReport(
     BOOL safeMode = NO;
     BOOL disabled = NO;
     BOOL legacyProviderDisabled = NO;
-    if (!FMAutoMountMarkerExists(jbroot(FMRootHideSafeModeLogicalPath),
+    if (!FMAutoMountMarkerExists(jbroot(FMJailbreakSafeModeLogicalPath),
                                  &safeMode, error) ||
         !FMAutoMountMarkerExists(jbroot(FMDisableMountLogicalPath),
                                  &disabled, error) ||
-        !FMAutoMountMarkerExists(jbroot(FMLegacyProviderGlobalDisableLogicalPath),
+        !FMAutoMountMarkerExists(
+            FMMountResolvedOriginalRootfsPath(
+                FMLegacyProviderGlobalDisableLogicalPath),
                                  &legacyProviderDisabled, error)) {
         return nil;
     }
     if (safeMode) {
-        return FMAutoMountSkippedReport(@"safeMode", @"rootHideSafeMode");
+        return FMAutoMountSkippedReport(@"safeMode", @"jailbreakSafeMode");
     }
     if (disabled) {
         return FMAutoMountSkippedReport(@"disabled", @"fontManagerDisableMarker");
@@ -163,12 +167,6 @@ static BOOL FMAutoMountSafeComponent(NSString *value) {
         value.pathComponents.count == 1 &&
         [value.lastPathComponent isEqual:value] &&
         ![value isEqual:@"."] && ![value isEqual:@".."];
-}
-
-static BOOL FMAutoMountProfileIDsEqual(id left, id right) {
-    BOOL leftStock = left == nil || left == NSNull.null;
-    BOOL rightStock = right == nil || right == NSNull.null;
-    return leftStock || rightStock ? leftStock && rightStock : [left isEqual:right];
 }
 
 static NSString *_Nullable FMAutoMountSystemBuild(NSError **error) {
@@ -256,18 +254,10 @@ static NSDictionary<NSString *, id> *_Nullable FMAutoMountReadState(
     NSError **error) {
     NSDictionary *object = FMAutoMountReadValidatedState(systemBuild, error);
     if (object == nil) return nil;
-    BOOL profilesEqual = [object isKindOfClass:NSDictionary.class] &&
-        FMAutoMountProfileIDsEqual(object[@"confirmedProfileID"],
-                                    object[@"workingProfileID"]);
-    BOOL refreshOnlyPending = profilesEqual &&
-        [object[@"restartRequired"] boolValue] &&
-        [object[@"workingProfileID"] isKindOfClass:NSString.class];
-    if (![object[@"mirrorState"] isEqual:@"clean"] ||
-        !profilesEqual ||
-        ([object[@"restartRequired"] boolValue] && !refreshOnlyPending)) {
+    if (!FMAutomaticMountStateAllowsTrustedMirror(object)) {
         FMAutoMountSetError(
             error, 3,
-            @"Automatic mounting requires a clean, confirmed current-build mirror.",
+            @"Automatic mounting requires a clean, recoverable current-build mirror.",
             nil);
         return nil;
     }
@@ -279,7 +269,7 @@ static BOOL FMAutoMountValidateWorkspace(NSError **error) {
     if (bootstrapRoot == nil || [bootstrapRoot isEqual:@"/"]) {
         if (error != NULL && *error == nil) {
             FMAutoMountSetError(error, 3,
-                                @"The RootHide bootstrap root is unavailable.", nil);
+                                @"The jailbreak bootstrap root is unavailable.", nil);
         }
         return NO;
     }
@@ -416,19 +406,16 @@ static NSDictionary<NSString *, id> *_Nullable FMAutoMountLocked(
     BOOL springBoardWasRunning = NO;
     BOOL customWorkingProfile =
         [state[@"workingProfileID"] isKindOfClass:NSString.class];
+    BOOL pendingProfileChange =
+        FMAutomaticMountStateHasPendingProfileChange(state);
     BOOL lateAutomaticMountPending = customWorkingProfile &&
         [state[@"restartRequired"] boolValue] &&
         [state[@"refreshReason"] isEqual:@"lateAutomaticMount"];
-    if (!mappingWasManaged && customWorkingProfile &&
-        (![state[@"restartRequired"] boolValue] ||
-         lateAutomaticMountPending)) {
-        springBoardWasRunning = FMAutoMountSpringBoardIsRunning(
-            &springBoardObservationAvailable);
-    }
-    BOOL activationRefreshRequired =
-        [state[@"restartRequired"] boolValue] ||
-        (!mappingWasManaged && customWorkingProfile &&
-         (!springBoardObservationAvailable || springBoardWasRunning));
+    BOOL springBoardObservationRequired = !mappingWasManaged &&
+        (pendingProfileChange ||
+         (customWorkingProfile &&
+          (![state[@"restartRequired"] boolValue] ||
+           lateAutomaticMountPending)));
 
     NSDictionary *backendReport = nil;
     if (!mappingWasManaged) {
@@ -437,7 +424,7 @@ static NSDictionary<NSString *, id> *_Nullable FMAutoMountLocked(
             ![backendReport[@"reportedSuccess"] boolValue]) {
             FMAutoMountSetError(
                 error, 5,
-                @"The fixed mount backend operation operation did not succeed.",
+                @"The fixed mount backend operation did not succeed.",
                 inspectionError);
             return nil;
         }
@@ -466,6 +453,34 @@ static NSDictionary<NSString *, id> *_Nullable FMAutoMountLocked(
             @"Persistent state changed during automatic mounting.",
             inspectionError);
         return nil;
+    }
+
+    // Observe only after the mapping is exact. If SpringBoard starts while the
+    // backend is mounting, treating the result as late is conservative and
+    // prevents stale pre-reboot evidence from confirming unseen font content.
+    if (springBoardObservationRequired) {
+        springBoardWasRunning = FMAutoMountSpringBoardIsRunning(
+            &springBoardObservationAvailable);
+    }
+    BOOL activationRefreshRequired =
+        [state[@"restartRequired"] boolValue] ||
+        (!mappingWasManaged && customWorkingProfile &&
+         (!springBoardObservationAvailable || springBoardWasRunning));
+
+    BOOL staleRestartEvidenceCleared = NO;
+    if (!mappingWasManaged && pendingProfileChange &&
+        (!springBoardObservationAvailable || springBoardWasRunning)) {
+        NSDictionary *evidenceReport =
+            FMClearStaleRespringEvidenceForRecoveredMappingWithExistingLock(
+                systemBuild, &inspectionError);
+        if (evidenceReport == nil) {
+            FMAutoMountSetError(
+                error, 6,
+                @"The recovered Profile could not clear stale Respring evidence.",
+                inspectionError);
+            return nil;
+        }
+        staleRestartEvidenceCleared = YES;
     }
 
     BOOL stateChanged = NO;
@@ -527,7 +542,14 @@ static NSDictionary<NSString *, id> *_Nullable FMAutoMountLocked(
             activationRefreshRequired ? @YES : @NO,
         @"lateAutomaticMountPending" :
             lateAutomaticMountPending ? @YES : @NO,
-        @"filesystemMutated" : @NO,
+        @"pendingProfileChange" :
+            pendingProfileChange ? @YES : @NO,
+        @"staleRestartEvidenceCleared" :
+            staleRestartEvidenceCleared ? @YES : @NO,
+        @"manualRespringRequired" :
+            staleRestartEvidenceCleared ? @YES : @NO,
+        @"filesystemMutated" :
+            (stateChanged || staleRestartEvidenceCleared) ? @YES : @NO,
         @"stateChanged" : stateChanged ? @YES : @NO,
         @"restartRequested" : @NO,
     };

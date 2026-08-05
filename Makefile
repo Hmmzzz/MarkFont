@@ -10,3 +10,14 @@ SUBPROJECTS += daemon
 SUBPROJECTS += cli
 
 include $(THEOS_MAKE_PATH)/aggregate.mk
+
+.PHONY: package-roothide package-rootless package-all
+
+package-roothide:
+	./scripts/build-packages roothide
+
+package-rootless:
+	./scripts/build-packages rootless
+
+package-all:
+	./scripts/build-packages roothide rootless

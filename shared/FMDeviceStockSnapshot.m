@@ -277,7 +277,7 @@ static NSDictionary<NSString *, id> *FMCaptureDeviceStockSnapshotLocked(
     if (context == nil) return nil;
 
     NSError *operationError = nil;
-    NSString *stockRoot = jbroot(FMMountRootfsFontsLogicalPath);
+    NSString *stockRoot = FMMountResolvedStockFontsPath();
     BOOL sourceReady = FMStockSourceIsReadOnly(stockRoot, &operationError);
     NSString *varLibrary = jbroot(@"/var/lib").stringByResolvingSymlinksInPath;
     BOOL parentReady = sourceReady && FMEnsureSecureDirectoryTree(

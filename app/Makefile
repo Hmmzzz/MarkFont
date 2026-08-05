@@ -13,8 +13,8 @@ FontManager_FILES = main.m FMAppDelegate.m FMDeviceProfileWorkspace.m \
     ../shared/FMFontProfileStore.m \
     ../shared/FMFileStore.m ../shared/FMHelperClient.m
 FontManager_FRAMEWORKS = UIKit QuartzCore CoreText UniformTypeIdentifiers
-FontManager_LIBRARIES = roothide
-FontManager_CFLAGS = -fobjc-arc -Wall -Wextra -I../shared -IUI
+FontManager_LIBRARIES = $(MARKFONT_PATH_LIBRARIES)
+FontManager_CFLAGS = -fobjc-arc -Wall -Wextra $(MARKFONT_PATH_CFLAGS) -I../shared -IUI
 FontManager_CODESIGN_FLAGS = -Sentitlements.plist -Icom.hmmzzz.fontmanager
 FontManager_RESOURCE_DIRS = Resources
 

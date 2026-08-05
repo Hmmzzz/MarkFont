@@ -275,7 +275,8 @@ static BOOL FMLegacyWriteJournal(NSDictionary<NSString *, id> *journal,
 static NSString *FMLegacyPrepareAppProfilesRoot(NSString *systemBuild,
                                                 NSError **error) {
     NSString *applicationSupport = FMLegacyPhysicalDirectory(
-        jbroot(@"/var/mobile/Library/Application Support"), error);
+        FMMountResolvedMobileDataPath(
+            @"/var/mobile/Library/Application Support"), error);
     if (applicationSupport == nil ||
         !FMEnsureSecureDirectoryTree(
             applicationSupport,

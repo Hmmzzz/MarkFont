@@ -24,16 +24,54 @@ if [[ -z "$staging_root" || ! -d "$staging_root" ]]; then
   exit 66
 fi
 
-helper="$staging_root/usr/libexec/fontmanagerd"
-if [[ ! -f "$helper" || -L "$helper" ]]; then
+root_helper="$staging_root/usr/libexec/fontmanagerd"
+rootless_helper="$staging_root/var/jb/usr/libexec/fontmanagerd"
+if [[ -f "$root_helper" && ! -L "$root_helper" && ! -e "$rootless_helper" ]]; then
+  package_prefix=
+  helper="$root_helper"
+elif [[ -f "$rootless_helper" && ! -L "$rootless_helper" && ! -e "$root_helper" ]]; then
+  package_prefix=/var/jb
+  helper="$rootless_helper"
+else
   printf 'Font Manager helper is missing or is not a regular staged file.\n' >&2
   exit 66
 fi
 
-mount_backend="$staging_root/usr/libexec/markfont-bindfs"
+mount_backend="$staging_root$package_prefix/usr/libexec/markfont-bindfs"
 if [[ ! -f "$mount_backend" || -L "$mount_backend" ]]; then
   printf 'MarkFont bindfs backend is missing or is not a regular staged file.\n' >&2
   exit 66
+fi
+
+render_package_file() {
+  local target=$1
+  local expected_mode=$2
+  if [[ ! -f "$target" || -L "$target" ]] || \
+     ! /usr/bin/grep -q '@MARKFONT_PACKAGE_PREFIX@' "$target"; then
+    printf 'MarkFont package template is missing or already rendered: %s\n' \
+      "$target" >&2
+    exit 66
+  fi
+
+  local rendered
+  rendered=$(mktemp "${target}.rendered.XXXXXX")
+  /usr/bin/sed \
+    "s|@MARKFONT_PACKAGE_PREFIX@|$package_prefix|g" \
+    "$target" > "$rendered"
+  /bin/chmod "$expected_mode" "$rendered"
+  /bin/mv -f "$rendered" "$target"
+}
+
+for maintainer_script in postinst prerm postrm; do
+  render_package_file "$staging_root/DEBIAN/$maintainer_script" 0755
+done
+
+auto_mount_plist="$staging_root$package_prefix/Library/LaunchDaemons/com.hmmzzz.fontmanager.automount.plist"
+render_package_file "$auto_mount_plist" 0644
+
+if /usr/bin/grep -R -q '@MARKFONT_PACKAGE_PREFIX@' "$staging_root"; then
+  printf 'A MarkFont package path placeholder remained after staging.\n' >&2
+  exit 70
 fi
 
 /bin/chmod 0755 "$mount_backend"
@@ -52,7 +90,7 @@ if [[ "$helper_mode" != "4755" ]]; then
 fi
 
 if [[ ! -x "$upstream_dm" ]]; then
-  printf 'RootHide Theos dm.pl is unavailable. Set THEOS to the RootHide Theos root.\n' >&2
+  printf 'Theos dm.pl is unavailable. Set THEOS to the supported Theos root.\n' >&2
   exit 69
 fi
 

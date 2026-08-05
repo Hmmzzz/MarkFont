@@ -2,6 +2,14 @@
 
 set -e
 
+package_prefix='@MARKFONT_PACKAGE_PREFIX@'
+engine_root="${package_prefix}/var/lib/fontmanager"
+mirror_storage_root="${package_prefix}/bindfs"
+mirror_system_root="${package_prefix}/bindfs/System"
+mirror_library_root="${package_prefix}/bindfs/System/Library"
+mirror_fonts_root="${package_prefix}/bindfs/System/Library/Fonts"
+mirror_staging_root="${package_prefix}/bindfs/System/Library/.Fonts.fontmanager-staging"
+
 request_sileo_reload() {
   if [ -z "${SILEO:-}" ]; then
     return 0
@@ -30,9 +38,9 @@ EOF
 
 remove_exact_tree() {
   case "$1" in
-    /var/lib/fontmanager|\
-    /bindfs/System/Library/Fonts|\
-    /bindfs/System/Library/.Fonts.fontmanager-staging|\
+    "$engine_root"|\
+    "$mirror_fonts_root"|\
+    "$mirror_staging_root"|\
     "/var/mobile/Library/Application Support/com.hmmzzz.fontmanager"|\
     /var/mobile/Library/Caches/com.hmmzzz.fontmanager|\
     /tmp/com.hmmzzz.fontmanager.font-imports|\
@@ -57,7 +65,7 @@ remove_exact_tree() {
 
 require_physical_mount_parent() {
   case "$1" in
-    /bindfs|/bindfs/System|/bindfs/System/Library)
+    "$mirror_storage_root"|"$mirror_system_root"|"$mirror_library_root")
       ;;
     *)
       echo "MarkFont refused an unknown mount storage parent: $1" >&2
@@ -78,42 +86,42 @@ case "${1:-}" in
   remove|purge)
     engine_owned=0
     mirror_owned=0
-    if [ -L /var/lib/fontmanager ]; then
+    if [ -L "$engine_root" ]; then
       echo "MarkFont recovery root is unsafe; data cleanup stopped." >&2
       exit 70
-    elif [ -e /var/lib/fontmanager ] && [ ! -d /var/lib/fontmanager ]; then
+    elif [ -e "$engine_root" ] && [ ! -d "$engine_root" ]; then
       echo "MarkFont recovery root is not a directory; data cleanup stopped." >&2
       exit 70
-    elif [ -L /var/lib/fontmanager/.package-removal-ready ]; then
+    elif [ -L "$engine_root/.package-removal-ready" ]; then
       echo "MarkFont removal marker is unsafe; data cleanup stopped." >&2
       exit 70
-    elif [ -f /var/lib/fontmanager/.package-removal-ready ]; then
+    elif [ -f "$engine_root/.package-removal-ready" ]; then
       engine_owned=1
-    elif [ -e /var/lib/fontmanager ]; then
+    elif [ -e "$engine_root" ]; then
       echo "MarkFont recovery data lacks a verified removal marker." >&2
       exit 70
     fi
 
     if [ "$engine_owned" -eq 1 ]; then
-      if [ -L /var/lib/fontmanager/.mirror-owned ]; then
+      if [ -L "$engine_root/.mirror-owned" ]; then
         echo "MarkFont mirror ownership marker is unsafe; managed mirror cleanup stopped." >&2
         exit 70
-      elif [ -f /var/lib/fontmanager/.mirror-owned ]; then
+      elif [ -f "$engine_root/.mirror-owned" ]; then
         mirror_owned=1
-      elif [ -e /var/lib/fontmanager/.mirror-owned ]; then
+      elif [ -e "$engine_root/.mirror-owned" ]; then
         echo "MarkFont mirror ownership marker is not a file; managed mirror cleanup stopped." >&2
         exit 70
       fi
     fi
 
     if [ "$engine_owned" -eq 1 ] && [ "$mirror_owned" -eq 1 ]; then
-      require_physical_mount_parent /bindfs
-      require_physical_mount_parent /bindfs/System
-      require_physical_mount_parent /bindfs/System/Library
-      remove_exact_tree /bindfs/System/Library/.Fonts.fontmanager-staging
-      remove_exact_tree /bindfs/System/Library/Fonts
-      rmdir /bindfs/System/Library 2>/dev/null || true
-      rmdir /bindfs/System 2>/dev/null || true
+      require_physical_mount_parent "$mirror_storage_root"
+      require_physical_mount_parent "$mirror_system_root"
+      require_physical_mount_parent "$mirror_library_root"
+      remove_exact_tree "$mirror_staging_root"
+      remove_exact_tree "$mirror_fonts_root"
+      rmdir "$mirror_library_root" 2>/dev/null || true
+      rmdir "$mirror_system_root" 2>/dev/null || true
     fi
 
     remove_exact_tree "/var/mobile/Library/Application Support/com.hmmzzz.fontmanager"
@@ -123,7 +131,7 @@ case "${1:-}" in
     rm -f /var/mobile/Library/Preferences/com.hmmzzz.fontmanager.plist
 
     if [ "$engine_owned" -eq 1 ]; then
-      remove_exact_tree /var/lib/fontmanager
+      remove_exact_tree "$engine_root"
     fi
     request_sileo_reload
     ;;

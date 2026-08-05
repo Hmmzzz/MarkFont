@@ -208,7 +208,7 @@ NSDictionary<NSString *, id> *FMCreateEnvironmentStatus(void) {
         [legacyProviderAutoMount[@"conflictsWithFonts"] boolValue];
     BOOL systemReadable = FMReadableDirectoryAtPath(FMMountSystemFontsLogicalPath);
     BOOL rootfsReadable =
-        FMReadableDirectoryAtPath(jbroot(FMMountRootfsFontsLogicalPath));
+        FMReadableDirectoryAtPath(FMMountResolvedStockFontsPath());
     BOOL mirrorReadable = mountStorageSupported &&
         FMReadableDirectoryAtPath(jbroot(mirrorLogicalPath));
     BOOL backendCompatible = backendExecutablePresent &&

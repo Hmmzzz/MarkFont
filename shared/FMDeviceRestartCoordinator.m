@@ -34,7 +34,7 @@ static NSString *const FMUserspaceSessionProcessPath =
     @"/System/Library/CoreServices/SpringBoard.app/SpringBoard";
 
 // libproc is part of libSystem on iOS, but its declarations are omitted from
-// the public iPhoneOS SDK headers used by this RootHide toolchain.
+// the public iPhoneOS SDK headers used by this jailbreak toolchain.
 extern int proc_listpids(uint32_t type,
                          uint32_t typeinfo,
                          void *buffer,
@@ -270,7 +270,7 @@ static BOOL FMDeviceRestartRequireExecutable(NSError **error) {
         (info.st_mode & (S_IXUSR | S_IXGRP | S_IXOTH)) == 0) {
         int savedError = errno != 0 ? errno : ENOENT;
         return FMDeviceRestartFail(
-            error, 5, @"The RootHide userspace reboot tool is unavailable.",
+            error, 5, @"The jailbreak userspace reboot tool is unavailable.",
             [NSError errorWithDomain:NSPOSIXErrorDomain code:savedError userInfo:nil]);
     }
     return YES;
@@ -440,6 +440,53 @@ static BOOL FMDeviceRestartRemoveRequest(NSError **error) {
     return YES;
 }
 
+NSDictionary<NSString *, id> *
+FMClearStaleRespringEvidenceForRecoveredMappingWithExistingLock(
+    NSString *confirmedSystemBuild,
+    NSError **error) {
+    if (!FMDeviceRestartValidateCallerAndBuild(confirmedSystemBuild, error)) {
+        return nil;
+    }
+    NSDictionary *state = FMDeviceRestartReadState(confirmedSystemBuild, error);
+    id workingProfileID = state[@"workingProfileID"];
+    NSString *refreshReason = [state[@"refreshReason"]
+        isKindOfClass:NSString.class] ? state[@"refreshReason"] : nil;
+    BOOL pendingProfileChange = state != nil &&
+        [state[@"mirrorState"] isEqual:@"clean"] &&
+        [state[@"restartRequired"] boolValue] &&
+        !FMDeviceRestartProfileIDsEqual(
+            state[@"confirmedProfileID"], workingProfileID) &&
+        (refreshReason == nil || [refreshReason isEqual:@"profileChange"]);
+    if (!pendingProfileChange) {
+        FMDeviceRestartFail(
+            error, 7,
+            @"There is no recovered staged Profile with stale Respring evidence.",
+            nil);
+        return nil;
+    }
+    if (!FMMountManagedMappingIsActive(error)) {
+        return nil;
+    }
+    if (!FMDeviceRestartRemoveRequest(error)) {
+        return nil;
+    }
+    return @{
+        @"schemaVersion" : @1,
+        @"operation" : @"clearRecoveredProfileRestartEvidence",
+        @"status" : @"cleared",
+        @"systemBuild" : confirmedSystemBuild,
+        @"workingProfileID" : workingProfileID,
+        @"activationMode" : @"recoveredStagedProfileChange",
+        @"staleRestartEvidenceCleared" : @YES,
+        @"manualRespringRequired" : @YES,
+        @"filesystemMutated" : @YES,
+        @"stateChanged" : @NO,
+        @"mountBackendInvoked" : @NO,
+        @"mappingRefreshed" : @NO,
+        @"restartRequested" : @NO,
+    };
+}
+
 BOOL FMExecuteDeviceUserspaceReboot(NSError **error) {
     if (geteuid() != 0) {
         return FMDeviceRestartFail(
@@ -456,7 +503,7 @@ BOOL FMExecuteDeviceUserspaceReboot(NSError **error) {
     NSError *cleanupError = nil;
     FMDeviceRestartRemoveRequest(&cleanupError);
     return FMDeviceRestartFail(
-        error, 10, @"The RootHide userspace reboot tool could not be started.",
+        error, 10, @"The jailbreak userspace reboot tool could not be started.",
         cleanupError ?: [NSError errorWithDomain:NSPOSIXErrorDomain
                                              code:savedError
                                          userInfo:nil]);

@@ -7,6 +7,7 @@
 #import "FMDeviceProfileActivation.h"
 #import "FMFileStore.h"
 #import "FMFontCatalog.h"
+#import "FMMountPaths.h"
 #import "FMProfileAdoption.h"
 #import "FMSecureDirectory.h"
 
@@ -88,7 +89,7 @@ NSDictionary<NSString *, id> *FMAdoptDeviceProfile(
         return nil;
     }
 
-    NSString *sourceProfilesRoot = [[[[jbroot(
+    NSString *sourceProfilesRoot = [[[[FMMountResolvedMobileDataPath(
         @"/var/mobile/Library/Application Support/com.hmmzzz.fontmanager")
         stringByAppendingPathComponent:@"ProfileLibrary"]
         stringByAppendingPathComponent:confirmedSystemBuild]

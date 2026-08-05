@@ -214,12 +214,22 @@ static BOOL FMFilesystemCapacity(NSString *path,
     return YES;
 }
 
-static BOOL FMRequireJBRootRoundTrip(NSString *logicalPath, NSError **error) {
-    NSString *physicalPath = jbroot(logicalPath);
-    NSString *convertedBack = rootfs(physicalPath);
-    if (![convertedBack isEqualToString:logicalPath]) {
+static BOOL FMRequireJBRootPathMapping(NSString *logicalPath, NSError **error) {
+    if (![logicalPath isKindOfClass:NSString.class] ||
+        !logicalPath.isAbsolutePath || logicalPath.length <= 1) {
         return FMDeviceMountEngineFail(
-            error, 3, @"A RootHide logical path failed its round-trip check.", nil);
+            error, 3, @"A jailbreak-root logical path is invalid.", nil);
+    }
+
+    NSString *bootstrapPath = jbroot(@"/").stringByStandardizingPath;
+    NSString *mappedPath = jbroot(logicalPath).stringByStandardizingPath;
+    BOOL mappedInsideBootstrap = bootstrapPath.length > 1 &&
+        mappedPath.length > bootstrapPath.length &&
+        [mappedPath hasPrefix:[bootstrapPath stringByAppendingString:@"/"]];
+    if (!mappedInsideBootstrap) {
+        return FMDeviceMountEngineFail(
+            error, 3,
+            @"A jailbreak-root logical path escaped the current bootstrap.", nil);
     }
     return YES;
 }
@@ -294,7 +304,7 @@ static NSDictionary<NSString *, id> *FMValidatedPreparationPreflight(
         return nil;
     }
 
-    NSString *stockRoot = jbroot(FMMountRootfsFontsLogicalPath);
+    NSString *stockRoot = FMMountResolvedStockFontsPath();
     NSString *mountStorageRoot = jbroot(FMMountStorageRootLogicalPath);
     NSString *mountStorageParent = jbroot(@"/bindfs/System/Library");
     NSString *stagingRoot =
@@ -337,7 +347,7 @@ static NSDictionary<NSString *, id> *FMValidatedPreparationPreflight(
     NSString *varLibrary = FMPhysicalDirectoryPath(jbroot(@"/var/lib"), error);
     if (bootstrapRoot == nil || varLibrary == nil ||
         [bootstrapRoot isEqualToString:@"/"] ||
-        !FMRequireJBRootRoundTrip(@"/var/lib", error) ||
+        !FMRequireJBRootPathMapping(@"/var/lib", error) ||
         !FMEnsureSecureDirectoryTree(bootstrapRoot, @[], 0, 0, 0755, error) ||
         !FMEnsureSecureDirectoryTree(varLibrary, @[], 0, 0, 0755, error)) {
         if (error != NULL && *error == nil) {
@@ -405,7 +415,7 @@ static BOOL FMWriteBaseline(NSDictionary<NSString *, id> *identity,
     NSString *bootstrapRoot = FMPhysicalDirectoryPath(jbroot(@"/"), error);
     if (varLibrary == nil || bootstrapRoot == nil ||
         [bootstrapRoot isEqualToString:@"/"] ||
-        !FMRequireJBRootRoundTrip(@"/var/lib", error)) {
+        !FMRequireJBRootPathMapping(@"/var/lib", error)) {
         return FMDeviceMountEngineFail(
             error, 6, @"The baseline anchor is invalid for the current jbroot.", nil);
     }
@@ -494,7 +504,7 @@ NSDictionary<NSString *, id> *FMPrepareDeviceStockMirror(
         return nil;
     }
 
-    NSString *stockRoot = jbroot(FMMountRootfsFontsLogicalPath);
+    NSString *stockRoot = FMMountResolvedStockFontsPath();
     NSString *mountStorageParent = jbroot(@"/bindfs/System/Library");
     NSString *stagingRoot =
         [mountStorageParent stringByAppendingPathComponent:FMMountStagingName];
@@ -785,7 +795,7 @@ static NSDictionary<NSString *, id> *FMValidatedPreparedStockMountPreflight(
     }
     BOOL mappingActive = [inspection[@"mapping"][@"active"] boolValue];
 
-    NSString *stockPath = jbroot(FMMountRootfsFontsLogicalPath);
+    NSString *stockPath = FMMountResolvedStockFontsPath();
     if (!FMRequireReadOnlyStockDirectory(stockPath, error)) {
         return nil;
     }
@@ -797,7 +807,7 @@ static NSDictionary<NSString *, id> *FMValidatedPreparedStockMountPreflight(
     if (bootstrapRoot == nil || varLibrary == nil || resolvedMirror == nil ||
         [bootstrapRoot isEqualToString:@"/"] ||
         !FMPathIsWithinPhysicalRoot(resolvedMirror, bootstrapRoot) ||
-        !FMRequireJBRootRoundTrip(mirrorLogicalPath, error) ||
+        !FMRequireJBRootPathMapping(mirrorLogicalPath, error) ||
         !FMValidateSecureDirectoryTree(
             bootstrapRoot,
             @[ @"bindfs", @"System", @"Library", @"Fonts" ],

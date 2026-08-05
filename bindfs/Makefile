@@ -4,8 +4,8 @@ include $(THEOS)/makefiles/common.mk
 TOOL_NAME = markfont-bindfs
 
 markfont-bindfs_FILES = main.m
-markfont-bindfs_LIBRARIES = roothide
-markfont-bindfs_CFLAGS = -fobjc-arc -Wall -Wextra
+markfont-bindfs_LIBRARIES = $(MARKFONT_PATH_LIBRARIES)
+markfont-bindfs_CFLAGS = -fobjc-arc -Wall -Wextra $(MARKFONT_PATH_CFLAGS)
 markfont-bindfs_CODESIGN_FLAGS = -Sentitlements.plist
 markfont-bindfs_INSTALL_PATH = /usr/libexec
 

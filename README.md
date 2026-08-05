@@ -1,6 +1,6 @@
 # MarkFont
 
-MarkFont 是一款面向 RootHide 环境的 iOS 全局字体管理器，可在 App 内导入字体、管理字体方案并切换系统字体。
+MarkFont 是一款面向 rootless 与 RootHide 环境的 iOS 全局字体管理器，可在 App 内导入字体、管理字体方案并切换系统字体。
 
 ## Screenshots
 
@@ -18,36 +18,43 @@ MarkFont 是一款面向 RootHide 环境的 iOS 全局字体管理器，可在 A
 - 支持重新越狱后自动恢复字体 mapping
 - 沿用 `/bindfs/System/Library/Fonts`，并支持安全接管旧版字体目录
 - 不依赖 `com.nan.bindfs`、`mount_bindfs` 或 `dash`
+- 按当前设备的 Stock 字体树动态生成文件清单，不硬编码 iOS 版本或字体文件名
 
 ## Compatibility
 
-- iOS 17.0+
-- Relaxin / RootHide
+- iOS 16.0+
+- conventional rootless（例如 Dopamine）或 RootHide（例如 Relaxin）
 - `arm64` and `arm64e`
 
-既有发布版已在 iPhone 15 Pro、iOS 17.3.1（21D61）和 Relaxin 0.4.2 上验证。本次内置
-bindfs 后端已通过离线测试、双架构构建和 deb 审计，尚待在该设备基线上完成覆盖升级与
-挂载验证；其他环境尚未测试。
-
-挂载操作由包内的非 setuid 后端以固定参数执行；它只接受系统字体映射的检查、挂载和受管
-强制卸载命令，并通过当前越狱环境提供的 `libjailbreak` 临时取得所需凭据。App 与调用方
-不能传入路径、挂载选项或任意命令。
+既有发布版已在 iPhone 15 Pro、iOS 17.3.1（21D61）和 Relaxin 0.4.2 上验证。
+iOS 16 rootless 与其他 RootHide 组合需要分别使用对应 scheme 的软件包；未列出的设备与
+越狱组合仍应视为尚未完成实机验证。
 
 ## Build
 
-需要安装 [RootHide Theos](https://github.com/roothide/theos) 及兼容的 iOS SDK。
+需要安装 [RootHide Theos](https://github.com/roothide/theos)（保持与 Theos rootless scheme
+兼容）及兼容的 iOS SDK。
 
 ```bash
 export THEOS=/path/to/roothide-theos
-make clean package THEOS_PACKAGE_SCHEME=roothide
+
+# 分别构建
+make package-roothide
+make package-rootless
+
+# 或一次生成两种包
+make package-all
 ```
 
-生成的 RootHide `.deb` 位于 `packages/`。
+两种 `.deb` 都位于 `packages/`：RootHide 包架构为 `iphoneos-arm64e`，conventional
+rootless 包架构为 `iphoneos-arm64`。上述专用构建目标会在打包后自动运行
+`scripts/verify-package`，检查路径布局、Mach-O 架构与最低系统版本、linking、entitlements、
+文件权限和 launchd 配置。请勿在两种环境间混装软件包。
 
 ## Warning
 
 字体文件不完整或与系统不兼容可能导致文字空白或界面不可用。安装前请确保你能够进入
-RootHide safe mode 并移除软件包。请勿强制删除 MarkFont 的恢复数据或手动修改系统字体目录。
+当前越狱的 safe mode 并移除软件包。请勿强制删除 MarkFont 的恢复数据或手动修改系统字体目录。
 
 ## Acknowledgements
 

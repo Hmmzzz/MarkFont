@@ -2,13 +2,16 @@
 
 set -e
 
+package_prefix='@MARKFONT_PACKAGE_PREFIX@'
+helper="${package_prefix}/usr/libexec/fontmanagerd"
+
 case "${1:-}" in
   remove)
-    if [ ! -x /usr/libexec/fontmanagerd ]; then
+    if [ ! -x "$helper" ]; then
       echo "MarkFont cannot verify Stock restoration; removal stopped." >&2
       exit 70
     fi
-    /usr/libexec/fontmanagerd package-prepare-removal
+    "$helper" package-prepare-removal
     ;;
   upgrade|deconfigure|failed-upgrade)
     # Upgrades preserve the current mirror, state, Stock recovery, and Profile

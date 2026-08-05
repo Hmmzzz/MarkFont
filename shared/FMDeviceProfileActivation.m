@@ -172,7 +172,7 @@ NSDictionary<NSString *, id> *FMCreateDeviceProfileActivationPreflight(
         return nil;
     }
 
-    NSString *libraryBase = jbroot(
+    NSString *libraryBase = FMMountResolvedMobileDataPath(
         @"/var/mobile/Library/Application Support/com.hmmzzz.fontmanager");
     NSString *profileLibrary = [libraryBase stringByAppendingPathComponent:@"ProfileLibrary"];
     NSString *buildLibrary =

@@ -12,7 +12,7 @@ NSString *const FMLegacyProviderPreferenceLogicalPath =
     @"/var/mobile/Library/Preferences/com.nan.auto-bindfs.plist";
 NSString *const FMMountStorageRootLogicalPath = @"/bindfs";
 NSString *const FMMountSystemFontsLogicalPath = @"/System/Library/Fonts";
-NSString *const FMMountRootfsFontsLogicalPath = @"/rootfs/System/Library/Fonts";
+NSString *const FMMountRootfsFontsLogicalPath = @"/System/Library/Fonts";
 
 NSString *const FMMountPathsErrorDomain =
     @"com.hmmzzz.fontmanager.mount-paths";
@@ -61,7 +61,8 @@ static NSDictionary<NSString *, id> *_Nullable FMLegacyProviderLoadPreference(
                             @"legacy Provider preference output is required.", 0);
         return nil;
     }
-    NSString *path = jbroot(FMLegacyProviderPreferenceLogicalPath);
+    NSString *path =
+        FMMountResolvedMobileDataPath(FMLegacyProviderPreferenceLogicalPath);
     struct stat info = {0};
     errno = 0;
     if (lstat(path.fileSystemRepresentation, &info) != 0) {
@@ -205,7 +206,8 @@ NSDictionary<NSString *, id> *FMDisableLegacyProviderAutoMountForSystemFonts(
                       format:outputFormat
                      options:0
                        error:&writeError];
-    NSString *path = jbroot(FMLegacyProviderPreferenceLogicalPath);
+    NSString *path =
+        FMMountResolvedMobileDataPath(FMLegacyProviderPreferenceLogicalPath);
     if (data == nil ||
         ![data writeToFile:path options:NSDataWritingAtomic error:&writeError]) {
         FMMountPathsSetUnderlyingError(
@@ -249,7 +251,8 @@ NSString *FMMountResolvedStorageRootLogicalPath(BOOL *supported,
     if (preferencePresent != NULL) {
         struct stat info = {0};
         *preferencePresent = lstat(
-            jbroot(FMLegacyProviderPreferenceLogicalPath).fileSystemRepresentation,
+            FMMountResolvedMobileDataPath(
+                FMLegacyProviderPreferenceLogicalPath).fileSystemRepresentation,
             &info) == 0;
     }
     return FMMountStorageRootLogicalPath;
@@ -260,6 +263,28 @@ NSString *FMMountResolvedMirrorLogicalPath(BOOL *supported,
     NSString *root = FMMountResolvedStorageRootLogicalPath(supported,
                                                        preferencePresent);
     return [root stringByAppendingPathComponent:@"System/Library/Fonts"];
+}
+
+NSString *FMMountResolvedOriginalRootfsPath(NSString *logicalRootfsPath) {
+#if defined(THEOS_PACKAGE_SCHEME_ROOTHIDE)
+    NSString *rootHideLogicalPath =
+        [@"/rootfs" stringByAppendingString:logicalRootfsPath];
+    return jbroot(rootHideLogicalPath);
+#else
+    return logicalRootfsPath;
+#endif
+}
+
+NSString *FMMountResolvedMobileDataPath(NSString *logicalMobilePath) {
+#if defined(THEOS_PACKAGE_SCHEME_ROOTHIDE)
+    return jbroot(logicalMobilePath);
+#else
+    return logicalMobilePath;
+#endif
+}
+
+NSString *FMMountResolvedStockFontsPath(void) {
+    return FMMountResolvedOriginalRootfsPath(FMMountRootfsFontsLogicalPath);
 }
 
 BOOL FMMountManagedMappingIsActive(NSError **error) {

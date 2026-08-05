@@ -11,7 +11,7 @@ typedef NS_ENUM(NSInteger, FMMountCoordinatorErrorCode) {
 };
 
 // Inspection documents are populated by a read-only adapter. The simulator
-// uses fixtures; the RootHide adapter reads the built-in backend, fixed
+// uses fixtures; the device adapter reads the built-in backend, fixed
 // /bindfs storage, mount table/statfs, and manifest evidence.
 BOOL FMValidateMountInspection(id inspection, NSError **error);
 

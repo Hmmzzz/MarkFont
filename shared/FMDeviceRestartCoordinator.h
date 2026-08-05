@@ -19,7 +19,7 @@ NSDictionary<NSString *, id> *_Nullable FMArmDeviceUserspaceReboot(
     NSString *confirmedSystemBuild,
     NSError **error);
 
-// Replaces the helper process with the fixed RootHide jbctl invocation. This
+// Replaces the helper process with the fixed jailbreak jbctl invocation. This
 // returns only if exec fails, in which case the request marker is removed.
 BOOL FMExecuteDeviceUserspaceReboot(NSError **error);
 
@@ -28,6 +28,15 @@ BOOL FMExecuteDeviceUserspaceReboot(NSError **error);
 // restored mapping. Both paths write the same SpringBoard-session evidence and
 // execute only the fixed no-argument sbreload tool.
 NSDictionary<NSString *, id> *_Nullable FMArmDeviceRespring(
+    NSString *confirmedSystemBuild,
+    NSError **error);
+
+// Clears stale pre-reboot evidence after a pending staged Profile was mounted
+// only after SpringBoard started. The caller must already hold the Font Manager
+// operation lock. The normal user-initiated Respring flow creates fresh evidence;
+// this function never refreshes the mapping, confirms state, or executes sbreload.
+NSDictionary<NSString *, id> *_Nullable
+FMClearStaleRespringEvidenceForRecoveredMappingWithExistingLock(
     NSString *confirmedSystemBuild,
     NSError **error);
 

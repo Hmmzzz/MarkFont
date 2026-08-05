@@ -96,6 +96,8 @@ static BOOL FMWriteAutomaticMountReceipt(
                  @"springBoardWasRunning",
                  @"springBoardObservationAvailable",
                  @"activationRefreshRequired", @"lateAutomaticMountPending",
+                 @"pendingProfileChange", @"staleRestartEvidenceCleared",
+                 @"manualRespringRequired",
                  @"restartRequested"
              ]) {
             id value = report[key];
@@ -419,11 +421,14 @@ int main(int argc, const char *argv[]) {
             NSString *text = [NSString stringWithFormat:
                 @"Automatic mount: %@.\n"
                  "Mount backend invoked: %@\nMapping changed: %@\n"
-                 "State changed: %@\nRestart requested: no\n",
+                 "State changed: %@\nStale restart evidence cleared: %@\n"
+                 "Respring executed: no\n",
                 report[@"status"],
                 [report[@"mountBackendInvoked"] boolValue] ? @"yes" : @"no",
                 [report[@"mappingChanged"] boolValue] ? @"yes" : @"no",
-                [report[@"stateChanged"] boolValue] ? @"yes" : @"no"];
+                [report[@"stateChanged"] boolValue] ? @"yes" : @"no",
+                [report[@"staleRestartEvidenceCleared"] boolValue]
+                    ? @"yes" : @"no"];
             return FMWriteString(stdout, text) ? 0 : 74;
         }
 

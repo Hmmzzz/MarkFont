@@ -16,6 +16,20 @@ NSString *FMMountResolvedStorageRootLogicalPath(BOOL * _Nullable supported,
 NSString *FMMountResolvedMirrorLogicalPath(BOOL * _Nullable supported,
                                            BOOL * _Nullable legacyPreferencePresent);
 
+// Resolves a path on the original iOS root filesystem for direct file access.
+// RootHide reaches that namespace through its jbroot-based /rootfs view;
+// conventional rootless processes already see these paths directly.
+NSString *FMMountResolvedOriginalRootfsPath(NSString *logicalRootfsPath);
+
+// Resolves app-owned data below /var/mobile. RootHide retains its established
+// jbroot mapping, while conventional rootless must use the rootfs path directly.
+NSString *FMMountResolvedMobileDataPath(NSString *logicalMobilePath);
+
+// Resolves the original system Fonts tree in the current path namespace.
+// RootHide exposes it through /rootfs; conventional rootless uses /System.
+// Callers must not persist the returned physical path.
+NSString *FMMountResolvedStockFontsPath(void);
+
 // Reads the legacy Provider plist according to its actual Enable/path semantics.
 // A present preference is compatible when it does not currently auto-mount a
 // target overlapping /System/Library/Fonts.

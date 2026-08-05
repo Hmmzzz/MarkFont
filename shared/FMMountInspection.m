@@ -299,7 +299,7 @@ NSDictionary<NSString *, id> *FMCreateDeviceMountInspection(NSError **error) {
     NSString *mountStorageRootPath = jbroot(mountStorageRootLogicalPath);
     NSString *mirrorPath = [mountStorageRootPath
         stringByAppendingPathComponent:@"System/Library/Fonts"];
-    NSString *stockPath = jbroot(FMMountRootfsFontsLogicalPath);
+    NSString *stockPath = FMMountResolvedStockFontsPath();
     NSString *jbrootPath = jbroot(@"/");
 
     NSError *mirrorKindError = nil;

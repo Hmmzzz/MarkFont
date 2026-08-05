@@ -63,14 +63,30 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
     self.layer.cornerRadius = 30;
     self.layer.cornerCurve = kCACornerCurveContinuous;
     self.layer.masksToBounds = YES;
-    __weak typeof(self) weakSelf = self;
-    [self registerForTraitChanges:@[ UITraitUserInterfaceStyle.class ]
-                      withHandler:^(__unused id<UITraitEnvironment> environment,
-                                    __unused UITraitCollection *previousTraitCollection) {
-        [weakSelf updateResolvedGradientColors];
-    }];
+    if (@available(iOS 17.0, *)) {
+        __weak typeof(self) weakSelf = self;
+        [self registerForTraitChanges:@[ UITraitUserInterfaceStyle.class ]
+                          withHandler:^(__unused id<UITraitEnvironment> environment,
+                                        __unused UITraitCollection *previousTraitCollection) {
+            [weakSelf updateResolvedGradientColors];
+        }];
+    }
     return self;
 }
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#pragma clang diagnostic ignored "-Wdeprecated-implementations"
+- (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection {
+    [super traitCollectionDidChange:previousTraitCollection];
+    if (@available(iOS 17.0, *)) return;
+    if (previousTraitCollection == nil ||
+        previousTraitCollection.userInterfaceStyle !=
+            self.traitCollection.userInterfaceStyle) {
+        [self updateResolvedGradientColors];
+    }
+}
+#pragma clang diagnostic pop
 
 - (void)setGradientColors:(NSArray<UIColor *> *)gradientColors {
     _gradientColors = [gradientColors copy];
@@ -639,12 +655,14 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
     self.navigationItem.rightBarButtonItems = @[ settingsItem, libraryItem ];
 
     [self buildInterface];
-    __weak typeof(self) weakSelf = self;
-    [self registerForTraitChanges:@[ UITraitUserInterfaceStyle.class ]
-                      withHandler:^(__unused id<UITraitEnvironment> environment,
-                                    __unused UITraitCollection *previousTraitCollection) {
-        [weakSelf updatePresentationAnimated:NO];
-    }];
+    if (@available(iOS 17.0, *)) {
+        __weak typeof(self) weakSelf = self;
+        [self registerForTraitChanges:@[ UITraitUserInterfaceStyle.class ]
+                          withHandler:^(__unused id<UITraitEnvironment> environment,
+                                        __unused UITraitCollection *previousTraitCollection) {
+            [weakSelf updatePresentationAnimated:NO];
+        }];
+    }
     [NSNotificationCenter.defaultCenter
         addObserver:self
            selector:@selector(applicationDidBecomeActive:)
@@ -652,6 +670,20 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
              object:nil];
     [self reloadWorkspacePreservingSelection:NO];
 }
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#pragma clang diagnostic ignored "-Wdeprecated-implementations"
+- (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection {
+    [super traitCollectionDidChange:previousTraitCollection];
+    if (@available(iOS 17.0, *)) return;
+    if (previousTraitCollection == nil ||
+        previousTraitCollection.userInterfaceStyle !=
+            self.traitCollection.userInterfaceStyle) {
+        [self updatePresentationAnimated:NO];
+    }
+}
+#pragma clang diagnostic pop
 
 - (void)dealloc {
     [self cancelWorkspaceRecoveryRetry];
