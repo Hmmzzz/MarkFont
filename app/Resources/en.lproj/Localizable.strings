@@ -206,10 +206,9 @@
 "预览中" = "Previewing";
 "可选择" = "Available";
 "正在预览" = "Previewing";
-"准备刷新字体" = "Ready to Refresh Font";
-"“%@”已经准备好。执行一次 Respring 后即可刷新系统字体显示。" = "“%@” is ready. Respring once to refresh the system font display.";
-"将执行 Respring" = "Respring Will Run";
-"SpringBoard 会重新载入，当前 App 将关闭" = "SpringBoard will reload and the current app will close";
+"字体已准备好" = "Font Ready";
+"重新载入后在整个系统中生效" = "Applies Across iOS After Reload";
+"当前 App 会关闭，设备不会重启" = "This app closes; the device stays on";
 "稍后 Respring" = "Respring Later";
 "设置" = "Settings";
 "先预览，再把喜欢的样子用到整个系统。" = "Preview first, then apply your favorite look across the system.";

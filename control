@@ -7,3 +7,5 @@ Maintainer: Hmmzzz
 Author: Hmmzzz
 Section: Utilities
 Depends: firmware (>= 16.0), uikittools
+Conflicts: com.nan.bindfs, cn.zqbb.hello.mnt
+Icon: https://hmmzzz.github.io/repo/assets/markfont-package-icon.png

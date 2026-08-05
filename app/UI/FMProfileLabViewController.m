@@ -434,61 +434,74 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
 
     UIView *iconBackground = [[UIView alloc] initWithFrame:CGRectZero];
     iconBackground.translatesAutoresizingMaskIntoConstraints = NO;
-    iconBackground.backgroundColor = FMTintedBackground(FMAccentColor());
+    iconBackground.backgroundColor = FMTintedBackground(FMSuccessColor());
     iconBackground.layer.cornerRadius = 28;
     iconBackground.layer.cornerCurve = kCACornerCurveContinuous;
-    [self.view addSubview:iconBackground];
 
     UIImageView *icon = [[UIImageView alloc]
-        initWithImage:[UIImage systemImageNamed:@"arrow.clockwise"
+        initWithImage:[UIImage systemImageNamed:@"checkmark"
                               withConfiguration:[UIImageSymbolConfiguration
-                                                    configurationWithPointSize:25
+                                                    configurationWithPointSize:24
                                                                       weight:UIImageSymbolWeightSemibold]]];
     icon.translatesAutoresizingMaskIntoConstraints = NO;
-    icon.tintColor = FMAccentColor();
+    icon.tintColor = FMSuccessColor();
     [iconBackground addSubview:icon];
 
-    UILabel *title = FMLabel(UIFontTextStyleTitle2, UIFontWeightBold, UIColor.labelColor);
-    title.translatesAutoresizingMaskIntoConstraints = NO;
-    title.text = FMLocalized(@"准备刷新字体");
-    title.textAlignment = NSTextAlignmentCenter;
-    [self.view addSubview:title];
+    UILabel *status = FMLabel(UIFontTextStyleSubheadline, UIFontWeightSemibold,
+                              FMSuccessColor());
+    status.translatesAutoresizingMaskIntoConstraints = NO;
+    status.text = FMLocalized(@"字体已准备好");
 
-    UILabel *body = FMLabel(UIFontTextStyleBody, UIFontWeightRegular, UIColor.secondaryLabelColor);
-    body.translatesAutoresizingMaskIntoConstraints = NO;
-    body.textAlignment = NSTextAlignmentCenter;
-    body.text = [NSString stringWithFormat:
-        FMLocalized(@"“%@”已经准备好。执行一次 Respring 后即可刷新系统字体显示。"),
-        self.profileName];
-    [self.view addSubview:body];
+    UILabel *profile = FMLabel(UIFontTextStyleTitle1, UIFontWeightBold,
+                               UIColor.labelColor);
+    profile.translatesAutoresizingMaskIntoConstraints = NO;
+    profile.text = self.profileName;
+    profile.numberOfLines = 1;
+    profile.adjustsFontSizeToFitWidth = YES;
+    profile.minimumScaleFactor = 0.78;
 
-    UIView *step = FMCardView();
+    UIStackView *titleStack = [[UIStackView alloc]
+        initWithArrangedSubviews:@[ status, profile ]];
+    titleStack.translatesAutoresizingMaskIntoConstraints = NO;
+    titleStack.axis = UILayoutConstraintAxisVertical;
+    titleStack.alignment = UIStackViewAlignmentFill;
+    titleStack.spacing = 0;
+
+    UIStackView *header = [[UIStackView alloc]
+        initWithArrangedSubviews:@[ iconBackground, titleStack ]];
+    header.translatesAutoresizingMaskIntoConstraints = NO;
+    header.axis = UILayoutConstraintAxisHorizontal;
+    header.alignment = UIStackViewAlignmentCenter;
+    header.spacing = 16;
+    [self.view addSubview:header];
+
+    UIView *step = [[UIView alloc] initWithFrame:CGRectZero];
     step.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:step];
 
-    UIView *restartIconBackground = [[UIView alloc] initWithFrame:CGRectZero];
-    restartIconBackground.translatesAutoresizingMaskIntoConstraints = NO;
-    restartIconBackground.backgroundColor = FMTintedBackground(FMAccentColor());
-    restartIconBackground.layer.cornerRadius = 18;
-    restartIconBackground.layer.cornerCurve = kCACornerCurveContinuous;
-    [step addSubview:restartIconBackground];
-
     UIImageView *restartIcon = [[UIImageView alloc]
-        initWithImage:[UIImage systemImageNamed:@"rectangle.stack.fill"]];
+        initWithImage:[UIImage systemImageNamed:@"arrow.clockwise"]];
     restartIcon.translatesAutoresizingMaskIntoConstraints = NO;
     restartIcon.tintColor = FMAccentColor();
-    [restartIconBackground addSubview:restartIcon];
+    [step addSubview:restartIcon];
 
-    UILabel *stepTitle = FMLabel(UIFontTextStyleBody, UIFontWeightSemibold, UIColor.labelColor);
+    UILabel *stepTitle = FMLabel(UIFontTextStyleSubheadline, UIFontWeightSemibold,
+                                 UIColor.labelColor);
     stepTitle.translatesAutoresizingMaskIntoConstraints = NO;
-    stepTitle.text = FMLocalized(@"将执行 Respring");
-    [step addSubview:stepTitle];
+    stepTitle.text = FMLocalized(@"重新载入后在整个系统中生效");
 
     UILabel *stepDetail = FMLabel(UIFontTextStyleFootnote, UIFontWeightRegular,
                                   UIColor.secondaryLabelColor);
     stepDetail.translatesAutoresizingMaskIntoConstraints = NO;
-    stepDetail.text = FMLocalized(@"SpringBoard 会重新载入，当前 App 将关闭");
-    [step addSubview:stepDetail];
+    stepDetail.text = FMLocalized(@"当前 App 会关闭，设备不会重启");
+
+    UIStackView *stepText = [[UIStackView alloc]
+        initWithArrangedSubviews:@[ stepTitle, stepDetail ]];
+    stepText.translatesAutoresizingMaskIntoConstraints = NO;
+    stepText.axis = UILayoutConstraintAxisVertical;
+    stepText.alignment = UIStackViewAlignmentFill;
+    stepText.spacing = 1;
+    [step addSubview:stepText];
 
     FMPressableButton *primary = [FMPressableButton buttonWithType:UIButtonTypeSystem];
     primary.translatesAutoresizingMaskIntoConstraints = NO;
@@ -512,39 +525,26 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
     [self.view addSubview:later];
 
     [NSLayoutConstraint activateConstraints:@[
-        [iconBackground.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor
-                                                  constant:20],
-        [iconBackground.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
+        [header.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor
+                                          constant:22],
+        [header.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:24],
+        [header.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-24],
         [iconBackground.widthAnchor constraintEqualToConstant:56],
         [iconBackground.heightAnchor constraintEqualToConstant:56],
         [icon.centerXAnchor constraintEqualToAnchor:iconBackground.centerXAnchor],
         [icon.centerYAnchor constraintEqualToAnchor:iconBackground.centerYAnchor],
 
-        [title.topAnchor constraintEqualToAnchor:iconBackground.bottomAnchor constant:14],
-        [title.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:24],
-        [title.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-24],
-        [body.topAnchor constraintEqualToAnchor:title.bottomAnchor constant:8],
-        [body.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:28],
-        [body.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-28],
-
-        [step.topAnchor constraintEqualToAnchor:body.bottomAnchor constant:20],
-        [step.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:20],
-        [step.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-20],
-        [step.heightAnchor constraintEqualToConstant:72],
-        [restartIconBackground.leadingAnchor constraintEqualToAnchor:step.leadingAnchor constant:16],
-        [restartIconBackground.centerYAnchor constraintEqualToAnchor:step.centerYAnchor],
-        [restartIconBackground.widthAnchor constraintEqualToConstant:36],
-        [restartIconBackground.heightAnchor constraintEqualToConstant:36],
-        [restartIcon.centerXAnchor constraintEqualToAnchor:restartIconBackground.centerXAnchor],
-        [restartIcon.centerYAnchor constraintEqualToAnchor:restartIconBackground.centerYAnchor],
-        [restartIcon.widthAnchor constraintEqualToConstant:19],
-        [restartIcon.heightAnchor constraintEqualToConstant:19],
-        [stepTitle.leadingAnchor constraintEqualToAnchor:restartIconBackground.trailingAnchor constant:13],
-        [stepTitle.trailingAnchor constraintEqualToAnchor:step.trailingAnchor constant:-12],
-        [stepTitle.topAnchor constraintEqualToAnchor:step.topAnchor constant:15],
-        [stepDetail.leadingAnchor constraintEqualToAnchor:stepTitle.leadingAnchor],
-        [stepDetail.trailingAnchor constraintEqualToAnchor:step.trailingAnchor constant:-12],
-        [stepDetail.topAnchor constraintEqualToAnchor:stepTitle.bottomAnchor constant:1],
+        [step.topAnchor constraintEqualToAnchor:header.bottomAnchor constant:16],
+        [step.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:24],
+        [step.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-24],
+        [step.heightAnchor constraintEqualToConstant:44],
+        [restartIcon.leadingAnchor constraintEqualToAnchor:step.leadingAnchor],
+        [restartIcon.centerYAnchor constraintEqualToAnchor:step.centerYAnchor],
+        [restartIcon.widthAnchor constraintEqualToConstant:18],
+        [restartIcon.heightAnchor constraintEqualToConstant:18],
+        [stepText.leadingAnchor constraintEqualToAnchor:restartIcon.trailingAnchor constant:12],
+        [stepText.trailingAnchor constraintEqualToAnchor:step.trailingAnchor],
+        [stepText.centerYAnchor constraintEqualToAnchor:step.centerYAnchor],
 
         [primary.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:20],
         [primary.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-20],
@@ -1159,7 +1159,7 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
         [UISheetPresentationControllerDetent customDetentWithIdentifier:@"activation"
                                                                 resolver:^CGFloat(
             id<UISheetPresentationControllerDetentResolutionContext> context) {
-            return MIN(474, context.maximumDetentValue);
+            return MIN(285, context.maximumDetentValue);
         }]
     ];
     presentation.prefersGrabberVisible = YES;

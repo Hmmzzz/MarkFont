@@ -49,6 +49,10 @@ package_arch=$(awk -F ': ' 'tolower($1) == "architecture" { print $2 }' \
   "$control_file")
 package_depends=$(awk -F ': ' 'tolower($1) == "depends" { print $2 }' \
   "$control_file")
+package_conflicts=$(awk -F ': ' 'tolower($1) == "conflicts" { print $2 }' \
+  "$control_file")
+package_icon=$(awk -F ': ' 'tolower($1) == "icon" { print $2 }' \
+  "$control_file")
 
 case "$package_arch" in
   iphoneos-arm64e)
@@ -72,6 +76,11 @@ if [[ "$package_depends" != *"firmware (>= 16.0)"* || \
       "$package_depends" == *"dash"* ]]; then
   fail 'runtime dependencies do not match the built-in backend contract'
 fi
+[[ "$package_conflicts" == 'com.nan.bindfs, cn.zqbb.hello.mnt' ]] || \
+  fail 'external mount package conflicts are missing or malformed'
+[[ "$package_icon" == \
+    'https://hmmzzz.github.io/repo/assets/markfont-package-icon.png' ]] || \
+  fail 'Sileo package icon URL is missing or malformed'
 
 archive_record() {
   local archive=$1
