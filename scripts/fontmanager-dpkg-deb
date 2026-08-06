@@ -46,6 +46,7 @@ fi
 render_package_file() {
   local target=$1
   local expected_mode=$2
+  local was_binary_plist=0
   if [[ ! -f "$target" || -L "$target" ]] || \
      ! /usr/bin/grep -q '@MARKFONT_PACKAGE_PREFIX@' "$target"; then
     printf 'MarkFont package template is missing or already rendered: %s\n' \
@@ -53,11 +54,26 @@ render_package_file() {
     exit 66
   fi
 
+  if [[ $(/usr/bin/head -c 8 "$target") == 'bplist00' ]]; then
+    /usr/bin/plutil -convert xml1 "$target" || {
+      printf 'Unable to decode staged binary plist: %s\n' "$target" >&2
+      exit 65
+    }
+    was_binary_plist=1
+  fi
+
   local rendered
   rendered=$(mktemp "${target}.rendered.XXXXXX")
   /usr/bin/sed \
     "s|@MARKFONT_PACKAGE_PREFIX@|$package_prefix|g" \
     "$target" > "$rendered"
+  if [[ $was_binary_plist -eq 1 ]]; then
+    /usr/bin/plutil -convert binary1 "$rendered" || {
+      /usr/bin/find "$rendered" -delete
+      printf 'Unable to encode rendered binary plist: %s\n' "$target" >&2
+      exit 65
+    }
+  fi
   /bin/chmod "$expected_mode" "$rendered"
   /bin/mv -f "$rendered" "$target"
 }

@@ -1,11 +1,19 @@
 Package: com.hmmzzz.fontmanager
 Name: MarkFont
-Version: 0.2.0
+Version: 0.3.0
 Architecture: iphoneos-arm64
-Description: Rootless and RootHide font manager with a built-in fixed-path bindfs backend and verified Stock recovery.
+Description: iOS 16+ 全局字体管理器，支持 conventional rootless 与 RootHide。
+ 可在 App 内导入 ZIP、TTF、TTC 和 OTF 字体，创建并切换多套字体方案，
+ 将字体安全应用到整个系统，也可以随时恢复系统默认字体。
+ .
+ MarkFont 使用只读字体镜像，不直接修改系统字体文件，并支持重新越狱后
+ 自动恢复已启用的字体。两种环境需要安装各自对应的软件包，请勿混装。
 Maintainer: Hmmzzz
 Author: Hmmzzz
 Section: Utilities
+Homepage: https://github.com/Hmmzzz/MarkFont
 Depends: firmware (>= 16.0), uikittools
 Conflicts: com.nan.bindfs, cn.zqbb.hello.mnt
-Icon: https://hmmzzz.github.io/repo/assets/markfont-package-icon.png
+Icon: https://hmmzzz.github.io/repo/depictions/markfont/icon.png
+Depiction: https://hmmzzz.github.io/repo/depictions/markfont/
+SileoDepiction: https://hmmzzz.github.io/repo/depictions/markfont/sileo.json

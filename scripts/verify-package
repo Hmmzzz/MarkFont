@@ -47,12 +47,20 @@ control_file="$verify_dir/control/control"
   fail 'control metadata is missing or unsafe'
 package_arch=$(awk -F ': ' 'tolower($1) == "architecture" { print $2 }' \
   "$control_file")
+package_version=$(awk -F ': ' 'tolower($1) == "version" { print $2 }' \
+  "$control_file")
 package_depends=$(awk -F ': ' 'tolower($1) == "depends" { print $2 }' \
   "$control_file")
 package_conflicts=$(awk -F ': ' 'tolower($1) == "conflicts" { print $2 }' \
   "$control_file")
 package_icon=$(awk -F ': ' 'tolower($1) == "icon" { print $2 }' \
   "$control_file")
+package_homepage=$(awk -F ': ' 'tolower($1) == "homepage" { print $2 }' \
+  "$control_file")
+package_depiction=$(awk -F ': ' 'tolower($1) == "depiction" { print $2 }' \
+  "$control_file")
+package_sileo_depiction=$(awk -F ': ' \
+  'tolower($1) == "sileodepiction" { print $2 }' "$control_file")
 
 case "$package_arch" in
   iphoneos-arm64e)
@@ -76,11 +84,24 @@ if [[ "$package_depends" != *"firmware (>= 16.0)"* || \
       "$package_depends" == *"dash"* ]]; then
   fail 'runtime dependencies do not match the built-in backend contract'
 fi
+[[ "$package_version" == '0.3.0' ]] || \
+  fail 'package version does not match the 0.3.0 release'
 [[ "$package_conflicts" == 'com.nan.bindfs, cn.zqbb.hello.mnt' ]] || \
   fail 'external mount package conflicts are missing or malformed'
 [[ "$package_icon" == \
-    'https://hmmzzz.github.io/repo/assets/markfont-package-icon.png' ]] || \
+    'https://hmmzzz.github.io/repo/depictions/markfont/icon.png' ]] || \
   fail 'Sileo package icon URL is missing or malformed'
+[[ "$package_homepage" == 'https://github.com/Hmmzzz/MarkFont' ]] || \
+  fail 'package homepage URL is missing or malformed'
+[[ "$package_depiction" == \
+    'https://hmmzzz.github.io/repo/depictions/markfont/' ]] || \
+  fail 'package depiction URL is missing or malformed'
+[[ "$package_sileo_depiction" == \
+    'https://hmmzzz.github.io/repo/depictions/markfont/sileo.json' ]] || \
+  fail 'Sileo native depiction URL is missing or malformed'
+rg -F -q \
+  'Description: iOS 16+ 全局字体管理器，支持 conventional rootless 与 RootHide。' \
+  "$control_file" || fail 'package description is missing or malformed'
 
 archive_record() {
   local archive=$1
@@ -181,8 +202,10 @@ done
 
 app_info="$data_root/Applications/FontManager.app/Info.plist"
 [[ -f "$app_info" && \
-   $(plutil -extract MinimumOSVersion raw -o - "$app_info") == '16.0' ]] || \
-  fail 'application Info.plist does not require iOS 16.0'
+   $(plutil -extract MinimumOSVersion raw -o - "$app_info") == '16.0' && \
+   $(plutil -extract CFBundleShortVersionString raw -o - "$app_info") == '0.3.0' && \
+   $(plutil -extract CFBundleVersion raw -o - "$app_info") == '4' ]] || \
+  fail 'application Info.plist version or minimum iOS is malformed'
 
 mount_backend="$data_root/usr/libexec/markfont-bindfs"
 helper="$data_root/usr/libexec/fontmanagerd"
