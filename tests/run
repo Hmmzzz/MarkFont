@@ -1,0 +1,972 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+test_script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+font_manager_root=$(CDPATH= cd -- "$test_script_dir/.." && pwd)
+workspace_root=$(CDPATH= cd -- "$font_manager_root/../.." && pwd)
+
+if [[ ${MARKFONT_LOCAL_TEST_ENV_READY:-0} != 1 ]]; then
+  export MARKFONT_LOCAL_TEST_ENV_READY=1
+  exec "$workspace_root/scripts/jb-env" "$0" "$@"
+fi
+
+test_build_dir=$(mktemp -d /tmp/markfont-core-tests.XXXXXX)
+
+cleanup() {
+  if [[ "$test_build_dir" == /tmp/markfont-core-tests.* && -d "$test_build_dir" ]]; then
+    find "$test_build_dir" -depth -delete
+  fi
+}
+trap cleanup EXIT INT TERM
+
+xcrun clang \
+  -fobjc-arc \
+  -Wall \
+  -Wextra \
+  -Werror \
+  -framework Foundation \
+  -I "$font_manager_root/shared" \
+  "$font_manager_root/shared/FMStatusContract.m" \
+  "$font_manager_root/tests/status-contract/main.m" \
+  -o "$test_build_dir/status-contract-test"
+
+"$test_build_dir/status-contract-test"
+
+xcrun clang \
+  -fobjc-arc \
+  -Wall \
+  -Wextra \
+  -Werror \
+  -framework Foundation \
+  -I "$font_manager_root/shared" \
+  "$font_manager_root/shared/FMAutomaticRespringPolicy.m" \
+  "$font_manager_root/tests/automatic-respring-policy/main.m" \
+  -o "$test_build_dir/automatic-respring-policy-test"
+
+"$test_build_dir/automatic-respring-policy-test"
+
+xcrun clang \
+  -fobjc-arc \
+  -Wall \
+  -Wextra \
+  -Werror \
+  -framework Foundation \
+  -I "$font_manager_root/shared" \
+  "$font_manager_root/shared/FMRestartRequest.m" \
+  "$font_manager_root/tests/restart-request/main.m" \
+  -o "$test_build_dir/restart-request-test"
+
+"$test_build_dir/restart-request-test"
+
+xcrun clang \
+  -fobjc-arc \
+  -fblocks \
+  -Wall \
+  -Wextra \
+  -Werror \
+  -framework Foundation \
+  -I "$font_manager_root/shared" \
+  "$font_manager_root/shared/FMDataModel.m" \
+  "$font_manager_root/shared/FMFileStore.m" \
+  "$font_manager_root/shared/FMTreeManifest.m" \
+  "$font_manager_root/shared/FMProfileEngine.m" \
+  "$font_manager_root/tests/data-core/main.m" \
+  -o "$test_build_dir/data-core-test"
+
+"$test_build_dir/data-core-test" "$test_build_dir/fixture"
+
+xcrun clang \
+  -fobjc-arc \
+  -fblocks \
+  -Wall \
+  -Wextra \
+  -Werror \
+  -framework Foundation \
+  -I "$font_manager_root/shared" \
+  "$font_manager_root/shared/FMDataModel.m" \
+  "$font_manager_root/shared/FMFontCatalog.m" \
+  "$font_manager_root/tests/font-catalog/main.m" \
+  -o "$test_build_dir/font-catalog-test"
+
+"$test_build_dir/font-catalog-test"
+
+xcrun clang \
+  -fobjc-arc \
+  -fblocks \
+  -Wall \
+  -Wextra \
+  -Werror \
+  -framework Foundation \
+  -I "$font_manager_root/shared" \
+  "$font_manager_root/shared/FMDataModel.m" \
+  "$font_manager_root/shared/FMFontCatalog.m" \
+  "$font_manager_root/shared/FMFontPackageMatcher.m" \
+  "$font_manager_root/tests/font-package-matcher/main.m" \
+  -o "$test_build_dir/font-package-matcher-test"
+
+"$test_build_dir/font-package-matcher-test"
+
+xcrun clang \
+  -fobjc-arc \
+  -fblocks \
+  -Wall \
+  -Wextra \
+  -Werror \
+  -framework Foundation \
+  -framework CoreText \
+  -I "$font_manager_root/shared" \
+  "$font_manager_root/shared/FMDataModel.m" \
+  "$font_manager_root/shared/FMFileStore.m" \
+  "$font_manager_root/shared/FMFontCatalog.m" \
+  "$font_manager_root/shared/FMFontPackageMatcher.m" \
+  "$font_manager_root/shared/FMFontPackageAnalyzer.m" \
+  "$font_manager_root/shared/FMFontPackageImportSession.m" \
+  "$font_manager_root/shared/FMFontProfileStore.m" \
+  "$font_manager_root/tests/font-package-analyzer/main.m" \
+  -o "$test_build_dir/font-package-analyzer-test"
+
+"$test_build_dir/font-package-analyzer-test"
+
+xcrun clang \
+  -fobjc-arc \
+  -fblocks \
+  -Wall \
+  -Wextra \
+  -Werror \
+  -framework Foundation \
+  -I "$font_manager_root/shared" \
+  "$font_manager_root/shared/FMDataModel.m" \
+  "$font_manager_root/shared/FMFileStore.m" \
+  "$font_manager_root/shared/FMFontCatalog.m" \
+  "$font_manager_root/shared/FMProfileAdoptionValidator.m" \
+  "$font_manager_root/tests/profile-adoption-validator/main.m" \
+  -o "$test_build_dir/profile-adoption-validator-test"
+
+"$test_build_dir/profile-adoption-validator-test" \
+  "$test_build_dir/profile-adoption-validator-fixture"
+
+xcrun clang \
+  -fobjc-arc \
+  -fblocks \
+  -Wall \
+  -Wextra \
+  -Werror \
+  -framework Foundation \
+  -I "$font_manager_root/shared" \
+  "$font_manager_root/shared/FMDataModel.m" \
+  "$font_manager_root/shared/FMFileStore.m" \
+  "$font_manager_root/shared/FMTreeManifest.m" \
+  "$font_manager_root/shared/FMFontCatalog.m" \
+  "$font_manager_root/shared/FMProfileAdoptionValidator.m" \
+  "$font_manager_root/shared/FMLegacyFontProfileImport.m" \
+  "$font_manager_root/tests/legacy-font-profile-import/main.m" \
+  -o "$test_build_dir/legacy-font-profile-import-test"
+
+"$test_build_dir/legacy-font-profile-import-test" \
+  "$test_build_dir/legacy-font-profile-import-fixture"
+
+xcrun clang \
+  -fobjc-arc \
+  -fblocks \
+  -Wall \
+  -Wextra \
+  -Werror \
+  -framework Foundation \
+  -I "$font_manager_root/shared" \
+  "$font_manager_root/shared/FMDataModel.m" \
+  "$font_manager_root/shared/FMFileStore.m" \
+  "$font_manager_root/shared/FMTreeManifest.m" \
+  "$font_manager_root/shared/FMFontCatalog.m" \
+  "$font_manager_root/shared/FMProfileEngine.m" \
+  "$font_manager_root/shared/FMProfileAdoptionValidator.m" \
+  "$font_manager_root/shared/FMProfileAdoption.m" \
+  "$font_manager_root/shared/FMProfileMirrorMatcher.m" \
+  "$font_manager_root/shared/FMProfileStagePlanner.m" \
+  "$font_manager_root/tests/profile-activation-pipeline/main.m" \
+  -o "$test_build_dir/profile-activation-pipeline-test"
+
+"$test_build_dir/profile-activation-pipeline-test" \
+  "$test_build_dir/profile-activation-pipeline-fixture"
+
+xcrun clang \
+  -fobjc-arc \
+  -fblocks \
+  -Wall \
+  -Wextra \
+  -Werror \
+  -framework Foundation \
+  -I "$font_manager_root/shared" \
+  "$font_manager_root/shared/FMDataModel.m" \
+  "$font_manager_root/shared/FMFileStore.m" \
+  "$font_manager_root/shared/FMTreeManifest.m" \
+  "$font_manager_root/shared/FMMirrorPreparation.m" \
+  "$font_manager_root/tests/mirror-preparation/main.m" \
+  -o "$test_build_dir/mirror-preparation-test"
+
+"$test_build_dir/mirror-preparation-test" "$test_build_dir/mirror-fixture"
+
+xcrun clang \
+  -fobjc-arc \
+  -Wall \
+  -Wextra \
+  -Werror \
+  -framework Foundation \
+  -I "$font_manager_root/shared" \
+  "$font_manager_root/shared/FMSecureDirectory.m" \
+  "$font_manager_root/tests/secure-directory/main.m" \
+  -o "$test_build_dir/secure-directory-test"
+
+"$test_build_dir/secure-directory-test" "$test_build_dir/secure-directory-fixture"
+
+xcrun clang \
+  -fobjc-arc \
+  -Wall \
+  -Wextra \
+  -Werror \
+  -framework Foundation \
+  -I "$font_manager_root/shared" \
+  "$font_manager_root/shared/FMOperationLock.m" \
+  "$font_manager_root/tests/operation-lock/main.m" \
+  -o "$test_build_dir/operation-lock-test"
+
+"$test_build_dir/operation-lock-test" "$test_build_dir/operation-lock-fixture"
+
+xcrun clang \
+  -fobjc-arc \
+  -Wall \
+  -Wextra \
+  -Werror \
+  -framework Foundation \
+  -I "$font_manager_root/shared" \
+  "$font_manager_root/shared/FMMountBackendCompatibility.m" \
+  "$font_manager_root/tests/provider-compatibility/main.m" \
+  -o "$test_build_dir/provider-compatibility-test"
+
+"$test_build_dir/provider-compatibility-test"
+
+xcrun clang \
+  -fobjc-arc \
+  -Wall \
+  -Wextra \
+  -Werror \
+  -framework Foundation \
+  -I "$font_manager_root/shared" \
+  "$font_manager_root/shared/FMLegacyProviderAutoMountPolicy.m" \
+  "$font_manager_root/tests/provider-auto-mount-policy/main.m" \
+  -o "$test_build_dir/provider-auto-mount-policy-test"
+
+"$test_build_dir/provider-auto-mount-policy-test"
+
+xcrun clang \
+  -fobjc-arc \
+  -fblocks \
+  -Wall \
+  -Wextra \
+  -Werror \
+  -framework Foundation \
+  -I "$font_manager_root/shared" \
+  -I "$font_manager_root/tests/Fixtures" \
+  "$font_manager_root/shared/FMMountBackendCompatibility.m" \
+  "$font_manager_root/shared/FMMountCoordinator.m" \
+  "$font_manager_root/tests/Fixtures/FMCoordinatorFixtures.m" \
+  "$font_manager_root/tests/provider-coordinator/main.m" \
+  -o "$test_build_dir/provider-coordinator-test"
+
+"$test_build_dir/provider-coordinator-test"
+
+if rg -n -g '*.m' 'MNT_FORCE|\bmount[[:space:]]*\(|\bunmount[[:space:]]*\(' \
+    "$font_manager_root/app" \
+    "$font_manager_root/daemon" \
+    "$font_manager_root/cli" \
+    "$font_manager_root/shared"; then
+  printf 'FAIL: a mount syscall escaped the isolated MarkFont backend.\n' >&2
+  exit 1
+fi
+
+if rg -n 'mount_bindfs|--skip-copy|/usr/bin/dash|/\.bindfs' \
+    "$font_manager_root/app" \
+    "$font_manager_root/daemon" \
+    "$font_manager_root/cli" \
+    "$font_manager_root/shared" \
+    "$font_manager_root/bindfs"; then
+  printf 'FAIL: an external Provider command or alias remains in runtime code.\n' >&2
+  exit 1
+fi
+
+mount_backend_source="$font_manager_root/bindfs/main.m"
+mount_backend_executor="$font_manager_root/shared/FMMountBackendExecutor.m"
+if [[ $(rg -o '\bmount[[:space:]]*\(' "$mount_backend_source" | wc -l | tr -d ' ') != 1 ]] || \
+   [[ $(rg -o '\bunmount[[:space:]]*\(' "$mount_backend_source" | wc -l | tr -d ' ') != 1 ]] || \
+   [[ $(rg -o 'MNT_FORCE' "$mount_backend_source" | wc -l | tr -d ' ') != 1 ]] || \
+   ! rg -q 'mount\("bindfs", FMSystemFontsPath, MNT_RDONLY' \
+      "$mount_backend_source" || \
+   ! rg -q 'unmount\(FMSystemFontsPath, MNT_FORCE\)' \
+      "$mount_backend_source" || \
+   ! rg -q 'FMSystemFontsPath = "/System/Library/Fonts"' \
+      "$mount_backend_source" || \
+   ! rg -q 'FMMirrorLogicalPath = @"/bindfs/System/Library/Fonts"' \
+      "$mount_backend_source" || \
+   ! rg -q 'jbclient_root_steal_ucred' "$mount_backend_source" || \
+   ! rg -q 'FMMappingIsExact' "$mount_backend_source" || \
+   ! rg -q 'FMMountBackendProcessExitNotMounted' \
+      "$font_manager_root/shared/FMMountBackendProtocol.h" || \
+   ! rg -q 'FMMountBackendProcessExitNotMounted' "$mount_backend_source" || \
+   ! rg -q 'FMMountBackendProcessExitNotMounted' "$mount_backend_executor" || \
+   ! rg -q '@"detachWasRequired"' "$mount_backend_executor" || \
+   ! rg -q 'argc != 2' "$mount_backend_source"; then
+  printf 'FAIL: the built-in backend lost its fixed-path, read-only, exact-mapping boundary.\n' >&2
+  exit 1
+fi
+
+package_lifecycle_source="$font_manager_root/shared/FMDevicePackageLifecycle.m"
+legacy_takeover_source="$font_manager_root/shared/FMDeviceLegacyFontTakeover.m"
+legacy_profile_import_source="$font_manager_root/shared/FMLegacyFontProfileImport.m"
+mount_engine_source="$font_manager_root/shared/FMDeviceMountEngine.m"
+postinst="$font_manager_root/layout/DEBIAN/postinst"
+prerm="$font_manager_root/layout/DEBIAN/prerm"
+postrm="$font_manager_root/layout/DEBIAN/postrm"
+unmount_count=$(rg -o '\bunmount[[:space:]]*\(' "$package_lifecycle_source" | \
+  wc -l | tr -d ' ' || true)
+if [[ "$unmount_count" != 0 ]] || \
+   ! rg -q 'FMDetachManagedSystemFontsForPackageLifecycle' \
+      "$package_lifecycle_source" || \
+   rg -n 'MNT_FORCE|\bmount[[:space:]]*\(|\bunmount[[:space:]]*\(' \
+      "$package_lifecycle_source" || \
+   ! rg -q 'FMRefreshMountBackendForPreparedSystemFonts' \
+      "$package_lifecycle_source" || \
+   ! rg -q 'FMStageDeviceProfileWithExistingLock' \
+      "$package_lifecycle_source" || \
+   ! rg -q 'FMDevicePackageLifecycle\.m' "$font_manager_root/daemon/Makefile" || \
+   ! rg -q 'fontmanagerd package-configure \[--json\]' \
+      "$font_manager_root/daemon/main.m" || \
+   ! rg -q 'fontmanagerd package-prepare-removal \[--json\]' \
+      "$font_manager_root/daemon/main.m" || \
+   ! rg -q 'FMOwnershipLogicalPath' "$package_lifecycle_source" || \
+   ! rg -q 'FMPackageClaimEmptyInitialization' "$package_lifecycle_source" || \
+   ! rg -q 'FMPackageMigrateBaselineIdentity' "$package_lifecycle_source" || \
+   ! rg -q '@"baselineIdentityMigrated"' "$package_lifecycle_source" || \
+   ! rg -q 'getuid\(\) != 0 \|\| geteuid\(\) != 0' \
+      "$font_manager_root/daemon/main.m" || \
+   rg -n 'wrapperSHA|mount_bindfs|--skip-copy' \
+      "$package_lifecycle_source"; then
+  printf 'FAIL: package lifecycle is not confined to the fixed root-only mount backend.\n' >&2
+  exit 1
+fi
+
+legacy_unmount_count=$(rg -o '\bunmount[[:space:]]*\(' "$legacy_takeover_source" | \
+  wc -l | tr -d ' ' || true)
+if [[ "$legacy_unmount_count" != 0 ]] || \
+   ! rg -q 'FMDetachManagedSystemFontsForPackageLifecycle' \
+      "$legacy_takeover_source" || \
+   rg -n 'MNT_FORCE|\bmount[[:space:]]*\(|\bunmount[[:space:]]*\(|FMRefreshMountBackendForPreparedSystemFonts|\.bak|LegacyFontBackups' \
+      "$legacy_takeover_source" || \
+   ! rg -q 'FMImportLegacyFontTreeAsProfile' "$legacy_takeover_source" || \
+   ! rg -q 'removeItemAtPath:sourcePath' "$legacy_takeover_source" || \
+   ! rg -q 'FMLegacyMirrorLogicalPath' "$legacy_takeover_source" || \
+   ! rg -q 'FMDeviceMountTopology\.m' "$font_manager_root/daemon/Makefile" || \
+   ! rg -q 'FMLegacyFontProfileImport\.m' "$font_manager_root/daemon/Makefile" || \
+   ! rg -q 'FMDeviceLegacyFontTakeover\.m' "$font_manager_root/daemon/Makefile" || \
+   ! rg -q 'ProfileLibrary' "$legacy_takeover_source" || \
+   ! rg -q 'catalog\[@"files"\]' "$legacy_profile_import_source" || \
+   ! rg -q 'FMIsSupportedFontCatalogRelativePath' \
+      "$font_manager_root/shared/FMFontCatalog.m" || \
+   rg -n 'Documents/MarkFont|LegacyFontBackups|\.bak' \
+      "$legacy_takeover_source" "$legacy_profile_import_source" || \
+   ! rg -q 'FMCompleteLegacyFontTakeover' "$package_lifecycle_source"; then
+  printf 'FAIL: legacy font takeover lost its fixed backend-detach/Profile boundary.\n' >&2
+  exit 1
+fi
+
+for maintainer_script in "$postinst" "$prerm" "$postrm"; do
+  if [[ ! -x "$maintainer_script" ]] || ! /bin/sh -n "$maintainer_script"; then
+    printf 'FAIL: package maintainer script is missing, non-executable, or invalid: %s\n' \
+      "$maintainer_script" >&2
+    exit 1
+  fi
+done
+
+if ! rg -q "package_prefix='@MARKFONT_PACKAGE_PREFIX@'" "$postinst" "$prerm" "$postrm" || \
+   ! rg -q '"\$helper" package-configure' "$postinst" || \
+   ! rg -q '"\$helper" package-prepare-removal' "$prerm" || \
+   ! rg -q '\.package-removal-ready' "$postrm" || \
+   ! rg -q '\.mirror-owned' "$postrm" || \
+   ! rg -q 'remove_exact_tree "\$mirror_fonts_root"' "$postrm" || \
+   ! rg -q 'remove_exact_tree "\$mirror_staging_root"' "$postrm" || \
+   ! rg -q 'remove_exact_tree "\$engine_root"' "$postrm" || \
+   ! rg -q 'require_physical_mount_parent "\$mirror_library_root"' "$postrm" || \
+   ! rg -q 'Application Support/com\.hmmzzz\.fontmanager' "$postrm" || \
+   ! rg -q '^request_sileo_reload\(\)' "$postrm" || \
+   ! rg -q "'finish:reload'" "$postrm" || \
+   ! rg -q '^    request_sileo_reload$' "$postrm" || \
+   ! rg -q 'upgrade\|failed-upgrade\|abort-install\|abort-upgrade\|disappear' "$postrm" || \
+   rg -n '/var/jb|/private/preboot/|/\.bindfs|com\.nan\.auto-bindfs|MNT_FORCE|mount_bindfs[[:space:]]+-u|/usr/bin/sbreload' \
+      "$postinst" "$prerm" "$postrm"; then
+  printf 'FAIL: package scripts lost their exact cleanup or Sileo reload boundary.\n' >&2
+  exit 1
+fi
+
+if ! rg -q 'FMRequireFreshOrReusableMountStorage' "$mount_engine_source" || \
+   ! rg -q 'FMRequireSecureSharedMountRoot' "$mount_engine_source" || \
+   ! rg -q 'O_RDONLY \| O_DIRECTORY \| O_NOFOLLOW \| O_CLOEXEC' \
+      "$mount_engine_source" || \
+   ! rg -q '@"mountStorageReused"' "$mount_engine_source" || \
+   rg -q '/\.bindfs|FMValidateProviderAlias' "$mount_engine_source" || \
+   rg -q 'readdir|fdopendir' "$mount_engine_source"; then
+  printf 'FAIL: clean reinstall cannot safely reuse the fixed shared mount storage.\n' >&2
+  exit 1
+fi
+
+if rg -n '^Depends:.*(com\.nan\.bindfs|cn\.zqbb\.hello\.mnt|dash)' \
+      "$font_manager_root/control" || \
+   ! rg -q 'Depends: firmware \(>= 16\.0\), uikittools' \
+      "$font_manager_root/control" || \
+   ! rg -q '^Conflicts: com\.nan\.bindfs, cn\.zqbb\.hello\.mnt$' \
+      "$font_manager_root/control" || \
+   ! rg -q '^Icon: https://hmmzzz\.github\.io/repo/depictions/markfont/icon\.png$' \
+      "$font_manager_root/control" || \
+   ! rg -q '^Depiction: https://hmmzzz\.github\.io/repo/depictions/markfont/$' \
+      "$font_manager_root/control" || \
+   ! rg -q '^SileoDepiction: https://hmmzzz\.github\.io/repo/depictions/markfont/sileo\.json$' \
+      "$font_manager_root/control" || \
+   rg -n 'providerWrapperSHA256|wrapperSHA256|FingerprintKnown|fingerprintKnown|KnownExecutable060SHA256' \
+      "$font_manager_root/shared" || \
+   rg -n '/usr/bin/mount_bindfs|/usr/bin/dash|--skip-copy' \
+      "$font_manager_root/app" \
+      "$font_manager_root/daemon" \
+      "$font_manager_root/cli" \
+      "$font_manager_root/shared" \
+      "$font_manager_root/bindfs" \
+      "$font_manager_root/layout" \
+      "$font_manager_root/scripts/fontmanager-dpkg-deb" \
+      "$font_manager_root/scripts/build-packages"; then
+  printf 'FAIL: the package still depends on or invokes the external Provider.\n' >&2
+  exit 1
+fi
+
+if ! rg -F -q 'TARGET := iphone:clang:latest:16.0' \
+      "$font_manager_root/Config.mk" || \
+   ! rg -F -q 'THEOS_PACKAGE_SCHEME ?= roothide' \
+      "$font_manager_root/Config.mk" || \
+   ! rg -F -q 'MARKFONT_PATH_LIBRARIES := roothide' \
+      "$font_manager_root/Config.mk" || \
+   ! rg -F -q 'FMMountResolvedStockFontsPath()' \
+      "$font_manager_root/shared/FMEnvironmentProbe.m" \
+      "$font_manager_root/shared/FMMountInspection.m" \
+      "$font_manager_root/shared/FMDeviceMountEngine.m" \
+      "$font_manager_root/shared/FMDeviceStockSnapshot.m" || \
+   ! rg -F -q 'FMMountResolvedOriginalRootfsPath(NSString *logicalRootfsPath)' \
+      "$font_manager_root/shared/FMMountPaths.m" || \
+   ! rg -F -q '#if defined(THEOS_PACKAGE_SCHEME_ROOTHIDE)' \
+      "$font_manager_root/shared/FMMountPaths.m" || \
+   ! rg -F -q '[@"/rootfs" stringByAppendingString:logicalRootfsPath]' \
+      "$font_manager_root/shared/FMMountPaths.m" || \
+   ! rg -F -q 'return jbroot(logicalMobilePath);' \
+      "$font_manager_root/shared/FMMountPaths.m" || \
+   ! rg -F -q 'return FMMountResolvedOriginalRootfsPath(FMMountRootfsFontsLogicalPath);' \
+      "$font_manager_root/shared/FMMountPaths.m" || \
+   ! rg -F -q 'FMMountResolvedOriginalRootfsPath(' \
+      "$font_manager_root/shared/FMDeviceAutoMount.m" || \
+   rg -n 'rootfs\(' "$font_manager_root/shared"; then
+  printf 'FAIL: iOS 16 rootless and RootHide no longer share the required path API boundary.\n' >&2
+  exit 1
+fi
+
+for mobile_path_source in \
+    "$font_manager_root/shared/FMDeviceProfileActivation.m" \
+    "$font_manager_root/shared/FMDeviceProfileAdoption.m" \
+    "$font_manager_root/shared/FMDeviceLegacyFontTakeover.m"; do
+  if ! rg -F -q 'FMMountResolvedMobileDataPath(' "$mobile_path_source"; then
+    printf 'FAIL: a Profile data path bypasses the dual-scheme resolver: %s\n' \
+      "$mobile_path_source" >&2
+    exit 1
+  fi
+done
+
+if rg -n 'FMCoordinateMountInspection|FMMountDecisionText|inspect-provider' \
+    "$font_manager_root/app" \
+    "$font_manager_root/cli"; then
+  printf 'FAIL: mount inspection escaped the root helper boundary.\n' >&2
+  exit 1
+fi
+
+if rg -n '(preflight|prepare)-stock-mirror|preflight-prepared-stock-mount|mount-prepared-stock|FM(CreateDeviceStockMirrorPreflight|PrepareDeviceStockMirror|CreateDevicePreparedStockMountPreflight|MountPreparedDeviceStock)' \
+    "$font_manager_root/app" \
+    "$font_manager_root/cli"; then
+  printf 'FAIL: Stock mirror preparation/activation escaped the root helper boundary.\n' >&2
+  exit 1
+fi
+
+if ! rg -q 'preflight-stock-mirror --confirm-build' "$font_manager_root/daemon/main.m" || \
+   ! rg -q 'prepare-stock-mirror --confirm-build' "$font_manager_root/daemon/main.m" || \
+   ! rg -q 'preflight-prepared-stock-mount --confirm-build' "$font_manager_root/daemon/main.m" || \
+   ! rg -q 'mount-prepared-stock --confirm-build' "$font_manager_root/daemon/main.m"; then
+  printf 'FAIL: a root-only Stock mirror entry point is missing.\n' >&2
+  exit 1
+fi
+
+if rg -n 'inspect-provider|FMFetchProviderInspection|兼容性检测' \
+    "$font_manager_root/app" \
+    "$font_manager_root/daemon/main.m" \
+    "$font_manager_root/shared/FMHelperClient."*; then
+  printf 'FAIL: the removed manual whole-tree inspection product path returned.\n' >&2
+  exit 1
+fi
+
+if ! rg -q 'FMCompatibilityViewController' \
+      "$font_manager_root/app/UI/FMSettingsViewController.m" || \
+   ! rg -q '只检查组件与连接状态，不扫描字体文件内容' \
+      "$font_manager_root/app/UI/FMCompatibilityViewController.m" || \
+   rg -n 'FMCreateDeviceMountInspection|FMCoordinateMountInspection|FMCreateTreeManifestAtPath' \
+      "$font_manager_root/app/UI/FMCompatibilityViewController.m" \
+      "$font_manager_root/app/UI/FMSettingsViewController.m" \
+      "$font_manager_root/app/FMDeviceProfileWorkspace.m"; then
+  printf 'FAIL: lightweight environment UI is missing or regained whole-tree inspection.\n' >&2
+  exit 1
+fi
+
+if ! rg -q 'inspect-font-catalog --confirm-build' "$font_manager_root/daemon/main.m" || \
+   rg -n 'inspect-font-catalog|FMCreateDeviceFontCatalogPreview' \
+      "$font_manager_root/app" "$font_manager_root/cli"; then
+  printf 'FAIL: the read-only font catalog preview escaped the root helper boundary.\n' >&2
+  exit 1
+fi
+
+if rg -n 'FMWrite|O_WRONLY|O_RDWR|rename|unlink|removeItem|mount_bindfs|posix_spawn|unmount' \
+    "$font_manager_root/shared/FMFontCatalog.m" \
+    "$font_manager_root/shared/FMDeviceFontCatalog.m"; then
+  printf 'FAIL: the font catalog preview contains a write or execution primitive.\n' >&2
+  exit 1
+fi
+
+if rg -n 'FMWrite|O_WRONLY|O_RDWR|rename|unlink|removeItem|mount_bindfs|posix_spawn|unmount' \
+    "$font_manager_root/shared/FMProfileAdoptionValidator.m" \
+    "$font_manager_root/shared/FMProfileMirrorMatcher.m" \
+    "$font_manager_root/shared/FMProfileStagePlanner.m" \
+    "$font_manager_root/shared/FMDeviceProfileActivation.m"; then
+  printf 'FAIL: Profile activation preflight contains a write or execution primitive.\n' >&2
+  exit 1
+fi
+
+if ! rg -q 'preflight-profile --confirm-build <build> --profile-id <id>' \
+      "$font_manager_root/daemon/main.m" || \
+   ! rg -q 'FMCreateDeviceProfileActivationPreflight' \
+      "$font_manager_root/daemon/main.m" || \
+   rg -n 'preflight-profile|FMCreateDeviceProfileActivationPreflight' \
+      "$font_manager_root/app" "$font_manager_root/cli"; then
+  printf 'FAIL: imported Profile preflight is not confined to the root helper.\n' >&2
+  exit 1
+fi
+
+if ! rg -q '_THEOS_PLATFORM_DPKG_DEB.*fontmanager-dpkg-deb' \
+      "$font_manager_root/Makefile" || \
+   ! rg -q '^export LC_ALL := C$' "$font_manager_root/Makefile" || \
+   ! rg -q '^SUBPROJECTS \+= bindfs$' "$font_manager_root/Makefile" || \
+   ! rg -q '/bin/chmod 4755.*helper' \
+      "$font_manager_root/scripts/fontmanager-dpkg-deb" || \
+   ! rg -q "stat -f '%Mp%Lp'.*helper" \
+      "$font_manager_root/scripts/fontmanager-dpkg-deb" || \
+   ! rg -q '/bin/chmod 0755.*mount_backend' \
+      "$font_manager_root/scripts/fontmanager-dpkg-deb" || \
+   ! rg -q "stat -f '%Mp%Lp'.*mount_backend" \
+      "$font_manager_root/scripts/fontmanager-dpkg-deb" || \
+   ! rg -q 'rootless_helper=.*var/jb/usr/libexec/fontmanagerd' \
+      "$font_manager_root/scripts/fontmanager-dpkg-deb" || \
+   ! rg -q 'render_package_file.*maintainer_script' \
+      "$font_manager_root/scripts/fontmanager-dpkg-deb" || \
+   ! rg -q 'plutil -convert xml1.*target' \
+      "$font_manager_root/scripts/fontmanager-dpkg-deb" || \
+   ! rg -q 'plutil -convert binary1.*rendered' \
+      "$font_manager_root/scripts/fontmanager-dpkg-deb" || \
+   ! rg -q '<key>com.apple.private.bindfs-allow</key>' \
+      "$font_manager_root/bindfs/entitlements.plist" || \
+   rg -q 'security\.storage|jailbreakd|application-identifier' \
+      "$font_manager_root/bindfs/entitlements.plist" || \
+   rg -q '<key>com.apple.private.bindfs-allow</key>' \
+      "$font_manager_root/app/entitlements.plist" \
+      "$font_manager_root/daemon/entitlements.plist" \
+      "$font_manager_root/cli/entitlements.plist" || \
+   rg -q '<string>com.opa334.jailbreakd</string>' \
+      "$font_manager_root/app/entitlements.plist" || \
+   ! rg -q '\(prepareCommand \|\| mountCommand \|\| stockSnapshotCaptureCommand\) &&' \
+      "$font_manager_root/daemon/main.m"; then
+  printf 'FAIL: backend isolation, file modes, or explicit-root admin gate is missing.\n' >&2
+  exit 1
+fi
+
+if rg -n 'NSTask|posix_spawn|(^|[^[:alnum:]_])(execv|execl|system|unmount)[[:space:]]*\(' \
+    "$font_manager_root/shared/FMMountCoordinator.m" \
+    "$font_manager_root/shared/FMMountInspection.m"; then
+  printf 'FAIL: mount inspection/Coordinator contains an execution primitive.\n' >&2
+  exit 1
+fi
+
+if ! rg -q 'char \*const arguments\[\]' "$mount_backend_executor" || \
+   ! rg -q 'FMMountBackendExecutableLogicalPath =.*' \
+      "$font_manager_root/shared/FMMountBackendExecutor.m" || \
+   ! rg -q '@"/usr/libexec/markfont-bindfs"' \
+      "$font_manager_root/shared/FMMountBackendExecutor.m" || \
+   ! rg -q '@\[ @"probe", @"mount-fonts", @"force-unmount-fonts" \]' \
+      "$mount_backend_executor" || \
+   ! rg -q 'report\[@"mountBackendCompatibility"\][[:space:]]*=[[:space:]]*@"compatible"' \
+      "$mount_backend_executor" || \
+   rg -n 'mount_bindfs|--skip-copy|@"-u"|/usr/bin/dash' \
+      "$mount_backend_executor" || \
+   ! rg -q 'FMInvokeMountBackendForPreparedSystemFonts\(NSError \*\*error\);' \
+       "$font_manager_root/shared/FMMountBackendExecutor.h" || \
+   ! rg -q 'FMDetachManagedSystemFontsForPackageLifecycle\(NSError \*\*error\);' \
+       "$font_manager_root/shared/FMMountBackendExecutor.h" || \
+   rg -n 'NSString \*(source|target|path|option|command)' \
+      "$font_manager_root/shared/FMMountBackendExecutor.h"; then
+  printf 'FAIL: the mount backend executor is not a no-input, fixed-command boundary.\n' >&2
+  exit 1
+fi
+
+if rg -n -g '!FMMountBackendExecutor.m' -g '!FMHelperClient.m' \
+    -g '!FMDeviceRestartCoordinator.m' \
+    'posix_spawn|(^|[^[:alnum:]_])(execv|execl|system)[[:space:]]*\(' \
+    "$font_manager_root/shared"; then
+  printf 'FAIL: a new process execution primitive escaped an approved boundary.\n' >&2
+  exit 1
+fi
+
+if rg -n '@\(!' \
+    "$font_manager_root/shared/FMMountBackendExecutor.m" \
+    "$font_manager_root/shared/FMDeviceMountEngine.m"; then
+  printf 'FAIL: an execution report may serialize a logical negation as JSON number.\n' >&2
+  exit 1
+fi
+
+if rg -n '@\((effectiveUID|realUID).*([=!]=)' \
+    "$font_manager_root/daemon/main.m"; then
+  printf 'FAIL: a helper privilege boolean may serialize as a JSON number.\n' >&2
+  exit 1
+fi
+
+if rg -n '"(initializeMirror|stageProfile|stageStock|repair|safeUnmount)"[[:space:]]*:[[:space:]]*@YES' \
+    "$font_manager_root/shared/FMEnvironmentProbe.m"; then
+  printf 'FAIL: a write capability was enabled unconditionally.\n' >&2
+  exit 1
+fi
+
+if ! rg -q 'BOOL canStageSelection = \[engineState isEqual:@"ready"\]' \
+      "$font_manager_root/shared/FMEnvironmentProbe.m" || \
+   ! rg -q 'stockSnapshotPresent && statePresent && stateValid' \
+      "$font_manager_root/shared/FMEnvironmentProbe.m" || \
+   ! rg -q '!\[state\[@"restartRequired"\] boolValue\]' \
+      "$font_manager_root/shared/FMEnvironmentProbe.m" || \
+   ! rg -q '"stageProfile"[[:space:]]*:[[:space:]]*canStageSelection[[:space:]]*\?[[:space:]]*@YES[[:space:]]*:[[:space:]]*@NO' \
+      "$font_manager_root/shared/FMEnvironmentProbe.m" || \
+   ! rg -q '"stageStock"[[:space:]]*:[[:space:]]*canStageSelection[[:space:]]*\?[[:space:]]*@YES[[:space:]]*:[[:space:]]*@NO' \
+      "$font_manager_root/shared/FMEnvironmentProbe.m"; then
+  printf 'FAIL: Profile/Stock stage capabilities are not bound to a clean ready workspace.\n' >&2
+  exit 1
+fi
+
+if ! rg -q '"userspaceReboot"[[:space:]]*:[[:space:]]*stockSnapshotPresent[[:space:]]*&&[[:space:]]*backendCompatible' \
+      "$font_manager_root/shared/FMEnvironmentProbe.m" || \
+   ! rg -q 'FMUserspaceRebootExecutableLogicalPath = @"/basebin/jbctl"' \
+      "$font_manager_root/shared/FMDeviceRestartCoordinator.m" || \
+   ! rg -q 'FMRespringExecutableLogicalPath = @"/usr/bin/sbreload"' \
+      "$font_manager_root/shared/FMDeviceRestartCoordinator.m" || \
+   [[ $(rg -o '\(char \*\)"reboot_userspace"' \
+          "$font_manager_root/shared/FMDeviceRestartCoordinator.m" | wc -l | tr -d ' ') != 1 ]] || \
+   ! rg -q 'FMArmDeviceRespring' \
+      "$font_manager_root/shared/FMDeviceRestartCoordinator.m" || \
+   ! rg -q 'FMRefreshMountBackendForPreparedSystemFonts' \
+      "$font_manager_root/shared/FMDeviceRestartCoordinator.m" || \
+   ! rg -q '@"mappingRefreshRequired"[[:space:]]*:[[:space:]]*stagedProfileChange' \
+      "$font_manager_root/shared/FMDeviceRestartCoordinator.m" || \
+   ! rg -q 'request-respring --confirm-build <build>' \
+      "$font_manager_root/daemon/main.m" || \
+   ! rg -q 'FMRequestRespringFromHelper' \
+      "$font_manager_root/app/FMDeviceProfileWorkspace.m" || \
+   rg -q 'FMRequestUserspaceRestartFromHelper' \
+      "$font_manager_root/app/FMDeviceProfileWorkspace.m" || \
+   ! rg -q 'requestRespring:' \
+      "$font_manager_root/shared/FMProfileWorkspace.h" || \
+   rg -n 'ldrestart|launchctl' \
+      "$font_manager_root/shared/FMDeviceRestartCoordinator.m"; then
+  printf 'FAIL: App activation is not confined to backend refresh + fixed sbreload, with jbctl only as a fallback.\n' >&2
+  exit 1
+fi
+
+if ! awk '
+    /^BOOL FMExecuteDeviceRespring\(/ { inside = 1 }
+    inside && /FMConfirmWorkingProfileAtStatePath/ { confirmed = 1 }
+    inside && /execv\(/ {
+      executed = 1
+      if (!confirmed) exit 1
+    }
+    inside && /^}/ {
+      complete = confirmed && executed
+      exit complete ? 0 : 1
+    }
+    END { if (!complete) exit 1 }
+  ' "$font_manager_root/shared/FMDeviceRestartCoordinator.m" || \
+   ! rg -q 'FMAcquireExclusiveDirectoryLock' \
+      "$font_manager_root/shared/FMDeviceRestartCoordinator.m" || \
+   rg -n 'observe-respring|FMObserveDeviceRespringCompletion|RestartRecoveryPolicy|pendingRestartRecovered|restartEvidenceRearmed|currentSessionEvidenceArmed|armRecoveredProfileRespring|FMArmCurrentSessionRespringEvidence' \
+      "$font_manager_root/daemon" "$font_manager_root/shared"; then
+  printf 'FAIL: Respring must commit the verified selection before fixed sbreload without a recovery observer.\n' >&2
+  exit 1
+fi
+
+if rg -n 'FM(StageProfileAtRoots|RepairProfileAtRoots|ConfirmWorkingProfileAtStatePath|CopyRegularFilePreservingIdentity|BuildVerifiedStockMirror|PublishVerifiedStockMirror)' \
+    "$font_manager_root/app" \
+    "$font_manager_root/daemon/main.m" \
+    "$font_manager_root/cli"; then
+  printf 'FAIL: the local data core was exposed by an App/helper/CLI entry point.\n' >&2
+  exit 1
+fi
+
+auto_mount_source="$font_manager_root/shared/FMDeviceAutoMount.m"
+auto_mount_plist="$font_manager_root/layout/Library/LaunchDaemons/com.hmmzzz.fontmanager.automount.plist"
+auto_respring_policy_source="$font_manager_root/shared/FMAutomaticRespringPolicy.m"
+if [[ ! -f "$auto_mount_plist" ]] || \
+   ! plutil -lint "$auto_mount_plist" >/dev/null || \
+   ! rg -q '<string>com\.hmmzzz\.fontmanager\.automount</string>' "$auto_mount_plist" || \
+   ! rg -q '<string>@MARKFONT_PACKAGE_PREFIX@/usr/libexec/fontmanagerd</string>' "$auto_mount_plist" || \
+   ! rg -q '<string>auto-mount</string>' "$auto_mount_plist" || \
+   ! rg -U -q '<key>RunAtLoad</key>[[:space:]]*<true/>' "$auto_mount_plist" || \
+   ! rg -U -q '<key>KeepAlive</key>[[:space:]]*<false/>' "$auto_mount_plist" || \
+   ! rg -U -q '<key>ProcessType</key>[[:space:]]*<string>Interactive</string>' "$auto_mount_plist" || \
+   ! rg -U -q '<key>UserName</key>[[:space:]]*<string>root</string>' "$auto_mount_plist" || \
+   rg -q '<key>Program</key>' "$auto_mount_plist" || \
+   ! rg -q 'FMDeviceAutoMount\.m' "$font_manager_root/daemon/Makefile" || \
+   ! rg -q 'fontmanagerd auto-mount \[--json\]' "$font_manager_root/daemon/main.m" || \
+   ! rg -q 'FMAutomaticMountReceiptLogicalPath' "$font_manager_root/daemon/main.m" || \
+   ! rg -q 'automount-last\.json' "$font_manager_root/daemon/main.m" || \
+   ! rg -q 'FMWriteAutomaticMountReceipt' "$font_manager_root/daemon/main.m" || \
+   ! rg -q 'getuid\(\) != 0 \|\| geteuid\(\) != 0' "$font_manager_root/daemon/main.m" || \
+   ! rg -q 'FMAutomountManagedDeviceFonts' "$font_manager_root/daemon/main.m"; then
+  printf 'FAIL: the root-only RunAtLoad automatic-mount entry point is incomplete.\n' >&2
+  exit 1
+fi
+
+if rg -n 'FMAutomountManagedDeviceFonts|auto-mount' \
+      "$font_manager_root/app" "$font_manager_root/cli" || \
+   ! rg -q 'FMJailbreakSafeModeLogicalPath' "$auto_mount_source" || \
+   ! rg -q 'FMDisableMountLogicalPath' "$auto_mount_source" || \
+   ! rg -q 'FMLegacyProviderGlobalDisableLogicalPath' "$auto_mount_source" || \
+   ! rg -q '!\[state\[@"autoMount"\] boolValue\]' "$auto_mount_source" || \
+   ! rg -q 'FMAutoMountValidateWorkspace' "$auto_mount_source" || \
+   ! rg -q 'FMAutoMountRequirePhysicalTarget' "$auto_mount_source" || \
+   ! rg -q 'FMInvokeMountBackendForPreparedSystemFonts' "$auto_mount_source" || \
+   ! rg -q 'pendingState\[@"restartRequired"\][[:space:]]*=[[:space:]]*@YES' "$auto_mount_source" || \
+   ! rg -q '@"lateAutomaticMountPending"' "$auto_mount_source" || \
+   ! rg -q '@"activationRefreshRequired"' "$auto_mount_source" || \
+   ! rg -q '@"contentScanned"[[:space:]]*:[[:space:]]*@NO' "$auto_mount_source" || \
+   ! rg -q '@"copyPerformed"[[:space:]]*:[[:space:]]*@NO' "$auto_mount_source" || \
+   rg -n 'FMCreateDeviceMountInspection|FMCoordinateMountInspection|FMAutoMountEvidenceIsExact|FMCreateTreeManifestAtPath|/baseline|/stock|/profiles|FMRefreshMountBackendForPreparedSystemFonts|reboot_userspace|MNT_FORCE|\bunmount[[:space:]]*\(' \
+      "$auto_mount_source"; then
+  printf 'FAIL: automatic mounting lost its fixed-path, tree-scan-free startup boundary.\n' >&2
+  exit 1
+fi
+
+if ! rg -q '@"autoRespring"[[:space:]]*:[[:space:]]*@NO' \
+      "$font_manager_root/shared/FMProfileEngine.m" || \
+   ! rg -q 'FMSetAutomaticRespringEnabled' "$auto_mount_source" || \
+   ! rg -q 'FMAutomaticMountStateAllowsTrustedMirror' "$auto_mount_source" || \
+   ! rg -q 'FMAutomaticMountStateHasPendingProfileChange' "$auto_mount_source" || \
+   ! rg -q 'FMClearStaleRespringEvidenceForRecoveredMappingWithExistingLock' \
+      "$auto_mount_source" || \
+   ! rg -q '@"staleRestartEvidenceCleared"' "$auto_mount_source" || \
+   ! rg -q '@"manualRespringRequired"' "$auto_mount_source" || \
+   rg -q 'FMConfirmWorkingProfileAtStatePath' "$auto_mount_source" || \
+   ! rg -q 'enable-auto-respring --confirm-build <build>' \
+      "$font_manager_root/daemon/main.m" || \
+   ! rg -q 'disable-auto-respring --confirm-build <build>' \
+      "$font_manager_root/daemon/main.m" || \
+   ! rg -q 'FMAutomaticRespringIsEligible' \
+      "$font_manager_root/daemon/main.m" || \
+   ! rg -q 'FMLateAutomaticMountNeedsRestartEvidence' \
+      "$font_manager_root/daemon/main.m" || \
+   ! rg -q '@"restartEvidenceArmed"' \
+      "$font_manager_root/daemon/main.m" || \
+   ! rg -U -q 'if \(restartEvidenceRequired\)[[:space:]]*\{(.|\n)*FMArmDeviceRespring' \
+      "$font_manager_root/daemon/main.m" || \
+   ! rg -q 'automaticRespringReport != nil && automaticRespringEligible' \
+      "$font_manager_root/daemon/main.m" || \
+   ! rg -q 'report\[@"mappingChanged"\],[[:space:]]*YES' \
+      "$auto_respring_policy_source" || \
+   ! rg -q 'report\[@"lateAutomaticMountPending"\],[[:space:]]*YES' \
+      "$auto_respring_policy_source" || \
+   ! rg -q 'report\[@"springBoardWasRunning"\],[[:space:]]*YES' \
+      "$auto_respring_policy_source" || \
+   ! rg -q 'FMArmDeviceRespring' "$font_manager_root/daemon/main.m" || \
+   ! rg -q 'FMExecuteDeviceRespring' "$font_manager_root/daemon/main.m" || \
+   ! rg -q 'FMSetAutomaticRespringFromHelper' \
+      "$font_manager_root/app/FMDeviceProfileWorkspace.m" || \
+   ! rg -q 'settings_auto_respring_switch' \
+      "$font_manager_root/app/UI/FMSettingsViewController.m"; then
+  printf 'FAIL: opt-in automatic Respring is missing its default-off policy, strict launchd gates, or App switch.\n' >&2
+  exit 1
+fi
+
+if rg -n 'setAutomaticRespringEnabled:.*requestRespring|enable-auto-respring.*FMExecuteDeviceRespring' \
+      "$font_manager_root/app" "$auto_mount_source"; then
+  printf 'FAIL: changing the automatic Respring switch can directly request a refresh.\n' >&2
+  exit 1
+fi
+
+recovered_evidence_source=$(sed -n \
+  '/FMClearStaleRespringEvidenceForRecoveredMappingWithExistingLock(/,/^BOOL FMExecuteDeviceUserspaceReboot(/p' \
+  "$font_manager_root/shared/FMDeviceRestartCoordinator.m")
+if [[ -z "$recovered_evidence_source" ]] || \
+   ! rg -q 'FMMountManagedMappingIsActive' <<<"$recovered_evidence_source" || \
+   ! rg -q 'FMDeviceRestartRemoveRequest' <<<"$recovered_evidence_source" || \
+   rg -q 'FMDeviceRestartBootEvidence|FMWriteJSONObjectAtomically|FMDeviceRestartReadRequest|FMConfirmWorkingProfileAtStatePath|FMRefreshMountBackendForPreparedSystemFonts|execv' \
+      <<<"$recovered_evidence_source"; then
+  printf 'FAIL: pending Profile recovery can arm, confirm, remount, execute, or preserve stale evidence.\n' >&2
+  exit 1
+fi
+
+auto_mount_backend_line=$(rg -n \
+  'backendReport = FMInvokeMountBackendForPreparedSystemFonts' \
+  "$auto_mount_source" | cut -d: -f1)
+auto_mount_observation_line=$(rg -n \
+  'springBoardWasRunning = FMAutoMountSpringBoardIsRunning' \
+  "$auto_mount_source" | cut -d: -f1)
+if [[ -z "$auto_mount_backend_line" || -z "$auto_mount_observation_line" ]] || \
+   (( auto_mount_observation_line <= auto_mount_backend_line )); then
+  printf 'FAIL: SpringBoard is not observed after pending Profile mapping activation.\n' >&2
+  exit 1
+fi
+
+if rg -n '<key>LowPriorityIO</key>|<string>Background</string>' \
+      "$auto_mount_plist"; then
+  printf 'FAIL: automatic mounting is still scheduled as background/low-priority work.\n' >&2
+  exit 1
+fi
+
+if ! rg -q 'Depends: firmware \(>= 16\.0\), uikittools' "$font_manager_root/control" || \
+   rg -q '^Depends:.*(com\.nan\.bindfs|cn\.zqbb\.hello\.mnt|dash)' \
+      "$font_manager_root/control" || \
+   ! rg -q '^Conflicts: com\.nan\.bindfs, cn\.zqbb\.hello\.mnt$' \
+      "$font_manager_root/control" || \
+   ! rg -q '^Icon: https://hmmzzz\.github\.io/repo/depictions/markfont/icon\.png$' \
+      "$font_manager_root/control" || \
+   ! rg -q '^Depiction: https://hmmzzz\.github\.io/repo/depictions/markfont/$' \
+      "$font_manager_root/control" || \
+   ! rg -q '^SileoDepiction: https://hmmzzz\.github\.io/repo/depictions/markfont/sileo\.json$' \
+      "$font_manager_root/control"; then
+  printf 'FAIL: the fixed sbreload dependency or external-backend removal is incorrect.\n' >&2
+  exit 1
+fi
+
+if rg -n 'FMCreateProfileStagePlanAtRoots' \
+    "$font_manager_root/app" \
+    "$font_manager_root/daemon/main.m" \
+    "$font_manager_root/cli"; then
+  printf 'FAIL: Profile stage planning became externally reachable too early.\n' >&2
+  exit 1
+fi
+
+if ! rg -q 'adopt-profile --confirm-build <build> --profile-id <id>' \
+      "$font_manager_root/daemon/main.m" || \
+   ! rg -q 'FMAdoptDeviceProfile' "$font_manager_root/daemon/main.m" || \
+   rg -n 'adopt-profile|FMAdoptDeviceProfile|FMPublishProfileAdoptionAtRoots' \
+      "$font_manager_root/app" "$font_manager_root/cli"; then
+  printf 'FAIL: privileged Profile adoption escaped its fixed helper boundary.\n' >&2
+  exit 1
+fi
+
+if ! rg -q 'preflight-stage-profile --confirm-build <build> --profile-id <id>' \
+      "$font_manager_root/daemon/main.m" || \
+   ! rg -q 'FMCreateDeviceProfileStagePreflight' \
+      "$font_manager_root/daemon/main.m" || \
+   rg -n 'preflight-stage-profile|FMCreateDeviceProfileStagePreflight' \
+      "$font_manager_root/app" "$font_manager_root/cli"; then
+  printf 'FAIL: Profile stage preflight escaped its read-only helper boundary.\n' >&2
+  exit 1
+fi
+
+if ! rg -q 'stage-profile --confirm-build <build> --profile-id <id>' \
+      "$font_manager_root/daemon/main.m" || \
+   ! rg -q 'preflight-stage-stock --confirm-build <build>' \
+      "$font_manager_root/daemon/main.m" || \
+   ! rg -q 'stage-stock --confirm-build <build>' \
+      "$font_manager_root/daemon/main.m" || \
+   ! rg -q 'repair-working-profile --confirm-build <build>' \
+      "$font_manager_root/daemon/main.m" || \
+   ! rg -q 'FMStageDeviceProfile' "$font_manager_root/daemon/main.m" || \
+   ! rg -q 'FMRepairDeviceWorkingProfile' "$font_manager_root/daemon/main.m" || \
+   rg -n '(^|[^-])stage-profile|repair-working-profile|FM(StageDeviceProfile|RepairDeviceWorkingProfile)' \
+      "$font_manager_root/app" "$font_manager_root/cli"; then
+  printf 'FAIL: Profile stage/repair execution escaped its fixed helper boundary.\n' >&2
+  exit 1
+fi
+
+if ! rg -q '@\[ @"stage-stock", @"--confirm-build", systemBuild, @"--json" \]' \
+      "$font_manager_root/shared/FMHelperClient.m" || \
+   ! rg -q '@"stage-profile", @"--confirm-build", systemBuild' \
+      "$font_manager_root/shared/FMHelperClient.m" || \
+   ! rg -q 'FMAdoptProfileFromHelper' \
+      "$font_manager_root/app/FMDeviceProfileWorkspace.m" || \
+   ! rg -q 'FMStageProfileFromHelper' \
+      "$font_manager_root/app/FMDeviceProfileWorkspace.m" || \
+   rg -n 'preflight-stage-(profile|stock)' \
+      "$font_manager_root/app/FMDeviceProfileWorkspace.m"; then
+  printf 'FAIL: App staging is not confined to one fixed helper stage pass.\n' >&2
+  exit 1
+fi
+
+if ! rg -q 'FMAcquireExclusiveDirectoryLock' \
+      "$font_manager_root/shared/FMDeviceProfileStage.m" || \
+   ! rg -q 'transitionManagedPaths' \
+      "$font_manager_root/shared/FMProfileEngine.m"; then
+  printf 'FAIL: Profile stage lacks serialized crash-repair boundaries.\n' >&2
+  exit 1
+fi
+
+if rg -n 'FMCreateDeviceMountInspection|FMCoordinateMountInspection|FMCreateTreeManifestAtPath' \
+    "$font_manager_root/shared/FMDeviceFontCatalog.m" \
+    "$font_manager_root/shared/FMDeviceProfileActivation.m" \
+    "$font_manager_root/shared/FMDeviceProfileStage.m" \
+    "$font_manager_root/shared/FMDeviceRestartCoordinator.m"; then
+  printf 'FAIL: a normal app operation regained whole-tree mirror inspection.\n' >&2
+  exit 1
+fi
+
+if ! rg -q 'preflight-stock-snapshot --confirm-build <build>' \
+      "$font_manager_root/daemon/main.m" || \
+   ! rg -q 'capture-stock-snapshot --confirm-build <build>' \
+      "$font_manager_root/daemon/main.m" || \
+   ! rg -q '@"unmountRequired"[[:space:]]*:[[:space:]]*@NO' \
+      "$font_manager_root/shared/FMDeviceStockSnapshot.m" || \
+   ! rg -q 'mirrorContentScanned"[[:space:]]*:[[:space:]]*@NO' \
+      "$font_manager_root/shared/FMDeviceStockSnapshot.m"; then
+  printf 'FAIL: the offline Stock snapshot boundary is incomplete.\n' >&2
+  exit 1
+fi
+
+if rg -n 'stagePlanSHA256|confirm-plan' \
+    "$font_manager_root/shared/FMDeviceProfileStage.m" \
+    "$font_manager_root/daemon/main.m" || \
+   rg -n 'FMCreateDeviceMountInspection|FMCoordinateMountInspection' \
+      "$font_manager_root/shared/FMDeviceProfileStage.m"; then
+  printf 'FAIL: Profile stage regained a redundant approval or whole-tree inspection.\n' >&2
+  exit 1
+fi
+
+printf 'PASS: mount syscalls and MNT_FORCE remain isolated in the built-in backend\n'
+printf 'PASS: lightweight environment UI is present without a manual whole-tree inspection path\n'
+printf 'PASS: font catalog preview is read-only and root-helper-only\n'
+printf 'PASS: imported Profile activation preflight is read-only and root-helper-only\n'
+printf 'PASS: Profile-aware mirror matching is read-only and adoption is helper-confined\n'
+printf 'PASS: Profile stage preflight is read-only and helper-confined\n'
+printf 'PASS: Profile stage/repair is lean, serialized, recoverable, and helper-confined\n'
+printf 'PASS: App Profile/Stock switching uses one fixed helper stage pass\n'
+printf 'PASS: App activation uses backend refresh plus fixed sbreload; jbctl remains a fixed CLI fallback\n'
+printf 'PASS: normal catalog, adoption, stage, and restart paths do not scan the mirror tree\n'
+printf 'PASS: legacy takeover converts changed fonts into one standard Profile before deleting its old source\n'
+printf 'PASS: Stock snapshot stays offline; removal and legacy takeover use one fixed backend detach boundary\n'
+printf 'PASS: automatic mounting is interactive/root-launchd-only, fixed-path, tree-scan-free, and leaves a path-free boot receipt\n'
+printf 'PASS: install/remove scripts are root-helper-only, marker-gated, and upgrade-preserving\n'
+printf 'PASS: clean reinstall preserves unrelated entries in secure shared mount storage\n'
+printf 'PASS: legacy Provider baselines migrate in place to the built-in backend contract\n'
+printf 'PASS: passwordless helper keeps preparation and mount activation explicit-root-only\n'
+printf 'PASS: built-in backend is non-setuid, fixed-command, and root-helper-only\n'
+printf 'PASS: Stock mirror preparation/activation remains fixed-path and root-helper-only\n'
+printf 'PASS: low-level data core remains externally unreachable\n'
