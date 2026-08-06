@@ -11,7 +11,7 @@ Description: iOS 16+ 全局字体管理器，支持 conventional rootless 与 Ro
 Maintainer: Hmmzzz
 Author: Hmmzzz
 Section: Utilities
-Homepage: https://github.com/Hmmzzz/MarkFont
+Homepage: https://hmmzzz.github.io/repo/
 Depends: firmware (>= 16.0), uikittools
 Conflicts: com.nan.bindfs, cn.zqbb.hello.mnt
 Icon: https://hmmzzz.github.io/repo/depictions/markfont/icon.png

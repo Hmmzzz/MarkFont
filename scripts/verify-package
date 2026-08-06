@@ -91,7 +91,7 @@ fi
 [[ "$package_icon" == \
     'https://hmmzzz.github.io/repo/depictions/markfont/icon.png' ]] || \
   fail 'Sileo package icon URL is missing or malformed'
-[[ "$package_homepage" == 'https://github.com/Hmmzzz/MarkFont' ]] || \
+[[ "$package_homepage" == 'https://hmmzzz.github.io/repo/' ]] || \
   fail 'package homepage URL is missing or malformed'
 [[ "$package_depiction" == \
     'https://hmmzzz.github.io/repo/depictions/markfont/' ]] || \
