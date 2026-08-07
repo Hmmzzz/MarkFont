@@ -274,11 +274,21 @@ static BOOL FMLegacyWriteJournal(NSDictionary<NSString *, id> *journal,
 
 static NSString *FMLegacyPrepareAppProfilesRoot(NSString *systemBuild,
                                                 NSError **error) {
-    NSString *applicationSupport = FMLegacyPhysicalDirectory(
-        FMMountResolvedMobileDataPath(
-            @"/var/mobile/Library/Application Support"), error);
-    if (applicationSupport == nil ||
-        !FMEnsureSecureDirectoryTree(
+    // Anchor on the Application Support directory below the resolved mobile
+    // data root, and let FMEnsureSecureDirectoryTree create the tree below it.
+    // Resolving the leaf directly (e.g. .../Application Support/com.hmmzzz.fontmanager)
+    // would fail: that directory is created here, so realpath() would report
+    // ENOENT before it ever comes into being.
+    NSString *applicationSupport = FMMountResolvedAppContainerPath(
+        @"/Library/Application Support");
+    if (applicationSupport.length == 0) {
+        FMLegacyFail(error, 2,
+                     @"The FontManager data container could not be located "
+                     @"for legacy Profile preparation.",
+                     ENOENT);
+        return nil;
+    }
+    if (!FMEnsureSecureDirectoryTree(
             applicationSupport,
             @[ @"com.hmmzzz.fontmanager", @"ProfileLibrary", systemBuild,
                @"profiles" ],

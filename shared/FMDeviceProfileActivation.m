@@ -172,8 +172,14 @@ NSDictionary<NSString *, id> *FMCreateDeviceProfileActivationPreflight(
         return nil;
     }
 
-    NSString *libraryBase = FMMountResolvedMobileDataPath(
-        @"/var/mobile/Library/Application Support/com.hmmzzz.fontmanager");
+    NSString *libraryBase = FMMountResolvedAppContainerPath(
+        @"/Library/Application Support/com.hmmzzz.fontmanager");
+    if (libraryBase.length == 0) {
+        FMDeviceProfileFail(error, FMDeviceProfileActivationErrorEnvironment,
+                            @"The FontManager data container could not be located.",
+                            nil);
+        return nil;
+    }
     NSString *profileLibrary = [libraryBase stringByAppendingPathComponent:@"ProfileLibrary"];
     NSString *buildLibrary =
         [profileLibrary stringByAppendingPathComponent:confirmedSystemBuild];

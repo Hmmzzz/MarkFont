@@ -275,6 +275,81 @@ NSString *FMMountResolvedOriginalRootfsPath(NSString *logicalRootfsPath) {
 #endif
 }
 
+// Locates the FontManager app's data container. The conventional rootless app
+// is sandboxed into a randomized UUID container, so its Application Support
+// tree never sits at the fixed /var/mobile path the daemon historically used.
+// The container UUID is stable for the lifetime of a process, so the result is
+// cached. RootHide does not use this: it resolves /var/mobile through jbroot.
+#if !defined(THEOS_PACKAGE_SCHEME_ROOTHIDE)
+static NSString *FMMountFindAppDataContainer(void) {
+    static NSString *cached = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        NSString *containersRoot = @"/var/mobile/Containers/Data/Application";
+        NSFileManager *fileManager = NSFileManager.defaultManager;
+        NSArray<NSString *> *entries =
+            [fileManager contentsOfDirectoryAtPath:containersRoot error:NULL];
+        if (entries == nil) {
+            cached = nil;
+            return;
+        }
+        NSString *preferred = nil;
+        NSDate *preferredDate = nil;
+        for (NSString *entry in entries) {
+            if (entry.length < 2 || [entry hasPrefix:@"."]) continue;
+            NSString *containerPath =
+                [containersRoot stringByAppendingPathComponent:entry];
+            NSString *metadataPath = [containerPath
+                stringByAppendingPathComponent:
+                    @".com.apple.mobile_container_manager.metadata.plist"];
+            NSDictionary *metadata =
+                [NSDictionary dictionaryWithContentsOfFile:metadataPath];
+            if (![metadata[@"MCMMetadataIdentifier"]
+                    isEqualToString:@"com.hmmzzz.fontmanager"]) {
+                continue;
+            }
+            // A reinstall can leave both the old and new FontManager containers
+            // present momentarily. Prefer the most recently modified one so the
+            // fresh install wins over stale data.
+            NSString *appSupport = [[[containerPath
+                stringByAppendingPathComponent:@"Library"]
+                stringByAppendingPathComponent:@"Application Support"]
+                stringByAppendingPathComponent:@"com.hmmzzz.fontmanager"];
+            NSDictionary *attributes =
+                [fileManager attributesOfItemAtPath:appSupport error:NULL];
+            NSDate *date = attributes[NSFileModificationDate];
+            if (preferred == nil ||
+                (date != nil &&
+                 [date compare:preferredDate] == NSOrderedDescending)) {
+                preferred = containerPath;
+                preferredDate = date;
+            }
+        }
+        if (preferred == nil) {
+            NSLog(@"MarkFont could not locate the FontManager data container "
+                  @"below /var/mobile/Containers/Data/Application; app data "
+                  @"paths will not resolve to the sandbox.");
+        }
+        cached = preferred;
+    });
+    return cached;
+}
+#endif
+
+NSString *FMMountResolvedAppContainerPath(NSString *suffix) {
+#if defined(THEOS_PACKAGE_SCHEME_ROOTHIDE)
+    // RootHide maps /var/mobile through jbroot directly; its FontManager app
+    // data lives at that fixed path and never needs container discovery. Keep
+    // this identical to the historical resolver so existing installs are
+    // unaffected, and reserve the container scan for conventional rootless.
+    return jbroot([@"/var/mobile" stringByAppendingString:suffix]);
+#else
+    NSString *containerPath = FMMountFindAppDataContainer();
+    if (containerPath.length == 0) return @"";
+    return [containerPath stringByAppendingString:suffix];
+#endif
+}
+
 NSString *FMMountResolvedMobileDataPath(NSString *logicalMobilePath) {
 #if defined(THEOS_PACKAGE_SCHEME_ROOTHIDE)
     return jbroot(logicalMobilePath);

@@ -9,6 +9,7 @@ mirror_system_root="${package_prefix}/bindfs/System"
 mirror_library_root="${package_prefix}/bindfs/System/Library"
 mirror_fonts_root="${package_prefix}/bindfs/System/Library/Fonts"
 mirror_staging_root="${package_prefix}/bindfs/System/Library/.Fonts.fontmanager-staging"
+containers_root=/var/mobile/Containers/Data/Application
 
 request_sileo_reload() {
   if [ -z "${SILEO:-}" ]; then
@@ -44,7 +45,10 @@ remove_exact_tree() {
     "/var/mobile/Library/Application Support/com.hmmzzz.fontmanager"|\
     /var/mobile/Library/Caches/com.hmmzzz.fontmanager|\
     /tmp/com.hmmzzz.fontmanager.font-imports|\
-    /var/mobile/tmp/com.hmmzzz.fontmanager.font-imports)
+    /var/mobile/tmp/com.hmmzzz.fontmanager.font-imports|\
+    "$containers_root"/*/Library/Application?Support/com.hmmzzz.fontmanager|\
+    "$containers_root"/*/Library/Caches/com.hmmzzz.fontmanager|\
+    "$containers_root"/*/tmp/com.hmmzzz.fontmanager.font-imports)
       ;;
     *)
       echo "MarkFont refused an unknown cleanup path: $1" >&2
@@ -80,6 +84,26 @@ require_physical_mount_parent() {
     echo "MarkFont mount storage parent is not a directory: $1" >&2
     exit 70
   fi
+}
+
+# Sandboxed rootless installs keep app data in a randomized container below
+# /var/mobile/Containers/Data/Application instead of the fixed /var/mobile
+# paths cleaned above. Scan every container for MarkFont-owned directories.
+remove_app_container_data() {
+  [ -d "$containers_root" ] || return 0
+  for container in "$containers_root"/*; do
+    [ -d "$container" ] || continue
+    case "${container##*/}" in
+      ''|*[!-0-9A-Fa-f]*)
+        echo "MarkFont refused an unsafe data container: $container" >&2
+        exit 70
+        ;;
+    esac
+    remove_exact_tree "$container/Library/Application Support/com.hmmzzz.fontmanager"
+    remove_exact_tree "$container/Library/Caches/com.hmmzzz.fontmanager"
+    remove_exact_tree "$container/tmp/com.hmmzzz.fontmanager.font-imports"
+    rm -f "$container/Library/Preferences/com.hmmzzz.fontmanager.plist"
+  done
 }
 
 case "${1:-}" in
@@ -129,6 +153,7 @@ case "${1:-}" in
     remove_exact_tree /tmp/com.hmmzzz.fontmanager.font-imports
     remove_exact_tree /var/mobile/tmp/com.hmmzzz.fontmanager.font-imports
     rm -f /var/mobile/Library/Preferences/com.hmmzzz.fontmanager.plist
+    remove_app_container_data
 
     if [ "$engine_owned" -eq 1 ]; then
       remove_exact_tree "$engine_root"

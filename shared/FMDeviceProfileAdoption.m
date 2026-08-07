@@ -89,8 +89,15 @@ NSDictionary<NSString *, id> *FMAdoptDeviceProfile(
         return nil;
     }
 
-    NSString *sourceProfilesRoot = [[[[FMMountResolvedMobileDataPath(
-        @"/var/mobile/Library/Application Support/com.hmmzzz.fontmanager")
+    NSString *appContainerRoot = FMMountResolvedAppContainerPath(
+        @"/Library/Application Support/com.hmmzzz.fontmanager");
+    if (appContainerRoot.length == 0) {
+        FMDeviceAdoptionFail(error, 3,
+                             @"The FontManager data container could not be located.",
+                             nil);
+        return nil;
+    }
+    NSString *sourceProfilesRoot = [[[[appContainerRoot
         stringByAppendingPathComponent:@"ProfileLibrary"]
         stringByAppendingPathComponent:confirmedSystemBuild]
         stringByAppendingPathComponent:@"profiles"] copy];

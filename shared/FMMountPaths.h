@@ -25,6 +25,16 @@ NSString *FMMountResolvedOriginalRootfsPath(NSString *logicalRootfsPath);
 // jbroot mapping, while conventional rootless must use the rootfs path directly.
 NSString *FMMountResolvedMobileDataPath(NSString *logicalMobilePath);
 
+// Resolves FontManager's own sandboxed data. `suffix` is appended verbatim to
+// the resolved root (e.g. @"/Library/Application Support/com.hmmzzz.fontmanager").
+// Under conventional rootless the app is sandboxed into a randomized UUID
+// container, so its data never sits at the fixed /var/mobile path the daemon
+// historically used; when no such container is found this returns @"". Under
+// RootHide, /var/mobile is mapped through jbroot directly, so this always
+// returns that fixed path and never returns @"". Never infers the target from
+// the contents of the logical path.
+NSString *FMMountResolvedAppContainerPath(NSString *suffix);
+
 // Resolves the original system Fonts tree in the current path namespace.
 // RootHide exposes it through /rootfs; conventional rootless uses /System.
 // Callers must not persist the returned physical path.

@@ -395,6 +395,8 @@ if ! rg -q "package_prefix='@MARKFONT_PACKAGE_PREFIX@'" "$postinst" "$prerm" "$p
    ! rg -q 'remove_exact_tree "\$mirror_staging_root"' "$postrm" || \
    ! rg -q 'remove_exact_tree "\$engine_root"' "$postrm" || \
    ! rg -q 'require_physical_mount_parent "\$mirror_library_root"' "$postrm" || \
+   ! rg -q 'remove_app_container_data' "$postrm" || \
+   ! rg -q 'Containers/Data/Application' "$postrm" || \
    ! rg -q 'Application Support/com\.hmmzzz\.fontmanager' "$postrm" || \
    ! rg -q '^request_sileo_reload\(\)' "$postrm" || \
    ! rg -q "'finish:reload'" "$postrm" || \
@@ -476,12 +478,59 @@ for mobile_path_source in \
     "$font_manager_root/shared/FMDeviceProfileActivation.m" \
     "$font_manager_root/shared/FMDeviceProfileAdoption.m" \
     "$font_manager_root/shared/FMDeviceLegacyFontTakeover.m"; do
-  if ! rg -F -q 'FMMountResolvedMobileDataPath(' "$mobile_path_source"; then
-    printf 'FAIL: a Profile data path bypasses the dual-scheme resolver: %s\n' \
+  if ! rg -F -q 'FMMountResolvedAppContainerPath(' "$mobile_path_source"; then
+    printf 'FAIL: a Profile data path bypasses the sandboxed container resolver: %s\n' \
+      "$mobile_path_source" >&2
+    exit 1
+  fi
+  if rg -nF 'FMMountResolvedMobileDataPath(' "$mobile_path_source"; then
+    printf 'FAIL: a Profile data path fell back to the fixed /var/mobile resolver: %s\n' \
       "$mobile_path_source" >&2
     exit 1
   fi
 done
+
+# The explicit container resolver must exist, must be used (not dead code), and
+# must not infer its target from the contents of the logical path.
+if ! rg -F -q 'NSString *FMMountResolvedAppContainerPath(NSString *suffix)' \
+      "$font_manager_root/shared/FMMountPaths.h" || \
+   ! rg -F -q 'NSString *FMMountResolvedAppContainerPath(NSString *suffix) {' \
+      "$font_manager_root/shared/FMMountPaths.m" || \
+   ! rg -F -q 'FMMountFindAppDataContainer' \
+      "$font_manager_root/shared/FMMountPaths.m" || \
+   ! rg -F -q 'MCMMetadataIdentifier' \
+      "$font_manager_root/shared/FMMountPaths.m" || \
+   ! rg -F -q 'com.hmmzzz.fontmanager' \
+      "$font_manager_root/shared/FMMountPaths.m" || \
+   rg -nF 'containsString:@"/com.hmmzzz.fontmanager"' \
+      "$font_manager_root/shared/FMMountPaths.m"; then
+  printf 'FAIL: the sandboxed app-data resolver lost its explicit, non-inferential boundary.\n' >&2
+  exit 1
+fi
+
+# Legacy takeover must anchor on the resolved Application Support root and let
+# the secure-tree helper create the leaf chain below it, never on a realpath()
+# of a not-yet-created Application Support/com.hmmzzz.fontmanager leaf.
+if ! rg -Uq 'FMMountResolvedAppContainerPath\(\s*@"/Library/Application Support"\)' \
+      "$font_manager_root/shared/FMDeviceLegacyFontTakeover.m" || \
+   ! rg -qF '@[ @"com.hmmzzz.fontmanager", @"ProfileLibrary", systemBuild,' \
+      "$font_manager_root/shared/FMDeviceLegacyFontTakeover.m"; then
+  printf 'FAIL: legacy takeover no longer anchors the Profile root correctly.\n' >&2
+  exit 1
+fi
+
+# RootHide must keep the historical jbroot(/var/mobile) mapping for app data;
+# only conventional rootless resolves through container discovery. This protects
+# existing RootHide installs from a silent data-location change.
+if ! rg -qF '#if defined(THEOS_PACKAGE_SCHEME_ROOTHIDE)' \
+      "$font_manager_root/shared/FMMountPaths.m" || \
+   ! rg -qF 'jbroot([@"/var/mobile" stringByAppendingString:suffix])' \
+      "$font_manager_root/shared/FMMountPaths.m" || \
+   ! rg -qF '#else' \
+      "$font_manager_root/shared/FMMountPaths.m"; then
+  printf 'FAIL: RootHide app-data path mapping diverged from the historical jbroot contract.\n' >&2
+  exit 1
+fi
 
 if rg -n 'FMCoordinateMountInspection|FMMountDecisionText|inspect-provider' \
     "$font_manager_root/app" \
