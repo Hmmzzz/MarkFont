@@ -495,12 +495,18 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
     stepDetail.translatesAutoresizingMaskIntoConstraints = NO;
     stepDetail.text = FMLocalized(@"当前 App 会关闭，设备不会重启");
 
+    UILabel *stepAdvice = FMLabel(UIFontTextStyleCaption1, UIFontWeightRegular,
+                                  UIColor.secondaryLabelColor);
+    stepAdvice.translatesAutoresizingMaskIntoConstraints = NO;
+    stepAdvice.text = FMLocalized(@"若发现字体覆盖不全，请重启用户空间使字体全局生效。");
+    stepAdvice.accessibilityIdentifier = @"profile_userspace_restart_hint";
+
     UIStackView *stepText = [[UIStackView alloc]
-        initWithArrangedSubviews:@[ stepTitle, stepDetail ]];
+        initWithArrangedSubviews:@[ stepTitle, stepDetail, stepAdvice ]];
     stepText.translatesAutoresizingMaskIntoConstraints = NO;
     stepText.axis = UILayoutConstraintAxisVertical;
     stepText.alignment = UIStackViewAlignmentFill;
-    stepText.spacing = 1;
+    stepText.spacing = 2;
     [step addSubview:stepText];
 
     FMPressableButton *primary = [FMPressableButton buttonWithType:UIButtonTypeSystem];
@@ -537,7 +543,7 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
         [step.topAnchor constraintEqualToAnchor:header.bottomAnchor constant:16],
         [step.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:24],
         [step.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-24],
-        [step.heightAnchor constraintEqualToConstant:44],
+        [step.heightAnchor constraintGreaterThanOrEqualToConstant:72],
         [restartIcon.leadingAnchor constraintEqualToAnchor:step.leadingAnchor],
         [restartIcon.centerYAnchor constraintEqualToAnchor:step.centerYAnchor],
         [restartIcon.widthAnchor constraintEqualToConstant:18],
@@ -545,6 +551,8 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
         [stepText.leadingAnchor constraintEqualToAnchor:restartIcon.trailingAnchor constant:12],
         [stepText.trailingAnchor constraintEqualToAnchor:step.trailingAnchor],
         [stepText.centerYAnchor constraintEqualToAnchor:step.centerYAnchor],
+        [stepText.topAnchor constraintGreaterThanOrEqualToAnchor:step.topAnchor],
+        [stepText.bottomAnchor constraintLessThanOrEqualToAnchor:step.bottomAnchor],
 
         [primary.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor constant:20],
         [primary.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor constant:-20],
@@ -1159,7 +1167,7 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
         [UISheetPresentationControllerDetent customDetentWithIdentifier:@"activation"
                                                                 resolver:^CGFloat(
             id<UISheetPresentationControllerDetentResolutionContext> context) {
-            return MIN(285, context.maximumDetentValue);
+            return MIN(325, context.maximumDetentValue);
         }]
     ];
     presentation.prefersGrabberVisible = YES;

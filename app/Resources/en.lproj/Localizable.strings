@@ -187,6 +187,7 @@
 "选择 ZIP 或字体文件，检查匹配后存入字体库。" = "Choose a ZIP or font file, review matches, then save it to the font library.";
 "选择 ZIP 或字体文件，先查看会对应到哪些本机系统字体。" = "Choose a ZIP or font file to see which system fonts it matches on this device.";
 "已连接本机字体目录；字体包导入将在写入链路完成后开放。" = "The device font folder is connected. Font package import will be enabled when the write path is ready.";
+"若导入字体包时闪退，请关闭系统设置中 MarkFont 的“粗体文本”设置。" = "If the app crashes while importing a font package, turn off Bold Text for MarkFont in Settings.";
 "选择字体包" = "Choose Font Package";
 "字体包导入尚未开放" = "Font Package Import Isn't Available Yet";
 "暂时无法读取字体库" = "Unable to Read Font Library";
@@ -212,6 +213,7 @@
 "字体已准备好" = "Font Ready";
 "重新载入后在整个系统中生效" = "Applies Across iOS After Reload";
 "当前 App 会关闭，设备不会重启" = "This app closes; the device stays on";
+"若发现字体覆盖不全，请重启用户空间使字体全局生效。" = "If some fonts are not fully replaced, restart userspace to apply them system-wide.";
 "稍后 Respring" = "Respring Later";
 "设置" = "Settings";
 "先预览，再把喜欢的样子用到整个系统。" = "Preview first, then apply your favorite look across the system.";

@@ -1184,7 +1184,7 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
 }
 
 - (UIView *)makeImportHeader {
-    UIView *header = [[UIView alloc] initWithFrame:CGRectMake(0, 0, self.view.bounds.size.width, 184)];
+    UIView *header = [[UIView alloc] initWithFrame:CGRectMake(0, 0, self.view.bounds.size.width, 236)];
     UIView *card = FMCardView();
     card.translatesAutoresizingMaskIntoConstraints = NO;
     card.backgroundColor = FMTintedBackground(FMAccentColor());
@@ -1217,6 +1217,13 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
         : FMLocalized(@"已连接本机字体目录；字体包导入将在写入链路完成后开放。");
     detail.numberOfLines = 2;
     [card addSubview:detail];
+
+    UILabel *importTip = FMLabel(UIFontTextStyleCaption1, UIFontWeightRegular,
+                                 UIColor.secondaryLabelColor);
+    importTip.translatesAutoresizingMaskIntoConstraints = NO;
+    importTip.text = FMLocalized(@"若导入字体包时闪退，请关闭系统设置中 MarkFont 的“粗体文本”设置。");
+    importTip.accessibilityIdentifier = @"profile_import_crash_hint";
+    [card addSubview:importTip];
 
     UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
     button.translatesAutoresizingMaskIntoConstraints = NO;
@@ -1254,8 +1261,12 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
         [detail.leadingAnchor constraintEqualToAnchor:card.leadingAnchor constant:18],
         [detail.trailingAnchor constraintEqualToAnchor:card.trailingAnchor constant:-18],
         [detail.topAnchor constraintEqualToAnchor:icon.bottomAnchor constant:10],
+        [importTip.leadingAnchor constraintEqualToAnchor:card.leadingAnchor constant:18],
+        [importTip.trailingAnchor constraintEqualToAnchor:card.trailingAnchor constant:-18],
+        [importTip.topAnchor constraintEqualToAnchor:detail.bottomAnchor constant:8],
         [button.leadingAnchor constraintEqualToAnchor:card.leadingAnchor constant:14],
         [button.trailingAnchor constraintEqualToAnchor:card.trailingAnchor constant:-14],
+        [button.topAnchor constraintGreaterThanOrEqualToAnchor:importTip.bottomAnchor constant:10],
         [button.bottomAnchor constraintEqualToAnchor:card.bottomAnchor constant:-14],
         [button.heightAnchor constraintEqualToConstant:46],
     ]];
