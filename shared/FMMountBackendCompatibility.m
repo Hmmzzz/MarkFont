@@ -138,7 +138,9 @@ NSDictionary<NSString *, id> *FMInspectMountBackendCompatibilityAtPath(
 }
 
 NSString *FMMountBackendRecognitionForVersion(NSString *version) {
-    return [version isEqualToString:@"1"] ? @"known" : @"unknown";
+    return ([version isEqualToString:@"1"] ||
+            [version isEqualToString:@"2"])
+        ? @"known" : @"unknown";
 }
 
 BOOL FMMountBackendEvidenceSatisfiesCompatibilityContract(

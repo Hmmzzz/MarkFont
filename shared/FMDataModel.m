@@ -374,10 +374,24 @@ BOOL FMValidateFontCatalogDocument(id object, NSError **error) {
     NSDictionary *document = object;
     NSArray *files = document[@"files"];
     NSArray *excludedRegularPaths = document[@"excludedRegularPaths"];
+    id catalogVersionValue = document[@"catalogVersion"];
+    NSInteger catalogVersion =
+        [catalogVersionValue isKindOfClass:NSNumber.class] &&
+        !FMIsJSONBoolean(catalogVersionValue)
+            ? [catalogVersionValue integerValue] : 0;
+    NSDictionary *supplementalSource =
+        [document[@"supplementalSource"] isKindOfClass:NSDictionary.class]
+            ? document[@"supplementalSource"] : nil;
+    BOOL supplementalSourceValid = catalogVersion == 1
+        ? document[@"supplementalSource"] == nil
+        : catalogVersion == 2 && supplementalSource != nil &&
+          [supplementalSource[@"sourceLogicalPath"] isEqual:
+              @"/System/Library/PrivateFrameworks/FontServices.framework/CorePrivate"] &&
+          [supplementalSource[@"virtualPathPrefix"] isEqual:
+              @"FontServicesCorePrivate"] &&
+          FMIsLowercaseSHA256(supplementalSource[@"sourceManifestSHA256"]);
     if (!FMHasSchemaVersionTwo(document) ||
-        ![document[@"catalogVersion"] isKindOfClass:NSNumber.class] ||
-        FMIsJSONBoolean(document[@"catalogVersion"]) ||
-        [document[@"catalogVersion"] integerValue] != 1 ||
+        !supplementalSourceValid ||
         ![document[@"matchingMode"] isEqual:@"stockFileName"] ||
         !FMIsNonemptyString(document[@"systemBuild"]) ||
         ![document[@"sourceLogicalPath"] isEqual:@"/System/Library/Fonts"] ||
@@ -396,6 +410,7 @@ BOOL FMValidateFontCatalogDocument(id object, NSError **error) {
     NSMutableSet<NSString *> *fileNames = [NSMutableSet set];
     NSMutableSet<NSString *> *relativePaths = [NSMutableSet set];
     NSString *previousRelativePath = nil;
+    BOOL supplementalFilePresent = NO;
 
     for (id objectFile in files) {
         if (![objectFile isKindOfClass:NSDictionary.class]) {
@@ -431,6 +446,14 @@ BOOL FMValidateFontCatalogDocument(id object, NSError **error) {
                               @"Font catalog IDs, filenames, and paths must be unique and sorted.");
         }
         previousRelativePath = relativePath;
+        if ([relativePath hasPrefix:@"FontServicesCorePrivate/"]) {
+            if (catalogVersion != 2) {
+                return FMDataFail(
+                    error, FMDataErrorInvalidDocument,
+                    @"A primary-only catalog contains a supplemental path.");
+            }
+            supplementalFilePresent = YES;
+        }
         [fileIDs addObject:fileID];
         [fileNames addObject:fileName];
         [relativePaths addObject:relativePath];
@@ -456,7 +479,9 @@ BOOL FMValidateFontCatalogDocument(id object, NSError **error) {
         previousRelativePath = relativePath;
         [relativePaths addObject:relativePath];
     }
-    return YES;
+    return catalogVersion == 1 || supplementalFilePresent ||
+        FMDataFail(error, FMDataErrorInvalidDocument,
+                   @"A supplemental catalog contains no supplemental font file.");
 }
 
 BOOL FMValidateFontCatalogPreviewDocument(id object,

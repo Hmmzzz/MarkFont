@@ -7,9 +7,10 @@
 #import <unistd.h>
 
 #import "FMDataModel.h"
+#import "FMDeviceFontCatalog.h"
+#import "FMDeviceSupplementalFontWorkspace.h"
 #import "FMEnvironmentProbe.h"
 #import "FMFileStore.h"
-#import "FMFontCatalog.h"
 #import "FMOperationLock.h"
 #import "FMProfileAdoptionValidator.h"
 #import "FMProfileEngine.h"
@@ -183,27 +184,9 @@ static NSDictionary<NSString *, id> *FMDeviceStageCreateBaseContext(
         return nil;
     }
 
-    NSString *manifestPath = [[jbroot(@"/var/lib/fontmanager/baseline")
-        stringByAppendingPathComponent:confirmedSystemBuild]
-        stringByAppendingPathComponent:@"manifest.json"];
-    if (!FMDeviceStageRequireRegularFile(
-            manifestPath, @"The current-build Stock manifest", error)) {
-        return nil;
-    }
     NSError *catalogError = nil;
-    id baselineObject = FMReadJSONObjectAtPath(manifestPath, &catalogError);
-    if (![baselineObject isKindOfClass:NSDictionary.class] ||
-        !FMValidateManifestDocument(baselineObject, &catalogError)) {
-        FMDeviceStageFail(error, 3,
-                          @"The current-build Stock manifest is invalid.",
-                          catalogError);
-        return nil;
-    }
-    NSString *baselineHash = FMSHA256ForJSONObject(baselineObject, &catalogError);
-    NSDictionary *catalog = baselineHash != nil
-        ? FMCreateFontCatalogFromManifest(
-            baselineObject, confirmedSystemBuild, baselineHash, &catalogError)
-        : nil;
+    NSDictionary *catalog = FMCreateDeviceFontCatalogForBuild(
+        confirmedSystemBuild, &catalogError);
     if (catalog == nil) {
         FMDeviceStageFail(error, 3,
                           @"The current-build font catalog is unavailable.",
@@ -216,6 +199,14 @@ static NSDictionary<NSString *, id> *FMDeviceStageCreateBaseContext(
             profilesRoot, @"The adopted Profile library", error)) {
         return nil;
     }
+    NSString *supplementalMirrorRoot =
+        catalog[@"supplementalSource"] != nil
+            ? FMMountResolvedFontServicesCorePrivateMirrorPath() : nil;
+    if (supplementalMirrorRoot != nil &&
+        !FMDeviceStageRequireDirectory(
+            supplementalMirrorRoot, @"The supplemental font mirror", error)) {
+        return nil;
+    }
     return @{
         @"systemBuild" : confirmedSystemBuild,
         @"state" : state,
@@ -223,6 +214,8 @@ static NSDictionary<NSString *, id> *FMDeviceStageCreateBaseContext(
         @"catalog" : catalog,
         @"stockRoot" : stockRoot,
         @"mirrorRoot" : mirrorRoot,
+        @"supplementalMirrorRoot" :
+            supplementalMirrorRoot ?: NSNull.null,
         @"profilesRoot" : profilesRoot,
         @"availableBytes" : @(
             (unsigned long long)mirrorFilesystem.f_bavail *
@@ -261,8 +254,13 @@ static NSDictionary<NSString *, id> *FMDeviceStageCreatePreflight(
     if (profileID != nil && preview == nil) return nil;
 
     NSError *planError = nil;
-    NSDictionary *plan = FMCreateProfileStagePlanAtRoots(
-        context[@"stockRoot"], context[@"mirrorRoot"], context[@"profilesRoot"],
+    NSString *supplementalMirrorRoot =
+        context[@"supplementalMirrorRoot"] == NSNull.null
+            ? nil : context[@"supplementalMirrorRoot"];
+    NSDictionary *plan =
+        FMCreateProfileStagePlanAtRootsWithSupplementalMirror(
+        context[@"stockRoot"], context[@"mirrorRoot"], supplementalMirrorRoot,
+        context[@"profilesRoot"],
         profileID, context[@"statePath"], confirmedSystemBuild,
         context[@"catalog"], &planError);
     if (plan == nil) {
@@ -316,6 +314,15 @@ static NSDictionary<NSString *, id> *FMStageDeviceProfileLocked(
     NSString *confirmedSystemBuild,
     NSString *profileID,
     NSError **error) {
+    NSError *supplementalError = nil;
+    if (FMEnsureDeviceSupplementalFontWorkspaceWithExistingLock(
+            confirmedSystemBuild, &supplementalError) == nil) {
+        FMDeviceStageFail(
+            error, 5,
+            @"The current-build supplemental font workspace is unavailable.",
+            supplementalError);
+        return nil;
+    }
     NSDictionary<NSString *, id> *context = nil;
     NSDictionary<NSString *, id> *preview = nil;
     NSDictionary *preflight = FMDeviceStageCreatePreflight(
@@ -342,8 +349,11 @@ static NSDictionary<NSString *, id> *FMStageDeviceProfileLocked(
     }
 
     NSError *engineError = nil;
-    if (!FMStageProfileAtRoots(
-            context[@"stockRoot"], context[@"mirrorRoot"],
+    NSString *supplementalMirrorRoot =
+        context[@"supplementalMirrorRoot"] == NSNull.null
+            ? nil : context[@"supplementalMirrorRoot"];
+    if (!FMStageProfileAtRootsWithSupplementalMirror(
+            context[@"stockRoot"], context[@"mirrorRoot"], supplementalMirrorRoot,
             preview != nil ? preview[@"profileDocument"] : nil,
             preview != nil ? preview[@"profileDirectory"] : nil,
             preflight[@"stockRestoreRelativePaths"], context[@"statePath"],
@@ -424,6 +434,15 @@ NSDictionary<NSString *, id> *FMStageDeviceProfile(
 static NSDictionary<NSString *, id> *FMRepairDeviceWorkingProfileLocked(
     NSString *confirmedSystemBuild,
     NSError **error) {
+    NSError *supplementalError = nil;
+    if (FMEnsureDeviceSupplementalFontWorkspaceWithExistingLock(
+            confirmedSystemBuild, &supplementalError) == nil) {
+        FMDeviceStageFail(
+            error, 9,
+            @"The supplemental font workspace could not be restored for repair.",
+            supplementalError);
+        return nil;
+    }
     NSDictionary *context = FMDeviceStageCreateBaseContext(
         confirmedSystemBuild, NO, error);
     if (context == nil) return nil;
@@ -454,8 +473,11 @@ static NSDictionary<NSString *, id> *FMRepairDeviceWorkingProfileLocked(
     }
 
     NSError *repairError = nil;
-    if (!FMRepairProfileAtRoots(
-            context[@"stockRoot"], context[@"mirrorRoot"],
+    NSString *supplementalMirrorRoot =
+        context[@"supplementalMirrorRoot"] == NSNull.null
+            ? nil : context[@"supplementalMirrorRoot"];
+    if (!FMRepairProfileAtRootsWithSupplementalMirror(
+            context[@"stockRoot"], context[@"mirrorRoot"], supplementalMirrorRoot,
             preview[@"profileDocument"], preview[@"profileDirectory"], managedPaths,
             context[@"statePath"], FMProfileEngineNoFaultInjection, &repairError)) {
         FMDeviceStageFail(error, 10,

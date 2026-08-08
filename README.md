@@ -2,6 +2,25 @@
 
 MarkFont 是一款面向 rootless 与 RootHide 环境的 iOS 全局字体管理器，可在 App 内导入字体、管理字体方案并切换系统字体。
 
+## Current Status
+
+当前最新正式版本为 `v0.3.1`（2026-08-08）。`v0.3.0` 将最低系统版本降至 iOS 16.0，
+增加 conventional rootless / RootHide 双 scheme 构建，并补上重新越狱时对 clean pending
+Profile mirror 的安全恢复；`v0.3.1` 进一步修复 conventional rootless 下随机 App data
+container 导致的 Profile 激活和卸载清理问题，同时把本地回归套件纳入仓库。
+
+`v0.3.1` 的 `iphoneos-arm64`（conventional rootless）与 `iphoneos-arm64e`（RootHide）
+正式包均已通过本机 package audit。2026-08-09，维护基线设备已由用户安装未发布的 RootHide
+`0.3.3-4+debug` 候选；只读回归确认 iOS 17.3.1 仍选择旧版单目录、`PingFang.ttc` catalog
+与单一 mapping 策略，且 Profile/Stock preflight、状态和自动挂载回执正常。SSH 会话读取已挂载
+目标目录时仍出现内容为空的矛盾证据，且本轮未获授权执行重挂载、Respring 或 reboot，因此这不表示
+所有 jailbreak 组合或该设备的完整运行闭环均已验证。
+
+当前工作树已进入未发布的 `0.3.3` 双 scheme 修复候选。`0.3.2` 只补了中文文件名匹配，
+但仍把 iOS 18–26 的 `PingFangUI.ttc` 假定在旧 `/System/Library/Fonts` 树中，因此安装后
+仍会提示本机没有同名目标。`0.3.3` 改为管理真实 FontServices 目录，并移除了跨文件名替换。
+该候选尚未创建 tag 或 Release，也尚未完成 iOS 18–26 越狱实机验证。
+
 ## Screenshots
 
 <p align="center">
@@ -16,19 +35,54 @@ MarkFont 是一款面向 rootless 与 RootHide 环境的 iOS 全局字体管理�
 - 支持恢复系统默认字体
 - 内置固定路径、只读的 bindfs 挂载后端，避免直接修改 iOS 系统字体文件
 - 支持重新越狱后自动恢复字体 mapping
-- 沿用 `/bindfs/System/Library/Fonts`，并支持安全接管旧版字体目录
+- iOS 16–17 固定沿用 `/bindfs/System/Library/Fonts`；iOS 18–26 通过版本门槛后增加独立的
+  `/bindfs/System/Library/PrivateFrameworks/FontServices.framework/CorePrivate` 只读镜像
 - 不依赖 `com.nan.bindfs`、`mount_bindfs` 或 `dash`
-- 按当前设备的 Stock 字体树动态生成文件清单，不硬编码 iOS 版本或字体文件名
+- 先精确确认当前 `ProductVersion` / `ProductBuildVersion`，再验证对应路径的真实 Stock 文件
 
 ## Compatibility
 
-- iOS 16.0+
+- iOS 16.0–26.x
 - conventional rootless（例如 Dopamine）或 RootHide（例如 Relaxin）
 - `arm64` and `arm64e`
 
-既有发布版已在 iPhone 15 Pro、iOS 17.3.1（21D61）和 Relaxin 0.4.2 上验证。
-iOS 16 rootless 与其他 RootHide 组合需要分别使用对应 scheme 的软件包；未列出的设备与
-越狱组合仍应视为尚未完成实机验证。
+RootHide 主线的 App、只读 mapping 与内置后端链路已在 iPhone 15 Pro、iOS 17.3.1
+（21D61）和 Relaxin 0.4.2 上逐步验证。iOS 16 conventional rootless 与其他 RootHide
+组合需要分别使用对应 scheme 的软件包；`v0.3.1` 尚未在这些组合上逐一完成实机部署，
+未列出的设备与越狱组合也应视为尚未验证。
+
+中文字体目标先由 root helper 确认当前系统版本与 build，再从对应的 build-specific Stock
+清单选择；版本和真实文件布局必须同时一致：
+
+- iOS 14–17 使用 `/System/Library/Fonts/LanguageSupport/PingFang.ttc`
+  （MarkFont 当前最低支持 iOS 16）；
+- iOS 18–26 使用
+  `/System/Library/PrivateFrameworks/FontServices.framework/CorePrivate/PingFangUI.ttc`；
+- iOS 16–17 不探测、不创建也不挂载 FontServices 工作区；iOS 18–26 如果精确路径或文件缺失，
+  会直接失败，不回退套用旧路径；
+- 字体包同时包含两者时，选择与当前 Stock 同名的文件，另一份作为其他系统版本忽略；
+- 字体包缺少当前 Stock 同名文件、只包含另一名称时，不做跨名写入，并明确作为其他系统
+  版本文件忽略。
+
+该规则同时用于字体包导入和“系统默认”中文预览。iOS 18–26 首次应用包含
+`PingFangUI.ttc` 的 Profile 时，helper 会在同一引擎锁内创建并验证第二份 Stock 快照和镜像，
+再由固定后端建立两个精确只读 mapping；Profile 不会在旧 Fonts 镜像里伪造新版目标路径。
+
+已经由旧版本导入的 Profile 不会在 App 升级时自动重新分析，因为 MarkFont 只保留已选中的
+replacement，不保留原始字体包。安装 `0.3.3` 后，需要重新选择原字体包并另存为一个新 Profile，
+再检查导入预览中的中文匹配结果；只打开或再次应用旧 Profile 不会补回此前漏掉的中文文件。
+
+## Tests
+
+仓库提交了 16 个宿主侧测试程序和一组实现边界检查：
+
+```bash
+./tests/run
+```
+
+当前 runner 通过本地越狱开发工作区的 `../../scripts/jb-env` 固定 Xcode/工具链环境，
+详细覆盖范围和独立 package audit 命令见 [`tests/README.md`](tests/README.md)。测试不会连接
+设备，也不会执行字体切换、Respring、reboot 或 package 部署。
 
 ## Build
 
@@ -49,7 +103,9 @@ make package-all
 两种 `.deb` 都位于 `packages/`：RootHide 包架构为 `iphoneos-arm64e`，conventional
 rootless 包架构为 `iphoneos-arm64`。上述专用构建目标会在打包后自动运行
 `scripts/verify-package`，检查路径布局、Mach-O 架构与最低系统版本、linking、entitlements、
-文件权限和 launchd 配置。请勿在两种环境间混装软件包。
+文件权限和 launchd 配置。普通开发构建保持 `DEBUG=1`；Theos 生成的正整数 build number
+（例如 `0.3.3-1+debug`、`0.3.3-2+debug`）属于合法候选版本。只有明确进入发布流程时才改用
+release 构建参数。请勿在两种环境间混装软件包。
 
 ## Warning
 

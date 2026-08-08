@@ -1,6 +1,7 @@
 #import "FMEnvironmentProbe.h"
 
 #import <TargetConditionals.h>
+#import <errno.h>
 #import <roothide.h>
 #import <sys/mount.h>
 #import <sys/stat.h>
@@ -12,6 +13,7 @@
 #import "FMMountBackendExecutor.h"
 #import "FMMountPaths.h"
 #import "FMStatusContract.h"
+#import "FMSystemFontLayout.h"
 
 static NSString *const FMStateLogicalPath = @"/var/lib/fontmanager/state.json";
 static NSString *const FMRespringExecutableLogicalPath = @"/usr/bin/sbreload";
@@ -168,6 +170,12 @@ static NSDictionary<NSString *, id> *FMReadPersistentState(NSString *systemBuild
 NSDictionary<NSString *, id> *FMCreateEnvironmentStatus(void) {
     NSMutableArray<NSString *> *issues = [NSMutableArray array];
     NSDictionary<NSString *, NSString *> *system = FMSystemIdentity();
+    FMSystemFontLayout systemFontLayout = FMCurrentSystemFontLayout(
+        system[@"productBuildVersion"], nil);
+    BOOL systemFontLayoutSupported =
+        systemFontLayout != FMSystemFontLayoutUnsupported;
+    BOOL usesSupplementalLayout =
+        systemFontLayout == FMSystemFontLayoutFontServicesCorePrivate;
 
     NSString *backendExecutablePath =
         jbroot(FMMountBackendExecutableLogicalPath);
@@ -211,7 +219,7 @@ NSDictionary<NSString *, id> *FMCreateEnvironmentStatus(void) {
         FMReadableDirectoryAtPath(FMMountResolvedStockFontsPath());
     BOOL mirrorReadable = mountStorageSupported &&
         FMReadableDirectoryAtPath(jbroot(mirrorLogicalPath));
-    BOOL backendCompatible = backendExecutablePresent &&
+    BOOL backendCompatible = systemFontLayoutSupported && backendExecutablePresent &&
         [backendCompatibility[@"compatible"] boolValue] &&
         runtimeLibraryPresent && runtimeLibrarySecure &&
         mountStorageSupported && !legacyProviderAutoMountConflictsWithFonts;
@@ -232,17 +240,61 @@ NSDictionary<NSString *, id> *FMCreateEnvironmentStatus(void) {
         ? [NSString stringWithUTF8String:filesystem.f_mntfromname]
         : nil;
     NSString *mirrorPath = mountStorageSupported ? jbroot(mirrorLogicalPath) : nil;
-    BOOL mappingManaged = mappingActive &&
+    BOOL primaryMappingManaged = mappingActive &&
         [mappingTarget isEqual:FMMountSystemFontsLogicalPath] &&
         [mappingSource.stringByResolvingSymlinksInPath
             isEqual:mirrorPath.stringByResolvingSymlinksInPath] &&
         (filesystem.f_flags & MNT_RDONLY) != 0;
+
+    NSString *supplementalMirrorPath = usesSupplementalLayout
+        ? FMMountResolvedFontServicesCorePrivateMirrorPath() : nil;
+    struct stat supplementalMirrorInfo = {0};
+    errno = 0;
+    BOOL supplementalMirrorPresent = usesSupplementalLayout &&
+        lstat(supplementalMirrorPath.fileSystemRepresentation,
+              &supplementalMirrorInfo) == 0;
+    BOOL supplementalMirrorReadable = supplementalMirrorPresent &&
+        S_ISDIR(supplementalMirrorInfo.st_mode) &&
+        access(supplementalMirrorPath.fileSystemRepresentation, R_OK) == 0;
+    BOOL supplementalMirrorInspectionFailed =
+        usesSupplementalLayout && !supplementalMirrorPresent && errno != ENOENT;
+    struct statfs supplementalFilesystem = {0};
+    BOOL supplementalStatfsAvailable = !usesSupplementalLayout ||
+        !supplementalMirrorPresent ||
+        statfs(FMMountFontServicesCorePrivateLogicalPath.fileSystemRepresentation,
+               &supplementalFilesystem) == 0;
+    NSString *supplementalFilesystemType = supplementalMirrorPresent &&
+            supplementalStatfsAvailable
+        ? [NSString stringWithUTF8String:supplementalFilesystem.f_fstypename]
+        : nil;
+    NSString *supplementalMappingTarget = supplementalMirrorPresent &&
+            supplementalStatfsAvailable
+        ? [NSString stringWithUTF8String:supplementalFilesystem.f_mntonname]
+        : nil;
+    NSString *supplementalMappingSource = supplementalMirrorPresent &&
+            supplementalStatfsAvailable
+        ? [NSString stringWithUTF8String:supplementalFilesystem.f_mntfromname]
+        : nil;
+    BOOL supplementalMappingManaged = !usesSupplementalLayout ||
+        !supplementalMirrorPresent ||
+        (supplementalMirrorReadable && supplementalFilesystemType != nil &&
+         [supplementalFilesystemType caseInsensitiveCompare:@"bindfs"] ==
+             NSOrderedSame &&
+         [supplementalMappingTarget isEqual:
+             FMMountFontServicesCorePrivateLogicalPath] &&
+         [supplementalMappingSource.stringByResolvingSymlinksInPath
+             isEqual:supplementalMirrorPath.stringByResolvingSymlinksInPath] &&
+         (supplementalFilesystem.f_flags & MNT_RDONLY) != 0);
+    BOOL mappingManaged = primaryMappingManaged && supplementalMappingManaged;
 
     if (!systemReadable) {
         FMAddIssue(issues, @"fonts.systemDirectoryUnavailable");
     }
     if (!rootfsReadable) {
         FMAddIssue(issues, @"fonts.rootfsDirectoryUnavailable");
+    }
+    if (!systemFontLayoutSupported) {
+        FMAddIssue(issues, @"fonts.systemVersionUnsupported");
     }
     if (!backendExecutablePresent) {
         FMAddIssue(issues, @"mountBackend.executableMissing");
@@ -254,6 +306,10 @@ NSDictionary<NSString *, id> *FMCreateEnvironmentStatus(void) {
     }
     if (!mountStorageSupported) {
         FMAddIssue(issues, @"mountStorage.unavailable");
+    }
+    if (supplementalMirrorInspectionFailed ||
+        (supplementalMirrorPresent && !supplementalMirrorReadable)) {
+        FMAddIssue(issues, @"fonts.supplementalMirrorUnavailable");
     }
     if (legacyProviderPreferenceError != nil) {
         FMAddIssue(issues, @"legacyProvider.preferenceInvalid");
@@ -344,6 +400,8 @@ NSDictionary<NSString *, id> *FMCreateEnvironmentStatus(void) {
             @"mirrorPresent" : @(mirrorReadable),
             @"mappingActive" : @(mappingActive),
             @"mappingManaged" : @(mappingManaged),
+            @"supplementalMirrorPresent" : @(supplementalMirrorPresent),
+            @"supplementalMappingManaged" : @(supplementalMappingManaged),
             @"stockSnapshotPresent" : @(stockSnapshotPresent),
             @"targetFilesystemType" : FMNullUnlessString(filesystemType),
         },

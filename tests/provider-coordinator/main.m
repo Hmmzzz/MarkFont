@@ -61,7 +61,7 @@ int main(void) {
         }
         FMRequire(fixedMountCount == 4, @"unexpected fixed-mount plan count");
         FMRequire([fixtures.firstObject[@"inspection"][@"mountBackend"][@"version"]
-                      isEqual:@"1"] &&
+                      isEqual:@"2"] &&
                       [fixtures.firstObject[@"inspection"][@"mountBackend"]
                           [@"recognition"] isEqual:@"known"],
                   @"built-in backend fixture lost its version identity");

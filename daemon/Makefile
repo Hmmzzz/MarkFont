@@ -16,6 +16,7 @@ fontmanagerd_FILES = main.m \
     ../shared/FMDeviceProfileActivation.m \
     ../shared/FMDeviceProfileAdoption.m \
     ../shared/FMDeviceProfileStage.m \
+    ../shared/FMDeviceSupplementalFontWorkspace.m \
     ../shared/FMRestartRequest.m \
     ../shared/FMDeviceRestartCoordinator.m \
     ../shared/FMDeviceStockSnapshot.m \
@@ -28,6 +29,7 @@ fontmanagerd_FILES = main.m \
     ../shared/FMMountCoordinator.m ../shared/FMMountInspection.m \
     ../shared/FMMountBackendCompatibility.m \
     ../shared/FMLegacyProviderAutoMountPolicy.m \
+    ../shared/FMSystemFontLayout.m \
     ../shared/FMMountPaths.m \
     ../shared/FMMountBackendExecutor.m \
     ../shared/FMMirrorPreparation.m ../shared/FMSecureDirectory.m \

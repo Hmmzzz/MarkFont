@@ -24,13 +24,15 @@ int main(void) {
 
         FMRequire([FMMountBackendRecognitionForVersion(@"1") isEqual:@"known"] &&
                       [FMMountBackendRecognitionForVersion(@"2")
+                          isEqual:@"known"] &&
+                      [FMMountBackendRecognitionForVersion(@"3")
                           isEqual:@"unknown"],
                   @"backend version recognition is incorrect");
 
         NSMutableDictionary *evidence = [analysis mutableCopy];
         [evidence addEntriesFromDictionary:@{
             @"identifier" : @"markfont-bindfs",
-            @"version" : @"1",
+            @"version" : @"2",
             @"executablePresent" : @YES,
             @"runtimeLibraryPresent" : @YES,
             @"runtimeLibrarySecure" : @YES,

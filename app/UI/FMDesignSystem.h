@@ -182,8 +182,9 @@ static inline NSInteger FMPreviewFontNameScore(NSString *_Nullable fontName,
     if ([name hasSuffix:@"g1"] || [name hasSuffix:@"g2"] ||
         [name hasSuffix:@"g3"] || [name hasSuffix:@"g4"]) score += 20;
 
-    // PingFang.ttc begins with HK and TC faces. Simplified Chinese specimens
-    // should use the SC Regular face when it is available.
+    // PingFang.ttc and PingFangUI.ttc can begin with HK and TC faces.
+    // Simplified Chinese specimens should use the SC Regular face when it is
+    // available.
     if ([path.lowercaseString.lastPathComponent containsString:@"pingfang"] ||
         [name containsString:@"pingfang"]) {
         if ([name containsString:@"pingfangsc-regular"]) score -= 120;

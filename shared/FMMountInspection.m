@@ -8,6 +8,7 @@
 
 #import "FMEnvironmentProbe.h"
 #import "FMDataModel.h"
+#import "FMDeviceFontCatalog.h"
 #import "FMFileStore.h"
 #import "FMFontCatalog.h"
 #import "FMProfileMirrorMatcher.h"
@@ -15,6 +16,7 @@
 #import "FMMountBackendExecutor.h"
 #import "FMMountCoordinator.h"
 #import "FMMountPaths.h"
+#import "FMSystemFontLayout.h"
 #import "FMTreeManifest.h"
 
 NSString *const FMMountInspectionErrorDomain =
@@ -85,6 +87,73 @@ static NSDictionary<NSString *, NSDictionary<NSString *, id> *> *FMEntriesByPath
     return result;
 }
 
+static NSDictionary<NSString *, id> *FMManifestByAddingPrefix(
+    NSDictionary<NSString *, id> *manifest,
+    NSString *prefix) {
+    NSMutableArray<NSDictionary<NSString *, id> *> *entries = [NSMutableArray array];
+    for (NSDictionary<NSString *, id> *entry in manifest[@"entries"]) {
+        NSMutableDictionary<NSString *, id> *prefixed = [entry mutableCopy];
+        prefixed[@"relativePath"] =
+            [prefix stringByAppendingPathComponent:entry[@"relativePath"]];
+        [entries addObject:prefixed];
+    }
+    return @{
+        @"schemaVersion" : @(FMDataSchemaVersion),
+        @"entries" : entries,
+    };
+}
+
+static NSDictionary<NSString *, id> *FMCompositeManifest(
+    NSDictionary<NSString *, id> *primary,
+    NSDictionary<NSString *, id> *supplemental) {
+    if (supplemental == nil) return primary;
+    NSMutableArray<NSDictionary<NSString *, id> *> *entries =
+        [NSMutableArray arrayWithArray:primary[@"entries"]];
+    [entries addObjectsFromArray:
+        FMManifestByAddingPrefix(
+            supplemental, FMFontCatalogFontServicesCorePrivatePrefix)[@"entries"]];
+    [entries sortUsingComparator:^NSComparisonResult(NSDictionary *left,
+                                                       NSDictionary *right) {
+        return [left[@"relativePath"] compare:right[@"relativePath"]];
+    }];
+    return @{
+        @"schemaVersion" : @(FMDataSchemaVersion),
+        @"entries" : entries,
+    };
+}
+
+static NSDictionary<NSString *, id> *FMSavedSupplementalManifest(
+    NSString *systemBuild,
+    NSError **error) {
+    NSString *path = [[[jbroot(@"/var/lib/fontmanager/baseline")
+        stringByAppendingPathComponent:systemBuild]
+        stringByAppendingPathComponent:@"fontservices-coreprivate-manifest.json"]
+        stringByStandardizingPath];
+    struct stat info = {0};
+    errno = 0;
+    if (lstat(path.fileSystemRepresentation, &info) != 0) {
+        if (errno == ENOENT) return nil;
+        if (error != NULL) {
+            *error = FMInspectionError(
+                @"The supplemental Stock manifest could not be inspected.");
+        }
+        return nil;
+    }
+    NSError *readError = nil;
+    id manifest = S_ISREG(info.st_mode) && info.st_uid == 0 &&
+            (info.st_mode & (S_IWGRP | S_IWOTH)) == 0
+        ? FMReadJSONObjectAtPath(path, &readError) : nil;
+    if (![manifest isKindOfClass:NSDictionary.class] ||
+        !FMValidateManifestDocument(manifest, &readError)) {
+        if (error != NULL) {
+            *error = readError ?: FMInspectionError(
+                @"The supplemental Stock manifest is invalid.");
+        }
+        return nil;
+    }
+    return manifest;
+}
+
 static BOOL FMMetadataMatches(NSDictionary<NSString *, id> *stock,
                               NSDictionary<NSString *, id> *mirror) {
     return [stock[@"mode"] isEqual:mirror[@"mode"]] &&
@@ -95,6 +164,7 @@ static BOOL FMMetadataMatches(NSDictionary<NSString *, id> *stock,
 static NSDictionary<NSString *, id> *FMStockManifestForEvidence(
     NSString *systemBuild,
     NSString *stockPath,
+    BOOL usesSupplementalLayout,
     NSError **error) {
     NSString *baselinePath = [[jbroot(@"/var/lib/fontmanager/baseline")
         stringByAppendingPathComponent:systemBuild]
@@ -113,7 +183,17 @@ static NSDictionary<NSString *, id> *FMStockManifestForEvidence(
             }
             return nil;
         }
-        return baseline;
+        NSDictionary *supplemental = nil;
+        if (usesSupplementalLayout) {
+            NSError *supplementalError = nil;
+            supplemental = FMSavedSupplementalManifest(
+                systemBuild, &supplementalError);
+            if (supplemental == nil && supplementalError != nil) {
+                if (error != NULL) *error = supplementalError;
+                return nil;
+            }
+        }
+        return FMCompositeManifest(baseline, supplemental);
     }
     if (errno != ENOENT) {
         if (error != NULL) {
@@ -130,10 +210,11 @@ static NSDictionary<NSString *, id> *FMManifestEvidence(
     NSString *mirrorPath,
     NSString *mirrorKind,
     NSDictionary<NSString *, id> *state,
+    BOOL usesSupplementalLayout,
     NSError **error) {
     NSError *stockError = nil;
     NSDictionary *stockManifest = FMStockManifestForEvidence(
-        systemBuild, stockPath, &stockError);
+        systemBuild, stockPath, usesSupplementalLayout, &stockError);
     if (stockManifest == nil) {
         if (error != NULL) {
             *error = stockError ?: FMInspectionError(@"Unable to create the Stock manifest.");
@@ -187,6 +268,38 @@ static NSDictionary<NSString *, id> *FMManifestEvidence(
             *error = mirrorError ?: FMInspectionError(@"Unable to create the mirror manifest.");
         }
         return nil;
+    }
+    NSDictionary *supplementalBaseline = nil;
+    if (usesSupplementalLayout) {
+        NSError *supplementalError = nil;
+        supplementalBaseline = FMSavedSupplementalManifest(
+            systemBuild, &supplementalError);
+        if (supplementalBaseline == nil && supplementalError != nil) {
+            if (error != NULL) *error = supplementalError;
+            return nil;
+        }
+    }
+    if (supplementalBaseline != nil) {
+        NSString *supplementalMirror =
+            FMMountResolvedFontServicesCorePrivateMirrorPath();
+        struct stat supplementalInfo = {0};
+        errno = 0;
+        BOOL supplementalPresent =
+            lstat(supplementalMirror.fileSystemRepresentation,
+                  &supplementalInfo) == 0;
+        NSDictionary *supplementalMirrorManifest = supplementalPresent &&
+                S_ISDIR(supplementalInfo.st_mode)
+            ? FMCreateTreeManifestAtPath(supplementalMirror, &mirrorError) : nil;
+        if (supplementalMirrorManifest != nil) {
+            mirrorManifest = FMCompositeManifest(
+                mirrorManifest, supplementalMirrorManifest);
+        } else if (supplementalPresent || errno != ENOENT) {
+            if (error != NULL) {
+                *error = mirrorError ?: FMInspectionError(
+                    @"Unable to create the supplemental mirror manifest.");
+            }
+            return nil;
+        }
     }
 
     NSDictionary *stockByPath = FMEntriesByPath(stockManifest);
@@ -245,8 +358,8 @@ static NSDictionary<NSString *, id> *FMManifestEvidence(
     } else if (validWorkingState && complete &&
                [workingProfileID isKindOfClass:NSString.class]) {
         NSError *catalogError = nil;
-        NSDictionary *catalog = FMCreateFontCatalogFromManifest(
-            stockManifest, systemBuild, stockManifestSHA256, &catalogError);
+        NSDictionary *catalog = FMCreateDeviceFontCatalogForBuild(
+            systemBuild, &catalogError);
         matchesWorkingProfile = catalog != nil &&
             FMManifestsMatchWorkingProfile(
                 stockManifest, mirrorManifest,
@@ -281,6 +394,18 @@ NSDictionary<NSString *, id> *FMCreateDeviceMountInspection(NSError **error) {
         }
         return nil;
     }
+    NSError *layoutError = nil;
+    FMSystemFontLayout systemFontLayout = FMCurrentSystemFontLayout(
+        systemBuild, &layoutError);
+    if (systemFontLayout == FMSystemFontLayoutUnsupported) {
+        if (error != NULL) {
+            *error = layoutError ?: FMInspectionError(
+                @"The current system font layout is unsupported.");
+        }
+        return nil;
+    }
+    BOOL usesSupplementalLayout =
+        systemFontLayout == FMSystemFontLayoutFontServicesCorePrivate;
 
     BOOL mountStorageSupported = NO;
     BOOL legacyProviderPreferencePresent = NO;
@@ -325,7 +450,7 @@ NSDictionary<NSString *, id> *FMCreateDeviceMountInspection(NSError **error) {
     NSString *filesystemType = mappingInfoAvailable
         ? [NSString stringWithUTF8String:mappingInfo.f_fstypename]
         : nil;
-    BOOL mappingActive = filesystemType != nil &&
+    BOOL primaryMappingActive = filesystemType != nil &&
         [filesystemType caseInsensitiveCompare:@"bindfs"] == NSOrderedSame;
     NSString *mappingTarget = mappingInfoAvailable
         ? [NSString stringWithUTF8String:mappingInfo.f_mntonname]
@@ -335,6 +460,53 @@ NSDictionary<NSString *, id> *FMCreateDeviceMountInspection(NSError **error) {
         : nil;
     NSString *canonicalMirror = mirrorPath.stringByResolvingSymlinksInPath;
     NSString *canonicalSource = mappingSource.stringByResolvingSymlinksInPath;
+    BOOL primaryTargetMatches = primaryMappingActive &&
+        [mappingTarget isEqual:FMMountSystemFontsLogicalPath];
+    BOOL primarySourceMatches = primaryMappingActive &&
+        [canonicalSource isEqual:canonicalMirror];
+    BOOL primaryReadOnly = primaryMappingActive &&
+        (mappingInfo.f_flags & MNT_RDONLY) != 0;
+
+    NSString *supplementalMirrorPath = usesSupplementalLayout
+        ? FMMountResolvedFontServicesCorePrivateMirrorPath() : nil;
+    struct stat supplementalMirrorInfo = {0};
+    BOOL supplementalExpected = usesSupplementalLayout &&
+        lstat(supplementalMirrorPath.fileSystemRepresentation,
+              &supplementalMirrorInfo) == 0;
+    struct statfs supplementalMappingInfo = {0};
+    BOOL supplementalMappingInfoAvailable = !supplementalExpected ||
+        statfs(FMMountFontServicesCorePrivateLogicalPath.fileSystemRepresentation,
+               &supplementalMappingInfo) == 0;
+    NSString *supplementalFilesystemType = supplementalExpected &&
+            supplementalMappingInfoAvailable
+        ? [NSString stringWithUTF8String:supplementalMappingInfo.f_fstypename]
+        : nil;
+    BOOL supplementalMappingActive = !supplementalExpected ||
+        (supplementalFilesystemType != nil &&
+         [supplementalFilesystemType caseInsensitiveCompare:@"bindfs"] ==
+             NSOrderedSame);
+    NSString *supplementalTarget = supplementalExpected &&
+            supplementalMappingInfoAvailable
+        ? [NSString stringWithUTF8String:supplementalMappingInfo.f_mntonname]
+        : nil;
+    NSString *supplementalSource = supplementalExpected &&
+            supplementalMappingInfoAvailable
+        ? [NSString stringWithUTF8String:supplementalMappingInfo.f_mntfromname]
+        : nil;
+    BOOL supplementalTargetMatches = !supplementalExpected ||
+        (supplementalMappingActive &&
+         [supplementalTarget isEqual:FMMountFontServicesCorePrivateLogicalPath]);
+    BOOL supplementalSourceMatches = !supplementalExpected ||
+        (supplementalMappingActive &&
+         [supplementalSource.stringByResolvingSymlinksInPath
+             isEqual:supplementalMirrorPath.stringByResolvingSymlinksInPath]);
+    BOOL supplementalReadOnly = !supplementalExpected ||
+        (supplementalMappingActive &&
+         (supplementalMappingInfo.f_flags & MNT_RDONLY) != 0);
+    BOOL mappingActive = primaryMappingActive && supplementalMappingActive;
+    BOOL mappingTargetMatches = primaryTargetMatches && supplementalTargetMatches;
+    BOOL mappingSourceMatches = primarySourceMatches && supplementalSourceMatches;
+    BOOL mappingReadOnly = primaryReadOnly && supplementalReadOnly;
 
     NSString *backendExecutablePath =
         jbroot(FMMountBackendExecutableLogicalPath);
@@ -368,7 +540,8 @@ NSDictionary<NSString *, id> *FMCreateDeviceMountInspection(NSError **error) {
     };
 
     NSDictionary *manifest = FMManifestEvidence(systemBuild, stockPath, mirrorPath,
-                                                 mirrorKind, state, error);
+                                                 mirrorKind, state,
+                                                 usesSupplementalLayout, error);
     if (manifest == nil) {
         return nil;
     }
@@ -415,17 +588,18 @@ NSDictionary<NSString *, id> *FMCreateDeviceMountInspection(NSError **error) {
             @"rootfsDistinctFromMirror" : FMJSONBoolean(distinctTrees),
             @"mirrorLogicalPath" : [mountStorageRootLogicalPath
                 stringByAppendingPathComponent:@"System/Library/Fonts"],
+            @"supplementalMirrorPresent" : supplementalExpected ? @YES : @NO,
+            @"supplementalMirrorLogicalPath" :
+                FMMountFontServicesCorePrivateMirrorLogicalPath,
         },
         @"mapping" : @{
             @"active" : FMJSONBoolean(mappingActive),
             @"targetMatches" : FMJSONBoolean(
-                mappingActive &&
-                    [mappingTarget isEqual:FMMountSystemFontsLogicalPath]),
+                mappingActive && mappingTargetMatches),
             @"sourceMatchesMirror" : FMJSONBoolean(
-                mappingActive && [canonicalSource isEqual:canonicalMirror]),
-            @"readOnly" : FMJSONBoolean(
-                mappingActive && (mappingInfo.f_flags & MNT_RDONLY) != 0),
-            @"filesystemType" : mappingActive ? filesystemType : NSNull.null,
+                mappingActive && mappingSourceMatches),
+            @"readOnly" : FMJSONBoolean(mappingActive && mappingReadOnly),
+            @"filesystemType" : mappingActive ? @"bindfs" : NSNull.null,
         },
         @"manifest" : manifest,
         @"state" : state,

@@ -84,8 +84,8 @@ if [[ "$package_depends" != *"firmware (>= 16.0)"* || \
       "$package_depends" == *"dash"* ]]; then
   fail 'runtime dependencies do not match the built-in backend contract'
 fi
-[[ "$package_version" == '0.3.1' ]] || \
-  fail 'package version does not match the 0.3.1 release'
+[[ "$package_version" =~ ^0\.3\.3(-[1-9][0-9]*)?(\+debug)?$ ]] || \
+  fail 'package version does not match the 0.3.3 candidate series'
 [[ "$package_conflicts" == 'com.nan.bindfs, cn.zqbb.hello.mnt' ]] || \
   fail 'external mount package conflicts are missing or malformed'
 [[ "$package_icon" == \
@@ -139,6 +139,8 @@ for required_postrm_text in \
     '.mirror-owned' \
     'remove_exact_tree "$mirror_staging_root"' \
     'remove_exact_tree "$mirror_fonts_root"' \
+    'remove_exact_tree "$mirror_coreprivate_staging_root"' \
+    'remove_exact_tree "$mirror_coreprivate_root"' \
     'remove_exact_tree "$engine_root"' \
     'request_sileo_reload'; do
   rg -F -q "$required_postrm_text" "$postrm" || \
@@ -203,8 +205,8 @@ done
 app_info="$data_root/Applications/FontManager.app/Info.plist"
 [[ -f "$app_info" && \
    $(plutil -extract MinimumOSVersion raw -o - "$app_info") == '16.0' && \
-   $(plutil -extract CFBundleShortVersionString raw -o - "$app_info") == '0.3.1' && \
-   $(plutil -extract CFBundleVersion raw -o - "$app_info") == '5' ]] || \
+   $(plutil -extract CFBundleShortVersionString raw -o - "$app_info") == '0.3.3' && \
+   $(plutil -extract CFBundleVersion raw -o - "$app_info") == '7' ]] || \
   fail 'application Info.plist version or minimum iOS is malformed'
 
 mount_backend="$data_root/usr/libexec/markfont-bindfs"
@@ -265,6 +267,8 @@ fi
 for backend_literal in \
     '/System/Library/Fonts' \
     '/bindfs/System/Library/Fonts' \
+    '/System/Library/PrivateFrameworks/FontServices.framework/CorePrivate' \
+    '/bindfs/System/Library/PrivateFrameworks/FontServices.framework/CorePrivate' \
     '/basebin/libjailbreak.dylib' \
     'jbclient_root_steal_ucred'; do
   rg -a -F -q "$backend_literal" "$mount_backend" || \

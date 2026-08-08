@@ -21,6 +21,7 @@
 #import "FMMountInspection.h"
 #import "FMMountPaths.h"
 #import "FMSecureDirectory.h"
+#import "FMSystemFontLayout.h"
 #import "FMTreeManifest.h"
 
 NSString *const FMDevicePackageLifecycleErrorDomain =
@@ -41,6 +42,7 @@ typedef NS_ENUM(NSInteger, FMFontTargetDisposition) {
     FMFontTargetDispositionInactive = 0,
     FMFontTargetDispositionManaged = 1,
     FMFontTargetDispositionUnexpected = 2,
+    FMFontTargetDispositionPartiallyManaged = 3,
 };
 
 static BOOL FMPackageLifecycleFail(NSError **error,
@@ -81,19 +83,15 @@ static BOOL FMPackageSafeBuild(NSString *systemBuild) {
         ![systemBuild isEqual:@"."] && ![systemBuild isEqual:@".."];
 }
 
-static NSDictionary<NSString *, id> *_Nullable FMPackageTargetFacts(
+static NSDictionary<NSString *, id> *_Nullable FMPackageMappingFact(
+    NSString *targetPath,
+    NSString *mirrorPath,
     NSError **error) {
-    BOOL rootSupported = NO;
-    NSString *mirrorLogicalPath =
-        FMMountResolvedMirrorLogicalPath(&rootSupported, NULL);
     struct statfs filesystem = {0};
-    if (!rootSupported ||
-        statfs(FMMountSystemFontsLogicalPath.fileSystemRepresentation,
-               &filesystem) != 0) {
-        int savedError = rootSupported ? errno : 0;
+    if (statfs(targetPath.fileSystemRepresentation, &filesystem) != 0) {
         FMPackageLifecycleFail(
-            error, 2, @"The system font target could not be inspected.",
-            savedError != 0 ? FMPackagePOSIXError(savedError) : nil);
+            error, 2, @"A system font target could not be inspected.",
+            FMPackagePOSIXError(errno));
         return nil;
     }
 
@@ -103,22 +101,95 @@ static NSDictionary<NSString *, id> *_Nullable FMPackageTargetFacts(
     NSString *source = [NSString stringWithUTF8String:filesystem.f_mntfromname];
     BOOL bindfs = filesystemType != nil &&
         [filesystemType caseInsensitiveCompare:@"bindfs"] == NSOrderedSame;
-    BOOL dedicated = [target isEqual:FMMountSystemFontsLogicalPath];
-    NSString *mirrorPath = jbroot(mirrorLogicalPath);
+    BOOL dedicated = [target isEqual:targetPath];
     BOOL managed = bindfs && dedicated && source.length > 0 &&
         [source.stringByResolvingSymlinksInPath
             isEqual:mirrorPath.stringByResolvingSymlinksInPath] &&
         (filesystem.f_flags & MNT_RDONLY) != 0;
-    FMFontTargetDisposition disposition = managed
-        ? FMFontTargetDispositionManaged
-        : (dedicated || bindfs)
-            ? FMFontTargetDispositionUnexpected
-            : FMFontTargetDispositionInactive;
     return @{
-        @"disposition" : @(disposition),
+        @"targetPath" : targetPath,
         @"filesystemType" : filesystemType ?: NSNull.null,
         @"dedicated" : dedicated ? @YES : @NO,
+        @"bindfs" : bindfs ? @YES : @NO,
         @"managed" : managed ? @YES : @NO,
+        @"unexpected" : (!managed && (dedicated || bindfs)) ? @YES : @NO,
+    };
+}
+
+static NSDictionary<NSString *, id> *_Nullable FMPackageTargetFacts(
+    NSError **error) {
+    NSError *layoutError = nil;
+    FMSystemFontLayout layout = FMCurrentSystemFontLayout(nil, &layoutError);
+    if (layout == FMSystemFontLayoutUnsupported) {
+        FMPackageLifecycleFail(
+            error, 2, @"The current system font layout is unsupported.",
+            layoutError);
+        return nil;
+    }
+
+    BOOL rootSupported = NO;
+    NSString *mirrorLogicalPath =
+        FMMountResolvedMirrorLogicalPath(&rootSupported, NULL);
+    if (!rootSupported) {
+        FMPackageLifecycleFail(
+            error, 2, @"The system font target could not be inspected.", nil);
+        return nil;
+    }
+
+    NSMutableArray<NSDictionary<NSString *, id> *> *facts =
+        [NSMutableArray array];
+    NSDictionary *primary = FMPackageMappingFact(
+        FMMountSystemFontsLogicalPath, jbroot(mirrorLogicalPath), error);
+    if (primary == nil) return nil;
+    [facts addObject:primary];
+
+    if (layout == FMSystemFontLayoutFontServicesCorePrivate) {
+        NSString *supplementalMirror =
+            FMMountResolvedFontServicesCorePrivateMirrorPath();
+        struct stat supplementalInfo = {0};
+        errno = 0;
+        if (lstat(supplementalMirror.fileSystemRepresentation,
+                  &supplementalInfo) == 0) {
+            if (!S_ISDIR(supplementalInfo.st_mode)) {
+                FMPackageLifecycleFail(
+                    error, 2, @"The supplemental font mirror is not a directory.",
+                    nil);
+                return nil;
+            }
+            NSDictionary *supplemental = FMPackageMappingFact(
+                FMMountFontServicesCorePrivateLogicalPath, supplementalMirror,
+                error);
+            if (supplemental == nil) return nil;
+            [facts addObject:supplemental];
+        } else if (errno != ENOENT) {
+            FMPackageLifecycleFail(
+                error, 2, @"The supplemental font mirror could not be inspected.",
+                FMPackagePOSIXError(errno));
+            return nil;
+        }
+    }
+
+    BOOL allManaged = YES;
+    BOOL allInactive = YES;
+    BOOL anyUnexpected = NO;
+    for (NSDictionary<NSString *, id> *fact in facts) {
+        BOOL managed = [fact[@"managed"] boolValue];
+        BOOL unexpected = [fact[@"unexpected"] boolValue];
+        allManaged = allManaged && managed;
+        allInactive = allInactive && !managed && !unexpected;
+        anyUnexpected = anyUnexpected || unexpected;
+    }
+    FMFontTargetDisposition disposition = anyUnexpected
+        ? FMFontTargetDispositionUnexpected
+        : allManaged
+            ? FMFontTargetDispositionManaged
+            : allInactive
+                ? FMFontTargetDispositionInactive
+                : FMFontTargetDispositionPartiallyManaged;
+    return @{
+        @"disposition" : @(disposition),
+        @"managed" : allManaged ? @YES : @NO,
+        @"mappings" : facts,
     };
 }
 
@@ -151,8 +222,9 @@ static BOOL FMPackageEngineRootPresent(BOOL *present, NSError **error) {
     return YES;
 }
 
-static BOOL FMPackageRequirePhysicalStockTarget(NSError **error) {
-    int descriptor = open(FMMountSystemFontsLogicalPath.fileSystemRepresentation,
+static BOOL FMPackageRequirePhysicalTarget(NSString *targetPath,
+                                           NSError **error) {
+    int descriptor = open(targetPath.fileSystemRepresentation,
                           O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
     if (descriptor < 0) {
         return FMPackageLifecycleFail(
@@ -177,7 +249,26 @@ static BOOL FMPackageRequirePhysicalStockTarget(NSError **error) {
     return YES;
 }
 
+static BOOL FMPackageRequirePhysicalStockTargets(
+    NSDictionary<NSString *, id> *targetFacts,
+    NSError **error) {
+    for (NSDictionary<NSString *, id> *mapping in targetFacts[@"mappings"]) {
+        if (!FMPackageRequirePhysicalTarget(mapping[@"targetPath"], error)) {
+            return NO;
+        }
+    }
+    return YES;
+}
+
 static BOOL FMPackageRequireSecureManagedMirror(NSError **error) {
+    NSError *layoutError = nil;
+    FMSystemFontLayout layout = FMCurrentSystemFontLayout(nil, &layoutError);
+    if (layout == FMSystemFontLayoutUnsupported) {
+        return FMPackageLifecycleFail(
+            error, 3, @"The current system font layout is unsupported.",
+            layoutError);
+    }
+
     BOOL rootSupported = NO;
     NSString *mirrorLogicalPath =
         FMMountResolvedMirrorLogicalPath(&rootSupported, NULL);
@@ -193,6 +284,28 @@ static BOOL FMPackageRequireSecureManagedMirror(NSError **error) {
             error, 3,
             @"The existing managed mirror cannot be claimed safely.",
             FMPackagePOSIXError(savedError));
+    }
+    if (layout == FMSystemFontLayoutPrimaryFonts) return YES;
+
+    NSString *supplementalMirror =
+        FMMountResolvedFontServicesCorePrivateMirrorPath();
+    struct stat supplementalInfo = {0};
+    errno = 0;
+    if (lstat(supplementalMirror.fileSystemRepresentation,
+              &supplementalInfo) == 0) {
+        if (!S_ISDIR(supplementalInfo.st_mode) ||
+            supplementalInfo.st_uid != 0 || supplementalInfo.st_gid != 0 ||
+            (supplementalInfo.st_mode & (S_IWGRP | S_IWOTH)) != 0) {
+            return FMPackageLifecycleFail(
+                error, 3,
+                @"The supplemental managed mirror cannot be claimed safely.",
+                FMPackagePOSIXError(EPERM));
+        }
+    } else if (errno != ENOENT) {
+        return FMPackageLifecycleFail(
+            error, 3,
+            @"The supplemental managed mirror could not be inspected.",
+            FMPackagePOSIXError(errno));
     }
     return YES;
 }
@@ -426,7 +539,8 @@ FMPackageFinishLegacyProfileLocked(
 
     BOOL mountBackendInvoked = NO;
     BOOL mappingChanged = NO;
-    if (disposition == FMFontTargetDispositionInactive) {
+    if (disposition == FMFontTargetDispositionInactive ||
+        disposition == FMFontTargetDispositionPartiallyManaged) {
         NSDictionary *mount =
             FMInvokeMountBackendForPreparedSystemFonts(&operationError);
         if (mount == nil || ![mount[@"reportedSuccess"] boolValue] ||
@@ -974,7 +1088,17 @@ static BOOL FMPackageRemovalInspectionIsExactStock(
 
 static BOOL FMPackageVerifyExposedStock(NSString *systemBuild,
                                         NSError **error) {
-    if (!FMPackageRequirePhysicalStockTarget(error)) return NO;
+    NSError *layoutError = nil;
+    FMSystemFontLayout layout = FMCurrentSystemFontLayout(
+        systemBuild, &layoutError);
+    if (layout == FMSystemFontLayoutUnsupported) {
+        return FMPackageLifecycleFail(
+            error, 8, @"The current system font layout is unsupported.",
+            layoutError);
+    }
+
+    if (!FMPackageRequirePhysicalTarget(
+            FMMountSystemFontsLogicalPath, error)) return NO;
     NSString *baselinePath = [[jbroot(@"/var/lib/fontmanager/baseline")
         stringByAppendingPathComponent:systemBuild]
         stringByAppendingPathComponent:@"manifest.json"];
@@ -990,6 +1114,43 @@ static BOOL FMPackageVerifyExposedStock(NSString *systemBuild,
         return FMPackageLifecycleFail(
             error, 8,
             @"The exposed system font tree does not match the saved Stock baseline.",
+            manifestError);
+    }
+    if (layout == FMSystemFontLayoutPrimaryFonts) return YES;
+
+    NSString *supplementalBaselinePath = [[jbroot(
+        @"/var/lib/fontmanager/baseline")
+        stringByAppendingPathComponent:systemBuild]
+        stringByAppendingPathComponent:
+            @"fontservices-coreprivate-manifest.json"];
+    struct stat supplementalInfo = {0};
+    errno = 0;
+    if (lstat(supplementalBaselinePath.fileSystemRepresentation,
+              &supplementalInfo) != 0) {
+        if (errno == ENOENT) return YES;
+        return FMPackageLifecycleFail(
+            error, 8,
+            @"The supplemental Stock baseline could not be inspected.",
+            FMPackagePOSIXError(errno));
+    }
+    id supplementalBaseline =
+        FMPackageRequireSecureRegularFile(
+            supplementalBaselinePath, &manifestError)
+        ? FMReadJSONObjectAtPath(supplementalBaselinePath, &manifestError)
+        : nil;
+    NSDictionary *supplementalExposed =
+        FMPackageRequirePhysicalTarget(
+            FMMountFontServicesCorePrivateLogicalPath, &manifestError)
+        ? FMCreateTreeManifestAtPath(
+            FMMountFontServicesCorePrivateLogicalPath, &manifestError)
+        : nil;
+    if (![supplementalBaseline isKindOfClass:NSDictionary.class] ||
+        !FMValidateManifestDocument(supplementalBaseline, &manifestError) ||
+        supplementalExposed == nil ||
+        ![supplementalExposed isEqual:supplementalBaseline]) {
+        return FMPackageLifecycleFail(
+            error, 8,
+            @"The exposed FontServices tree does not match its saved Stock baseline.",
             manifestError);
     }
     return YES;
@@ -1010,7 +1171,7 @@ static NSDictionary<NSString *, id> *_Nullable FMPackageMarkInactiveRemovalReady
     if (targetFacts == nil ||
         [targetFacts[@"disposition"] integerValue] !=
             FMFontTargetDispositionInactive ||
-        !FMPackageRequirePhysicalStockTarget(&markerError)) {
+        !FMPackageRequirePhysicalStockTargets(targetFacts, &markerError)) {
         FMPackageLifecycleFail(
             error, 8,
             @"The system font target became active while removal was being prepared.",
@@ -1236,6 +1397,20 @@ NSDictionary<NSString *, id> *FMPrepareDevicePackageRemoval(
             error, 6, @"Another Font Manager operation is still running.",
             operationError);
         return nil;
+    }
+
+    if (targetDisposition == FMFontTargetDispositionPartiallyManaged) {
+        NSDictionary *mount =
+            FMInvokeMountBackendForPreparedSystemFonts(&operationError);
+        if (mount == nil || ![mount[@"reportedSuccess"] boolValue] ||
+            !FMMountManagedMappingIsActive(&operationError)) {
+            FMReleaseExclusiveDirectoryLock(lock, NULL);
+            FMPackageLifecycleFail(
+                error, 6,
+                @"The partially active font workspace could not be completed for safe removal.",
+                operationError);
+            return nil;
+        }
     }
 
     NSDictionary *inspection = FMCreateDeviceMountInspection(&operationError);

@@ -539,6 +539,7 @@ static NSString *FMFriendlyMirrorRole(NSString *relativePath) {
 typedef NS_ENUM(NSInteger, FMFontPackagePreviewSection) {
     FMFontPackagePreviewSectionMatches = 0,
     FMFontPackagePreviewSectionConflicts,
+    FMFontPackagePreviewSectionCompatibilityAlternates,
     FMFontPackagePreviewSectionUnmatched,
     FMFontPackagePreviewSectionInvalid,
     FMFontPackagePreviewSectionCount,
@@ -653,6 +654,9 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
         case FMFontPackagePreviewSectionConflicts:
             return [self.preview[@"conflicts"] isKindOfClass:NSArray.class]
                 ? self.preview[@"conflicts"] : @[];
+        case FMFontPackagePreviewSectionCompatibilityAlternates:
+            return [self.preview[@"compatibilityAlternates"] isKindOfClass:NSArray.class]
+                ? self.preview[@"compatibilityAlternates"] : @[];
         case FMFontPackagePreviewSectionUnmatched:
             return [self.preview[@"unmatched"] isKindOfClass:NSArray.class]
                 ? self.preview[@"unmatched"] : @[];
@@ -670,6 +674,8 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
     NSUInteger conflicts = [self.preview[@"conflictTargetCount"] unsignedIntegerValue];
     NSUInteger invalid = [self.preview[@"invalidFontEntryCount"] unsignedIntegerValue];
     NSUInteger deduplicated = [self.preview[@"deduplicatedSourceCount"] unsignedIntegerValue];
+    NSUInteger compatibilityAlternates =
+        [self.preview[@"compatibilityAlternateSourceCount"] unsignedIntegerValue];
     UIColor *color = conflicts > 0 || matched == 0 ? FMWarnColor() : FMSuccessColor();
 
     UIView *header = [[UIView alloc] initWithFrame:CGRectMake(0, 0,
@@ -726,6 +732,10 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
     if (deduplicated > 0) {
         [notes addObject:[NSString stringWithFormat:FMLocalized(@"%lu 个相同副本已自动合并"),
                                                         (unsigned long)deduplicated]];
+    }
+    if (compatibilityAlternates > 0) {
+        [notes addObject:[NSString stringWithFormat:FMLocalized(@"%lu 个其他系统版本文件已自动忽略"),
+                                                        (unsigned long)compatibilityAlternates]];
     }
     detail.text = notes.count > 0
         ? [notes componentsJoinedByString:@" · "]
@@ -888,6 +898,8 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
             return [NSString stringWithFormat:FMLocalized(@"会涉及的镜像文件 · %lu"), (unsigned long)count];
         case FMFontPackagePreviewSectionConflicts:
             return [NSString stringWithFormat:FMLocalized(@"需要处理的同名冲突 · %lu"), (unsigned long)count];
+        case FMFontPackagePreviewSectionCompatibilityAlternates:
+            return [NSString stringWithFormat:FMLocalized(@"其他系统版本 · %lu"), (unsigned long)count];
         case FMFontPackagePreviewSectionUnmatched:
             return [NSString stringWithFormat:FMLocalized(@"本机没有同名目标 · %lu"), (unsigned long)count];
         case FMFontPackagePreviewSectionInvalid:
@@ -923,6 +935,15 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
                                                                (unsigned long)[item[@"alternatives"] count]];
             symbol = @"exclamationmark.triangle.fill";
             color = FMWarnColor();
+            break;
+        case FMFontPackagePreviewSectionCompatibilityAlternates:
+            content.text = item[@"fileName"];
+            content.secondaryText = [NSString stringWithFormat:FMLocalized(@"包内  %@\n当前系统使用 %@，此文件不参与匹配"),
+                                                               FMLibraryCompactPackagePath(
+                                                                   item[@"sourceRelativePath"]),
+                                                               item[@"currentTargetFileName"]];
+            symbol = @"arrow.triangle.branch";
+            color = UIColor.secondaryLabelColor;
             break;
         case FMFontPackagePreviewSectionUnmatched:
             content.text = item[@"fileName"];

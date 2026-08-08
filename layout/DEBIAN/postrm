@@ -9,6 +9,10 @@ mirror_system_root="${package_prefix}/bindfs/System"
 mirror_library_root="${package_prefix}/bindfs/System/Library"
 mirror_fonts_root="${package_prefix}/bindfs/System/Library/Fonts"
 mirror_staging_root="${package_prefix}/bindfs/System/Library/.Fonts.fontmanager-staging"
+mirror_private_frameworks_root="${package_prefix}/bindfs/System/Library/PrivateFrameworks"
+mirror_fontservices_root="${package_prefix}/bindfs/System/Library/PrivateFrameworks/FontServices.framework"
+mirror_coreprivate_root="${package_prefix}/bindfs/System/Library/PrivateFrameworks/FontServices.framework/CorePrivate"
+mirror_coreprivate_staging_root="${package_prefix}/bindfs/System/Library/PrivateFrameworks/FontServices.framework/.CorePrivate.fontmanager-staging"
 containers_root=/var/mobile/Containers/Data/Application
 
 request_sileo_reload() {
@@ -42,6 +46,8 @@ remove_exact_tree() {
     "$engine_root"|\
     "$mirror_fonts_root"|\
     "$mirror_staging_root"|\
+    "$mirror_coreprivate_root"|\
+    "$mirror_coreprivate_staging_root"|\
     "/var/mobile/Library/Application Support/com.hmmzzz.fontmanager"|\
     /var/mobile/Library/Caches/com.hmmzzz.fontmanager|\
     /tmp/com.hmmzzz.fontmanager.font-imports|\
@@ -69,7 +75,8 @@ remove_exact_tree() {
 
 require_physical_mount_parent() {
   case "$1" in
-    "$mirror_storage_root"|"$mirror_system_root"|"$mirror_library_root")
+    "$mirror_storage_root"|"$mirror_system_root"|"$mirror_library_root"|\
+    "$mirror_private_frameworks_root"|"$mirror_fontservices_root")
       ;;
     *)
       echo "MarkFont refused an unknown mount storage parent: $1" >&2
@@ -142,8 +149,14 @@ case "${1:-}" in
       require_physical_mount_parent "$mirror_storage_root"
       require_physical_mount_parent "$mirror_system_root"
       require_physical_mount_parent "$mirror_library_root"
+      require_physical_mount_parent "$mirror_private_frameworks_root"
+      require_physical_mount_parent "$mirror_fontservices_root"
       remove_exact_tree "$mirror_staging_root"
       remove_exact_tree "$mirror_fonts_root"
+      remove_exact_tree "$mirror_coreprivate_staging_root"
+      remove_exact_tree "$mirror_coreprivate_root"
+      rmdir "$mirror_fontservices_root" 2>/dev/null || true
+      rmdir "$mirror_private_frameworks_root" 2>/dev/null || true
       rmdir "$mirror_library_root" 2>/dev/null || true
       rmdir "$mirror_system_root" 2>/dev/null || true
     fi

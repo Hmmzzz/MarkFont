@@ -8,9 +8,9 @@
 #import <unistd.h>
 
 #import "FMDataModel.h"
+#import "FMDeviceFontCatalog.h"
 #import "FMEnvironmentProbe.h"
 #import "FMFileStore.h"
-#import "FMFontCatalog.h"
 #import "FMProfileAdoptionValidator.h"
 #import "FMMountPaths.h"
 
@@ -163,9 +163,10 @@ NSDictionary<NSString *, id> *FMCreateDeviceProfileActivationPreflight(
                             baselineError);
         return nil;
     }
-    NSDictionary *catalog = FMCreateFontCatalogFromManifest(
-        baselineManifest, confirmedSystemBuild, baselineHash, &baselineError);
-    if (catalog == nil) {
+    NSDictionary *catalog = FMCreateDeviceFontCatalogForBuild(
+        confirmedSystemBuild, &baselineError);
+    if (catalog == nil ||
+        ![catalog[@"sourceManifestSHA256"] isEqual:baselineHash]) {
         FMDeviceProfileFail(error, FMDeviceProfileActivationErrorEnvironment,
                             @"The current-build font catalog could not be generated.",
                             baselineError);

@@ -4,6 +4,7 @@
 
 #import <roothide.h>
 
+#import "FMFontCatalog.h"
 #import "FMFontPackageAnalyzer.h"
 #import "FMFontProfileStore.h"
 #import "FMHelperClient.h"
@@ -218,13 +219,20 @@ static BOOL FMDeviceWorkspaceFail(NSError **error,
     NSString *stockRoot = systemBuild.length > 0
         ? [jbroot(@"/var/lib/fontmanager/stock") stringByAppendingPathComponent:systemBuild]
         : nil;
+    NSDictionary<NSString *, id> *catalog =
+        [self.catalogPreview[@"catalog"] isKindOfClass:NSDictionary.class]
+        ? self.catalogPreview[@"catalog"]
+        : @{};
+    NSMutableArray<NSDictionary<NSString *, NSString *> *> *previewReplacements =
+        [NSMutableArray array];
+    for (NSString *relativePath in FMFontCatalogPreviewRelativePaths(catalog)) {
+        [previewReplacements addObject:@{
+            @"relativePath" : relativePath,
+            @"fileName" : relativePath,
+        }];
+    }
     NSDictionary<NSString *, id> *stockProfile = @{
-        @"replacements" : @[
-            @{ @"relativePath" : @"LanguageSupport/PingFang.ttc",
-               @"fileName" : @"LanguageSupport/PingFang.ttc" },
-            @{ @"relativePath" : @"Core/SFUI.ttf",
-               @"fileName" : @"Core/SFUI.ttf" },
-        ],
+        @"replacements" : previewReplacements,
     };
     NSMutableDictionary<NSString *, id> *details = [@{
         @"id" : NSNull.null,

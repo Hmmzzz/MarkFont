@@ -4,9 +4,9 @@
 #import <unistd.h>
 
 #import "FMDataModel.h"
+#import "FMDeviceFontCatalog.h"
 #import "FMDeviceProfileActivation.h"
 #import "FMFileStore.h"
-#import "FMFontCatalog.h"
 #import "FMMountPaths.h"
 #import "FMProfileAdoption.h"
 #import "FMSecureDirectory.h"
@@ -70,9 +70,10 @@ NSDictionary<NSString *, id> *FMAdoptDeviceProfile(
                              catalogError);
         return nil;
     }
-    NSDictionary *catalog = FMCreateFontCatalogFromManifest(
-        manifest, confirmedSystemBuild, manifestHash, &catalogError);
-    if (catalog == nil) {
+    NSDictionary *catalog = FMCreateDeviceFontCatalogForBuild(
+        confirmedSystemBuild, &catalogError);
+    if (catalog == nil ||
+        ![catalog[@"sourceManifestSHA256"] isEqual:manifestHash]) {
         FMDeviceAdoptionFail(error, 3,
                              @"The current-build font catalog is unavailable.",
                              catalogError);

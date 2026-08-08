@@ -6,6 +6,7 @@
 
 #import "FMDataModel.h"
 #import "FMFileStore.h"
+#import "FMFontCatalog.h"
 #import "FMProfileAdoptionValidator.h"
 
 NSString *const FMProfileStagePlannerErrorDomain =
@@ -92,7 +93,48 @@ NSDictionary<NSString *, id> *FMCreateProfileStagePlanAtRoots(
     NSString *systemBuild,
     NSDictionary<NSString *, id> *catalog,
     NSError **error) {
+    return FMCreateProfileStagePlanAtRootsWithSupplementalMirror(
+        stockRoot, mirrorRoot, nil, profilesRoot, targetProfileID, statePath,
+        systemBuild, catalog, error);
+}
+
+static NSString *FMStagePlanMirrorPath(
+    NSString *mirrorRoot,
+    NSString *supplementalMirrorRoot,
+    NSString *relativePath) {
+    NSString *prefix = [FMFontCatalogFontServicesCorePrivatePrefix
+        stringByAppendingString:@"/"];
+    if ([relativePath hasPrefix:prefix]) {
+        if (supplementalMirrorRoot.length == 0) return nil;
+        return [supplementalMirrorRoot
+            stringByAppendingPathComponent:[relativePath substringFromIndex:prefix.length]];
+    }
+    return [mirrorRoot stringByAppendingPathComponent:relativePath];
+}
+
+NSDictionary<NSString *, id> *
+FMCreateProfileStagePlanAtRootsWithSupplementalMirror(
+    NSString *stockRoot,
+    NSString *mirrorRoot,
+    NSString *supplementalMirrorRoot,
+    NSString *profilesRoot,
+    NSString *targetProfileID,
+    NSString *statePath,
+    NSString *systemBuild,
+    NSDictionary<NSString *, id> *catalog,
+    NSError **error) {
     NSError *validationError = nil;
+    BOOL catalogNeedsSupplementalMirror = NO;
+    NSString *supplementalPrefix = [FMFontCatalogFontServicesCorePrivatePrefix
+        stringByAppendingString:@"/"];
+    if ([catalog isKindOfClass:NSDictionary.class]) {
+        for (NSDictionary *file in catalog[@"files"]) {
+            if ([file[@"relativePath"] hasPrefix:supplementalPrefix]) {
+                catalogNeedsSupplementalMirror = YES;
+                break;
+            }
+        }
+    }
     if (stockRoot.length == 0 || mirrorRoot.length == 0 || profilesRoot.length == 0 ||
         statePath.length == 0 || systemBuild.length == 0 ||
         [stockRoot isEqual:mirrorRoot] ||
@@ -100,6 +142,10 @@ NSDictionary<NSString *, id> *FMCreateProfileStagePlanAtRoots(
         ![catalog[@"systemBuild"] isEqual:systemBuild] ||
         !FMStagePlanRequireDirectory(stockRoot, @"Stock root", &validationError) ||
         !FMStagePlanRequireDirectory(mirrorRoot, @"mirror root", &validationError) ||
+        (catalogNeedsSupplementalMirror &&
+         !FMStagePlanRequireDirectory(supplementalMirrorRoot,
+                                      @"supplemental mirror root",
+                                      &validationError)) ||
         !FMStagePlanRequireDirectory(profilesRoot, @"privileged Profile root",
                                      &validationError)) {
         if (error != NULL) {
@@ -178,7 +224,8 @@ NSDictionary<NSString *, id> *FMCreateProfileStagePlanAtRoots(
         }
 
         NSString *stockPath = [stockRoot stringByAppendingPathComponent:relativePath];
-        NSString *mirrorPath = [mirrorRoot stringByAppendingPathComponent:relativePath];
+        NSString *mirrorPath = FMStagePlanMirrorPath(
+            mirrorRoot, supplementalMirrorRoot, relativePath);
         struct stat stockInfo = {0};
         struct stat mirrorInfo = {0};
         if (lstat(stockPath.fileSystemRepresentation, &stockInfo) != 0 ||

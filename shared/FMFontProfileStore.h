@@ -5,9 +5,9 @@ NS_ASSUME_NONNULL_BEGIN
 FOUNDATION_EXPORT NSString *const FMFontProfileStoreErrorDomain;
 
 // Selects representative, process-local preview files by their target role.
-// The Chinese sample prefers PingFang while Latin and ordinary 0-9 samples
-// prefer SFUI. Symbol, emoji, keycap, and phone fonts are never used as
-// generic text previews.
+// The Chinese sample prefers either build-specific PingFangUI.ttc or
+// PingFang.ttc while Latin and ordinary 0-9 samples prefer SFUI. Symbol,
+// emoji, keycap, and phone fonts are never used as generic text previews.
 NSDictionary<NSString *, NSString *> *FMFontProfilePreviewPaths(
     NSDictionary<NSString *, id> *profile,
     NSString *replacementsDirectory);

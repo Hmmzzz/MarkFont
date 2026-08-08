@@ -43,6 +43,17 @@ BOOL FMStageProfileAtRoots(NSString *stockRoot,
                            NSInteger faultAfterCommittedFiles,
                            NSError **error);
 
+BOOL FMStageProfileAtRootsWithSupplementalMirror(
+    NSString *stockRoot,
+    NSString *mirrorRoot,
+    NSString * _Nullable supplementalMirrorRoot,
+    NSDictionary<NSString *, id> * _Nullable profileDocument,
+    NSString * _Nullable profileDirectory,
+    NSArray<NSString *> *stockRestoreRelativePaths,
+    NSString *statePath,
+    NSInteger faultAfterCommittedFiles,
+    NSError **error);
+
 // Repair starts from Stock for the complete transition path set persisted
 // before the first write, then overlays the saved target Profile again.
 BOOL FMRepairProfileAtRoots(NSString *stockRoot,
@@ -53,5 +64,16 @@ BOOL FMRepairProfileAtRoots(NSString *stockRoot,
                             NSString *statePath,
                             NSInteger faultAfterCommittedFiles,
                             NSError **error);
+
+BOOL FMRepairProfileAtRootsWithSupplementalMirror(
+    NSString *stockRoot,
+    NSString *mirrorRoot,
+    NSString * _Nullable supplementalMirrorRoot,
+    NSDictionary<NSString *, id> * _Nullable profileDocument,
+    NSString * _Nullable profileDirectory,
+    NSArray<NSString *> *stockRestoreRelativePaths,
+    NSString *statePath,
+    NSInteger faultAfterCommittedFiles,
+    NSError **error);
 
 NS_ASSUME_NONNULL_END

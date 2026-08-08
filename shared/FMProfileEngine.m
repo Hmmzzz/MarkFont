@@ -7,6 +7,7 @@
 
 #import "FMDataModel.h"
 #import "FMFileStore.h"
+#import "FMFontCatalog.h"
 
 NSString *const FMProfileEngineErrorDomain = @"com.hmmzzz.fontmanager.profileengine";
 NSInteger const FMProfileEngineNoFaultInjection = -1;
@@ -236,6 +237,7 @@ static BOOL FMMarkRepairRequired(NSMutableDictionary<NSString *, id> *transition
 static BOOL FMConvergeProfile(BOOL isRepair,
                               NSString *stockRoot,
                               NSString *mirrorRoot,
+                              NSString *supplementalMirrorRoot,
                               NSDictionary<NSString *, id> *profileDocument,
                               NSString *profileDirectory,
                               NSArray<NSString *> *stockRestoreRelativePaths,
@@ -307,6 +309,21 @@ static BOOL FMConvergeProfile(BOOL isRepair,
         return FMProfileEngineFail(error, FMProfileEngineErrorInvalidInput,
                                    @"Stock and mirror roots must be different directories.", nil);
     }
+    NSString *canonicalSupplementalMirror = nil;
+    if (supplementalMirrorRoot.length > 0) {
+        canonicalSupplementalMirror = FMCanonicalDirectory(
+            supplementalMirrorRoot, @"supplemental mirror root", &validationError);
+        if (canonicalSupplementalMirror == nil ||
+            [canonicalSupplementalMirror isEqual:canonicalStock] ||
+            [canonicalSupplementalMirror isEqual:canonicalMirror]) {
+            if (error != NULL && *error == nil) {
+                *error = validationError ?: FMProfileEngineError(
+                    FMProfileEngineErrorInvalidInput,
+                    @"Supplemental mirror root must be a distinct directory.", nil);
+            }
+            return NO;
+        }
+    }
 
     NSString *canonicalReplacements = nil;
     NSDictionary<NSString *, NSDictionary<NSString *, id> *> *replacementMap = @{};
@@ -363,7 +380,21 @@ static BOOL FMConvergeProfile(BOOL isRepair,
                     ? replacementMap[relativePath]
                     : nil;
             NSString *stockPath = [canonicalStock stringByAppendingPathComponent:relativePath];
-            NSString *targetPath = [canonicalMirror stringByAppendingPathComponent:relativePath];
+            NSString *supplementalPrefix =
+                [FMFontCatalogFontServicesCorePrivatePrefix stringByAppendingString:@"/"];
+            BOOL supplementalTarget = [relativePath hasPrefix:supplementalPrefix];
+            if (supplementalTarget && canonicalSupplementalMirror.length == 0) {
+                return FMProfileEngineFail(
+                    error, FMProfileEngineErrorPreflightFailed,
+                    @"A supplemental Profile target has no managed mirror.", nil);
+            }
+            NSString *targetRoot = supplementalTarget
+                ? canonicalSupplementalMirror : canonicalMirror;
+            NSString *targetRelativePath = supplementalTarget
+                ? [relativePath substringFromIndex:supplementalPrefix.length]
+                : relativePath;
+            NSString *targetPath =
+                [targetRoot stringByAppendingPathComponent:targetRelativePath];
             NSString *sourcePath = stockPath;
             NSString *expectedHash = nil;
             if (replacement != nil) {
@@ -376,7 +407,7 @@ static BOOL FMConvergeProfile(BOOL isRepair,
             NSString *canonicalTargetParent =
                 FMCanonicalDirectory(targetParent, @"mirror target parent", &validationError);
             if (canonicalTargetParent == nil ||
-                !FMPathIsInsideRoot(canonicalTargetParent, canonicalMirror)) {
+                !FMPathIsInsideRoot(canonicalTargetParent, targetRoot)) {
                 return FMProfileEngineFail(error, FMProfileEngineErrorPreflightFailed,
                                            @"Mirror target parent escapes the mirror root.",
                                            validationError);
@@ -478,9 +509,26 @@ BOOL FMStageProfileAtRoots(NSString *stockRoot,
                            NSString *statePath,
                            NSInteger faultAfterCommittedFiles,
                            NSError **error) {
-    return FMConvergeProfile(NO, stockRoot, mirrorRoot, profileDocument, profileDirectory,
+    return FMConvergeProfile(NO, stockRoot, mirrorRoot, nil,
+                             profileDocument, profileDirectory,
                              stockRestoreRelativePaths, statePath,
                              faultAfterCommittedFiles, error);
+}
+
+BOOL FMStageProfileAtRootsWithSupplementalMirror(
+    NSString *stockRoot,
+    NSString *mirrorRoot,
+    NSString *supplementalMirrorRoot,
+    NSDictionary<NSString *, id> *profileDocument,
+    NSString *profileDirectory,
+    NSArray<NSString *> *stockRestoreRelativePaths,
+    NSString *statePath,
+    NSInteger faultAfterCommittedFiles,
+    NSError **error) {
+    return FMConvergeProfile(
+        NO, stockRoot, mirrorRoot, supplementalMirrorRoot,
+        profileDocument, profileDirectory, stockRestoreRelativePaths,
+        statePath, faultAfterCommittedFiles, error);
 }
 
 BOOL FMRepairProfileAtRoots(NSString *stockRoot,
@@ -491,7 +539,24 @@ BOOL FMRepairProfileAtRoots(NSString *stockRoot,
                             NSString *statePath,
                             NSInteger faultAfterCommittedFiles,
                             NSError **error) {
-    return FMConvergeProfile(YES, stockRoot, mirrorRoot, profileDocument, profileDirectory,
+    return FMConvergeProfile(YES, stockRoot, mirrorRoot, nil,
+                             profileDocument, profileDirectory,
                              stockRestoreRelativePaths, statePath,
                              faultAfterCommittedFiles, error);
+}
+
+BOOL FMRepairProfileAtRootsWithSupplementalMirror(
+    NSString *stockRoot,
+    NSString *mirrorRoot,
+    NSString *supplementalMirrorRoot,
+    NSDictionary<NSString *, id> *profileDocument,
+    NSString *profileDirectory,
+    NSArray<NSString *> *stockRestoreRelativePaths,
+    NSString *statePath,
+    NSInteger faultAfterCommittedFiles,
+    NSError **error) {
+    return FMConvergeProfile(
+        YES, stockRoot, mirrorRoot, supplementalMirrorRoot,
+        profileDocument, profileDirectory, stockRestoreRelativePaths,
+        statePath, faultAfterCommittedFiles, error);
 }

@@ -64,7 +64,6 @@ NSDictionary<NSString *, id> *FMMatchFontPackageFilesToCatalog(
     for (NSDictionary<NSString *, id> *stockFile in catalog[@"files"]) {
         stockByName[stockFile[@"fileName"]] = stockFile;
     }
-
     NSMutableDictionary<NSString *, NSMutableArray<NSDictionary<NSString *, id> *> *>
         *packageByName = [NSMutableDictionary dictionary];
     NSMutableSet<NSString *> *sourcePaths = [NSMutableSet set];
@@ -97,26 +96,51 @@ NSDictionary<NSString *, id> *FMMatchFontPackageFilesToCatalog(
             packageByName[fileName] = group;
         }
         [group addObject:@{
+            @"fileName" : fileName,
             @"relativePath" : relativePath,
             @"sha256" : file[@"sha256"],
             @"fileSize" : file[@"fileSize"],
         }];
     }
 
-    NSMutableArray<NSDictionary<NSString *, id> *> *matches = [NSMutableArray array];
-    NSMutableArray<NSDictionary<NSString *, id> *> *unmatched = [NSMutableArray array];
-    NSMutableArray<NSDictionary<NSString *, id> *> *conflicts = [NSMutableArray array];
-    NSUInteger deduplicatedSourceCount = 0;
+    NSMutableDictionary<NSString *, NSDictionary<NSString *, id> *>
+        *compatibilityTargetByIgnoredSourceName = [NSMutableDictionary dictionary];
+    NSDictionary<NSString *, id> *legacyTarget = stockByName[@"PingFang.ttc"];
+    NSDictionary<NSString *, id> *modernTarget = stockByName[@"PingFangUI.ttc"];
+    if (legacyTarget != nil && modernTarget == nil) {
+        if ([packageByName[@"PingFangUI.ttc"] count] > 0) {
+            compatibilityTargetByIgnoredSourceName[@"PingFangUI.ttc"] = legacyTarget;
+        }
+    } else if (modernTarget != nil && legacyTarget == nil) {
+        if ([packageByName[@"PingFang.ttc"] count] > 0) {
+            compatibilityTargetByIgnoredSourceName[@"PingFang.ttc"] = modernTarget;
+        }
+    }
 
-    NSArray<NSString *> *sortedNames =
+    NSMutableDictionary<NSString *, NSMutableArray<NSDictionary<NSString *, id> *> *>
+        *sourcesByTargetID = [NSMutableDictionary dictionary];
+    NSMutableDictionary<NSString *, NSDictionary<NSString *, id> *> *targetByID =
+        [NSMutableDictionary dictionary];
+    NSMutableArray<NSDictionary<NSString *, id> *> *compatibilityAlternates =
+        [NSMutableArray array];
+    NSMutableArray<NSDictionary<NSString *, id> *> *unmatched = [NSMutableArray array];
+    NSArray<NSString *> *sortedPackageNames =
         [packageByName.allKeys sortedArrayUsingSelector:@selector(compare:)];
-    for (NSString *fileName in sortedNames) {
-        NSArray<NSDictionary<NSString *, id> *> *sources =
-            [packageByName[fileName]
-                sortedArrayUsingComparator:^NSComparisonResult(NSDictionary *left,
-                                                                NSDictionary *right) {
-            return [left[@"relativePath"] compare:right[@"relativePath"]];
-        }];
+    for (NSString *fileName in sortedPackageNames) {
+        NSArray<NSDictionary<NSString *, id> *> *sources = packageByName[fileName];
+        NSDictionary<NSString *, id> *ignoredForTarget =
+            compatibilityTargetByIgnoredSourceName[fileName];
+        if (ignoredForTarget != nil) {
+            for (NSDictionary<NSString *, id> *source in sources) {
+                [compatibilityAlternates addObject:@{
+                    @"fileName" : fileName,
+                    @"sourceRelativePath" : source[@"relativePath"],
+                    @"currentTargetFileName" : ignoredForTarget[@"fileName"],
+                }];
+            }
+            continue;
+        }
+
         NSDictionary<NSString *, id> *target = stockByName[fileName];
         if (target == nil) {
             for (NSDictionary<NSString *, id> *source in sources) {
@@ -130,6 +154,42 @@ NSDictionary<NSString *, id> *FMMatchFontPackageFilesToCatalog(
             continue;
         }
 
+        NSString *targetID = target[@"id"];
+        NSMutableArray *targetSources = sourcesByTargetID[targetID];
+        if (targetSources == nil) {
+            targetSources = [NSMutableArray array];
+            sourcesByTargetID[targetID] = targetSources;
+            targetByID[targetID] = target;
+        }
+        [targetSources addObjectsFromArray:sources];
+    }
+
+    NSMutableArray<NSDictionary<NSString *, id> *> *matches = [NSMutableArray array];
+    NSMutableArray<NSDictionary<NSString *, id> *> *conflicts = [NSMutableArray array];
+    NSUInteger deduplicatedSourceCount = 0;
+
+    NSArray<NSString *> *sortedTargetIDs =
+        [sourcesByTargetID.allKeys
+            sortedArrayUsingComparator:^NSComparisonResult(NSString *leftID,
+                                                             NSString *rightID) {
+        NSDictionary *leftTarget = targetByID[leftID];
+        NSDictionary *rightTarget = targetByID[rightID];
+        NSComparisonResult nameResult =
+            [leftTarget[@"fileName"] compare:rightTarget[@"fileName"]];
+        return nameResult == NSOrderedSame
+            ? [leftTarget[@"relativePath"] compare:rightTarget[@"relativePath"]]
+            : nameResult;
+    }];
+    for (NSString *targetID in sortedTargetIDs) {
+        NSDictionary<NSString *, id> *target = targetByID[targetID];
+        NSString *targetFileName = target[@"fileName"];
+        NSArray<NSDictionary<NSString *, id> *> *sources =
+            [sourcesByTargetID[targetID]
+                sortedArrayUsingComparator:^NSComparisonResult(NSDictionary *left,
+                                                                NSDictionary *right) {
+            return [left[@"relativePath"] compare:right[@"relativePath"]];
+        }];
+
         NSSet<NSString *> *hashes = [NSSet setWithArray:[sources valueForKey:@"sha256"]];
         if (hashes.count != 1) {
             NSMutableArray *alternatives = [NSMutableArray arrayWithCapacity:sources.count];
@@ -141,7 +201,7 @@ NSDictionary<NSString *, id> *FMMatchFontPackageFilesToCatalog(
                 }];
             }
             [conflicts addObject:@{
-                @"fileName" : fileName,
+                @"fileName" : targetFileName,
                 @"targetFileID" : target[@"id"],
                 @"targetRelativePath" : target[@"relativePath"],
                 @"alternatives" : alternatives,
@@ -156,7 +216,7 @@ NSDictionary<NSString *, id> *FMMatchFontPackageFilesToCatalog(
         }
         deduplicatedSourceCount += duplicatePaths.count;
         [matches addObject:@{
-            @"fileName" : fileName,
+            @"fileName" : targetFileName,
             @"targetFileID" : target[@"id"],
             @"targetRelativePath" : target[@"relativePath"],
             @"selectedSourceRelativePath" : selected[@"relativePath"],
@@ -166,6 +226,14 @@ NSDictionary<NSString *, id> *FMMatchFontPackageFilesToCatalog(
         }];
     }
 
+    [unmatched sortUsingComparator:^NSComparisonResult(NSDictionary *left,
+                                                         NSDictionary *right) {
+        NSComparisonResult nameResult = [left[@"fileName"] compare:right[@"fileName"]];
+        return nameResult == NSOrderedSame
+            ? [left[@"sourceRelativePath"] compare:right[@"sourceRelativePath"]]
+            : nameResult;
+    }];
+
     return @{
         @"schemaVersion" : @1,
         @"matchingMode" : @"stockFileName",
@@ -173,10 +241,12 @@ NSDictionary<NSString *, id> *FMMatchFontPackageFilesToCatalog(
         @"packageFontFileCount" : @(packageFiles.count),
         @"matchedTargetCount" : @(matches.count),
         @"unmatchedSourceCount" : @(unmatched.count),
+        @"compatibilityAlternateSourceCount" : @(compatibilityAlternates.count),
         @"conflictTargetCount" : @(conflicts.count),
         @"deduplicatedSourceCount" : @(deduplicatedSourceCount),
         @"matches" : matches,
         @"unmatched" : unmatched,
+        @"compatibilityAlternates" : compatibilityAlternates,
         @"conflicts" : conflicts,
     };
 }

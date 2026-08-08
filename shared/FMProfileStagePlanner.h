@@ -26,4 +26,20 @@ NSDictionary<NSString *, id> *_Nullable FMCreateProfileStagePlanAtRoots(
     NSDictionary<NSString *, id> *catalog,
     NSError **error);
 
+// Device-only extension for the fixed FontServices/CorePrivate mirror. Catalog
+// paths below FontServicesCorePrivate/ are routed to supplementalMirrorRoot;
+// every other path retains the primary mirrorRoot behavior. Passing nil keeps
+// the original single-root contract used by iOS 16-17 and host tests.
+NSDictionary<NSString *, id> *_Nullable
+FMCreateProfileStagePlanAtRootsWithSupplementalMirror(
+    NSString *stockRoot,
+    NSString *mirrorRoot,
+    NSString * _Nullable supplementalMirrorRoot,
+    NSString *profilesRoot,
+    NSString *_Nullable targetProfileID,
+    NSString *statePath,
+    NSString *systemBuild,
+    NSDictionary<NSString *, id> *catalog,
+    NSError **error);
+
 NS_ASSUME_NONNULL_END

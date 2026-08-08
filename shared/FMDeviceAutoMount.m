@@ -19,6 +19,7 @@
 #import "FMMountPaths.h"
 #import "FMDeviceRestartCoordinator.h"
 #import "FMSecureDirectory.h"
+#import "FMSystemFontLayout.h"
 
 NSString *const FMDeviceAutoMountErrorDomain =
     @"com.hmmzzz.fontmanager.device-auto-mount";
@@ -264,7 +265,8 @@ static NSDictionary<NSString *, id> *_Nullable FMAutoMountReadState(
     return object;
 }
 
-static BOOL FMAutoMountValidateWorkspace(NSError **error) {
+static BOOL FMAutoMountValidateWorkspace(BOOL usesSupplementalLayout,
+                                         NSError **error) {
     NSString *bootstrapRoot = FMAutoMountPhysicalDirectory(jbroot(@"/"), error);
     if (bootstrapRoot == nil || [bootstrapRoot isEqual:@"/"]) {
         if (error != NULL && *error == nil) {
@@ -295,46 +297,154 @@ static BOOL FMAutoMountValidateWorkspace(NSError **error) {
                             directoryError);
         return NO;
     }
+
+    if (!usesSupplementalLayout) return YES;
+
+    NSString *supplementalMirror =
+        FMMountResolvedFontServicesCorePrivateMirrorPath();
+    struct stat supplementalInfo = {0};
+    errno = 0;
+    if (lstat(supplementalMirror.fileSystemRepresentation,
+              &supplementalInfo) == 0) {
+        if (!FMValidateSecureDirectoryTree(
+                bootstrapRoot,
+                @[ @"bindfs", @"System", @"Library", @"PrivateFrameworks",
+                   @"FontServices.framework", @"CorePrivate" ],
+                0, 0, &directoryError)) {
+            FMAutoMountSetError(
+                error, 3,
+                @"The supplemental working mirror path is unsafe.",
+                directoryError);
+            return NO;
+        }
+        NSArray<NSString *> *supplementalEntries =
+            [NSFileManager.defaultManager
+                contentsOfDirectoryAtPath:supplementalMirror
+                                     error:&directoryError];
+        if (supplementalEntries == nil || supplementalEntries.count == 0) {
+            FMAutoMountSetError(
+                error, 3,
+                @"The supplemental working mirror is empty or unreadable.",
+                directoryError);
+            return NO;
+        }
+    } else if (errno != ENOENT) {
+        FMAutoMountSetError(
+            error, 3,
+            @"The supplemental working mirror could not be inspected.",
+            FMAutoMountPOSIXError(errno));
+        return NO;
+    }
     return YES;
 }
 
-static NSDictionary<NSString *, id> *_Nullable FMAutoMountTargetFacts(
+static NSDictionary<NSString *, id> *_Nullable FMAutoMountMappingFact(
+    NSString *targetPath,
+    NSString *mirrorPath,
     NSError **error) {
-    BOOL rootSupported = NO;
-    NSString *mirrorLogicalPath =
-        FMMountResolvedMirrorLogicalPath(&rootSupported, NULL);
     struct statfs filesystem = {0};
-    if (!rootSupported ||
-        statfs(FMMountSystemFontsLogicalPath.fileSystemRepresentation,
-               &filesystem) != 0) {
-        int savedError = rootSupported ? errno : 0;
+    if (statfs(targetPath.fileSystemRepresentation, &filesystem) != 0) {
         FMAutoMountSetError(
-            error, 3, @"The system font mount target could not be inspected.",
-            savedError != 0 ? FMAutoMountPOSIXError(savedError) : nil);
+            error, 3, @"A system font mount target could not be inspected.",
+            FMAutoMountPOSIXError(errno));
         return nil;
     }
     NSString *filesystemType =
         [NSString stringWithUTF8String:filesystem.f_fstypename];
     NSString *target = [NSString stringWithUTF8String:filesystem.f_mntonname];
     NSString *source = [NSString stringWithUTF8String:filesystem.f_mntfromname];
-    NSString *mirrorPath = jbroot(mirrorLogicalPath);
-    BOOL dedicated = [target isEqual:FMMountSystemFontsLogicalPath];
+    BOOL dedicated = [target isEqual:targetPath];
     BOOL bindfs = filesystemType != nil &&
         [filesystemType caseInsensitiveCompare:@"bindfs"] == NSOrderedSame;
-    BOOL managed = bindfs && dedicated &&
+    BOOL managed = bindfs && dedicated && source.length > 0 &&
         [source.stringByResolvingSymlinksInPath
             isEqual:mirrorPath.stringByResolvingSymlinksInPath] &&
         (filesystem.f_flags & MNT_RDONLY) != 0;
+    BOOL unexpected = !managed && (dedicated || bindfs);
     return @{
+        @"targetPath" : targetPath,
         @"filesystemType" : filesystemType ?: NSNull.null,
         @"dedicated" : dedicated ? @YES : @NO,
         @"bindfs" : bindfs ? @YES : @NO,
         @"managed" : managed ? @YES : @NO,
+        @"unexpected" : unexpected ? @YES : @NO,
     };
 }
 
-static BOOL FMAutoMountRequirePhysicalTarget(NSError **error) {
-    int descriptor = open(FMMountSystemFontsLogicalPath.fileSystemRepresentation,
+static NSDictionary<NSString *, id> *_Nullable FMAutoMountTargetFacts(
+    BOOL usesSupplementalLayout,
+    NSError **error) {
+    BOOL rootSupported = NO;
+    NSString *mirrorLogicalPath =
+        FMMountResolvedMirrorLogicalPath(&rootSupported, NULL);
+    if (!rootSupported) {
+        FMAutoMountSetError(
+            error, 3, @"The system font mount target could not be inspected.",
+            nil);
+        return nil;
+    }
+    NSString *mirrorPath = jbroot(mirrorLogicalPath);
+    NSMutableArray<NSDictionary<NSString *, id> *> *facts =
+        [NSMutableArray array];
+    NSDictionary *primary = FMAutoMountMappingFact(
+        FMMountSystemFontsLogicalPath, mirrorPath, error);
+    if (primary == nil) return nil;
+    [facts addObject:primary];
+
+    if (usesSupplementalLayout) {
+        NSString *supplementalMirror =
+            FMMountResolvedFontServicesCorePrivateMirrorPath();
+        struct stat supplementalInfo = {0};
+        errno = 0;
+        if (lstat(supplementalMirror.fileSystemRepresentation,
+                  &supplementalInfo) == 0) {
+            if (!S_ISDIR(supplementalInfo.st_mode)) {
+                FMAutoMountSetError(
+                    error, 3, @"The supplemental font mirror is not a directory.",
+                    nil);
+                return nil;
+            }
+            NSDictionary *supplemental = FMAutoMountMappingFact(
+                FMMountFontServicesCorePrivateLogicalPath, supplementalMirror,
+                error);
+            if (supplemental == nil) return nil;
+            [facts addObject:supplemental];
+        } else if (errno != ENOENT) {
+            FMAutoMountSetError(
+                error, 3, @"The supplemental font mirror could not be inspected.",
+                FMAutoMountPOSIXError(errno));
+            return nil;
+        }
+    }
+
+    BOOL allManaged = YES;
+    BOOL anyUnexpected = NO;
+    BOOL anyDedicated = NO;
+    BOOL anyBindfs = NO;
+    NSMutableArray<NSString *> *inactiveTargets = [NSMutableArray array];
+    for (NSDictionary<NSString *, id> *fact in facts) {
+        BOOL managed = [fact[@"managed"] boolValue];
+        allManaged = allManaged && managed;
+        anyUnexpected = anyUnexpected || [fact[@"unexpected"] boolValue];
+        anyDedicated = anyDedicated || [fact[@"dedicated"] boolValue];
+        anyBindfs = anyBindfs || [fact[@"bindfs"] boolValue];
+        if (!managed && ![fact[@"unexpected"] boolValue]) {
+            [inactiveTargets addObject:fact[@"targetPath"]];
+        }
+    }
+    return @{
+        @"dedicated" : anyDedicated ? @YES : @NO,
+        @"bindfs" : anyBindfs ? @YES : @NO,
+        @"managed" : allManaged ? @YES : @NO,
+        @"unexpected" : anyUnexpected ? @YES : @NO,
+        @"inactiveTargets" : inactiveTargets,
+        @"mappings" : facts,
+    };
+}
+
+static BOOL FMAutoMountRequirePhysicalTarget(NSString *targetPath,
+                                             NSError **error) {
+    int descriptor = open(targetPath.fileSystemRepresentation,
                           O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
     if (descriptor < 0) {
         FMAutoMountSetError(
@@ -366,6 +476,18 @@ static NSDictionary<NSString *, id> *_Nullable FMAutoMountLocked(
     NSString *systemBuild = FMAutoMountSystemBuild(error);
     if (systemBuild == nil) return nil;
 
+    NSError *layoutError = nil;
+    FMSystemFontLayout layout = FMCurrentSystemFontLayout(
+        systemBuild, &layoutError);
+    if (layout == FMSystemFontLayoutUnsupported) {
+        FMAutoMountSetError(
+            error, 3, @"The current system font layout is unsupported.",
+            layoutError);
+        return nil;
+    }
+    BOOL usesSupplementalLayout =
+        layout == FMSystemFontLayoutFontServicesCorePrivate;
+
     NSDictionary *state = FMAutoMountReadState(systemBuild, error);
     if (state == nil) {
         return nil;
@@ -378,28 +500,31 @@ static NSDictionary<NSString *, id> *_Nullable FMAutoMountLocked(
             [state[@"autoRespring"] boolValue] ? @YES : @NO;
         return disabled;
     }
-    if (!FMAutoMountValidateWorkspace(error)) {
+    if (!FMAutoMountValidateWorkspace(usesSupplementalLayout, error)) {
         return nil;
     }
     NSError *inspectionError = nil;
 
-    NSDictionary *targetFacts = FMAutoMountTargetFacts(&inspectionError);
+    NSDictionary *targetFacts = FMAutoMountTargetFacts(
+        usesSupplementalLayout, &inspectionError);
     if (targetFacts == nil) {
         if (error != NULL) *error = inspectionError;
         return nil;
     }
     BOOL mappingWasManaged = [targetFacts[@"managed"] boolValue];
-    if (!mappingWasManaged &&
-        ([targetFacts[@"dedicated"] boolValue] ||
-         [targetFacts[@"bindfs"] boolValue])) {
+    if (!mappingWasManaged && [targetFacts[@"unexpected"] boolValue]) {
         FMAutoMountSetError(
             error, 3,
             @"An unexpected dedicated or bindfs mapping already covers the font target.",
             nil);
         return nil;
     }
-    if (!mappingWasManaged && !FMAutoMountRequirePhysicalTarget(error)) {
-        return nil;
+    if (!mappingWasManaged) {
+        for (NSString *targetPath in targetFacts[@"inactiveTargets"]) {
+            if (!FMAutoMountRequirePhysicalTarget(targetPath, error)) {
+                return nil;
+            }
+        }
     }
 
     BOOL springBoardObservationAvailable = YES;
@@ -430,10 +555,12 @@ static NSDictionary<NSString *, id> *_Nullable FMAutoMountLocked(
         }
     }
 
-    NSDictionary *postMountFacts = FMAutoMountTargetFacts(&inspectionError);
+    NSDictionary *postMountFacts = FMAutoMountTargetFacts(
+        usesSupplementalLayout, &inspectionError);
     BOOL finalAutoMountConflict = NO;
     BOOL mappingExact = postMountFacts != nil &&
         [postMountFacts[@"managed"] boolValue] &&
+        FMMountManagedMappingIsActive(&inspectionError) &&
         FMLegacyProviderAutoMountConflictsWithSystemFonts(
             &finalAutoMountConflict, &inspectionError) &&
         !finalAutoMountConflict;

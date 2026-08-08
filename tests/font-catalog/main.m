@@ -2,6 +2,7 @@
 
 #import "FMDataModel.h"
 #import "FMFontCatalog.h"
+#import "FMSystemFontLayout.h"
 
 static void FMRequire(BOOL condition, NSString *message) {
     if (!condition) {
@@ -47,6 +48,27 @@ static NSDictionary<NSString *, id> *FMManifestFixture(void) {
 int main(void) {
     @autoreleasepool {
         NSError *error = nil;
+        FMRequire(
+            FMSystemFontLayoutForProductVersion(@"16.0") ==
+                    FMSystemFontLayoutPrimaryFonts &&
+                FMSystemFontLayoutForProductVersion(@"17.7.1") ==
+                    FMSystemFontLayoutPrimaryFonts &&
+                FMSystemFontLayoutForProductVersion(@"18.0") ==
+                    FMSystemFontLayoutFontServicesCorePrivate &&
+                FMSystemFontLayoutForProductVersion(@"26.5") ==
+                    FMSystemFontLayoutFontServicesCorePrivate,
+            @"supported iOS versions selected the wrong font layout");
+        FMRequire(
+            FMSystemFontLayoutForProductVersion(@"15.8") ==
+                    FMSystemFontLayoutUnsupported &&
+                FMSystemFontLayoutForProductVersion(@"27.0") ==
+                    FMSystemFontLayoutUnsupported &&
+                FMSystemFontLayoutForProductVersion(@"18beta") ==
+                    FMSystemFontLayoutUnsupported &&
+                FMSystemFontLayoutForProductVersion(@"18..1") ==
+                    FMSystemFontLayoutUnsupported,
+            @"unsupported or malformed iOS version did not fail closed");
+
         FMRequire(FMIsSupportedFontCatalogRelativePath(@"Core/SFUI.ttf") &&
                       FMIsSupportedFontCatalogRelativePath(@"Core/FONT.TTC") &&
                       FMIsSupportedFontCatalogRelativePath(@"Core/LastResort.otf") &&
@@ -77,6 +99,9 @@ int main(void) {
                       [firstFile[@"relativePath"] isEqual:@"Core/SFUI.ttf"] &&
                       [firstFile[@"stockSHA256"] length] == 64,
                   @"catalog file identity is inconsistent");
+        FMRequire([FMFontCatalogPreviewRelativePaths(catalog)
+                      isEqual:@[ @"LanguageSupport/PingFang.ttc", @"Core/SFUI.ttf" ]],
+                  @"legacy Stock preview did not select PingFang.ttc");
 
         NSDictionary *preview = @{
             @"schemaVersion" : @1,
@@ -170,7 +195,41 @@ int main(void) {
                           isEqual:@"CoreUI/SFUISoft.ttc"],
                   @"an iOS 16-shaped Stock tree did not produce a complete build-bound catalog");
 
-        printf("PASS: iOS 16/17 build-bound Stock filename catalog\n");
+        NSDictionary *ios18PrimaryManifest = @{
+            @"schemaVersion" : @2,
+            @"entries" : @[
+                FMRegularEntry(
+                    @"Core/SFUI.ttf",
+                    @"9999999999999999999999999999999999999999999999999999999999999999",
+                    @200),
+            ],
+        };
+        NSDictionary *ios18FontServicesManifest = @{
+            @"schemaVersion" : @2,
+            @"entries" : @[
+                FMRegularEntry(
+                    @"PingFangUI.ttc",
+                    @"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    @400),
+            ],
+        };
+        NSDictionary *ios18ShapeCatalog = FMCreateFontCatalogFromManifests(
+            ios18PrimaryManifest, ios18FontServicesManifest, @"22A3354",
+            @"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            @"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            &error);
+        FMRequire(ios18ShapeCatalog != nil &&
+                      [ios18ShapeCatalog[@"files"][1][@"relativePath"]
+                          isEqual:@"FontServicesCorePrivate/PingFangUI.ttc"] &&
+                      [ios18ShapeCatalog[@"catalogVersion"] integerValue] == 2 &&
+                      [FMFontCatalogPreviewRelativePaths(ios18ShapeCatalog)
+                          isEqual:@[ @"FontServicesCorePrivate/PingFangUI.ttc",
+                                     @"Core/SFUI.ttf" ]],
+                  @"the iOS 18-26 FontServices source did not select PingFangUI.ttc");
+        FMRequire(FMFontCatalogPreviewRelativePaths(@{}).count == 0,
+                  @"Stock preview selector accepted an invalid catalog");
+
+        printf("PASS: iOS 16-26 build-bound Stock filename catalog\n");
     }
     return 0;
 }

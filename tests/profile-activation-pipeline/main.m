@@ -314,6 +314,125 @@ int main(int argc, const char *argv[]) {
                       [fallbackPlan[@"stockRestoreCount"] unsignedIntegerValue] == 3,
                   @"missing current Profile did not select full Stock fallback");
 
+        NSString *supplementalStockDirectory = [stock
+            stringByAppendingPathComponent:
+                FMFontCatalogFontServicesCorePrivatePrefix];
+        NSString *supplementalMirror =
+            [root stringByAppendingPathComponent:@"supplemental-mirror"];
+        for (NSString *directory in
+             @[ supplementalStockDirectory, supplementalMirror ]) {
+            FMRequire([files createDirectoryAtPath:directory
+                       withIntermediateDirectories:YES
+                                        attributes:nil
+                                             error:&error],
+                      @"supplemental fixture directory failed");
+        }
+        NSString *supplementalStockFont = [supplementalStockDirectory
+            stringByAppendingPathComponent:@"PingFangUI.ttc"];
+        NSString *supplementalMirrorFont = [supplementalMirror
+            stringByAppendingPathComponent:@"PingFangUI.ttc"];
+        FMWriteFixture(supplementalStockFont, @"stock-pingfang-ui", 0644);
+        FMWriteFixture(supplementalMirrorFont, @"stock-pingfang-ui", 0644);
+        NSDictionary *supplementalManifest = @{
+            @"schemaVersion" : @2,
+            @"entries" : @[
+                FMManifestEntry(@"PingFangUI.ttc", supplementalStockFont),
+            ],
+        };
+        NSDictionary *supplementalCatalog = FMCreateFontCatalogFromManifests(
+            manifest, supplementalManifest, @"TEST-BUILD",
+            @"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            @"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            &error);
+        NSDictionary *pingFangUICatalog = FMCatalogFile(
+            supplementalCatalog,
+            @"FontServicesCorePrivate/PingFangUI.ttc");
+        FMRequire(pingFangUICatalog != nil,
+                  @"supplemental catalog target is missing");
+
+        NSString *supplementalProfileID = @"import-supplemental-test";
+        NSString *supplementalProfile = [destinationProfiles
+            stringByAppendingPathComponent:supplementalProfileID];
+        NSString *supplementalReplacements = [supplementalProfile
+            stringByAppendingPathComponent:@"replacements"];
+        FMRequire([files createDirectoryAtPath:supplementalReplacements
+                   withIntermediateDirectories:YES
+                                    attributes:nil
+                                         error:&error],
+                  @"supplemental Profile fixture failed");
+        NSString *supplementalReplacement = [supplementalReplacements
+            stringByAppendingPathComponent:@"custom-pingfang-ui.ttc"];
+        FMWriteFixture(supplementalReplacement, @"custom-pingfang-ui", 0600);
+        NSDictionary *supplementalProfileDocument = @{
+            @"schemaVersion" : @2,
+            @"id" : supplementalProfileID,
+            @"name" : @"Supplemental Pipeline Test",
+            @"systemBuild" : @"TEST-BUILD",
+            @"replacements" : @[@{
+                @"fontFileID" : pingFangUICatalog[@"id"],
+                @"relativePath" :
+                    @"FontServicesCorePrivate/PingFangUI.ttc",
+                @"fileName" : @"custom-pingfang-ui.ttc",
+                @"sha256" :
+                    FMSHA256ForFileAtPath(supplementalReplacement, nil),
+            }],
+        };
+        FMRequire(FMWriteJSONObjectAtomically(
+                      supplementalProfileDocument,
+                      [supplementalProfile
+                          stringByAppendingPathComponent:@"profile.json"],
+                      0600, &error),
+                  @"supplemental Profile JSON failed");
+        NSString *supplementalStatePath =
+            [root stringByAppendingPathComponent:@"supplemental-state.json"];
+        FMRequire(FMWriteJSONObjectAtomically(
+                      stockState, supplementalStatePath, 0600, &error),
+                  @"supplemental state fixture failed");
+        NSString *primaryMirrorBeforeSupplemental =
+            FMSHA256ForFileAtPath(mirrorAlpha, nil);
+        NSDictionary *supplementalPlan =
+            FMCreateProfileStagePlanAtRootsWithSupplementalMirror(
+                stock, mirror, supplementalMirror, destinationProfiles,
+                supplementalProfileID, supplementalStatePath, @"TEST-BUILD",
+                supplementalCatalog, &error);
+        FMRequire(supplementalPlan != nil &&
+                      [supplementalPlan[@"applyRelativePaths"]
+                          isEqual:@[
+                              @"FontServicesCorePrivate/PingFangUI.ttc" ]] &&
+                      [supplementalPlan[@"writeCount"] unsignedIntegerValue] == 1,
+                  error.localizedDescription ?:
+                      @"supplemental Profile stage plan failed");
+        FMRequire(FMStageProfileAtRootsWithSupplementalMirror(
+                      stock, mirror, supplementalMirror,
+                      supplementalProfileDocument, supplementalProfile,
+                      supplementalPlan[@"stockRestoreRelativePaths"],
+                      supplementalStatePath,
+                      FMProfileEngineNoFaultInjection, &error) &&
+                      [[NSString stringWithContentsOfFile:supplementalMirrorFont
+                                                 encoding:NSUTF8StringEncoding
+                                                    error:nil]
+                          isEqual:@"custom-pingfang-ui"] &&
+                      [FMSHA256ForFileAtPath(mirrorAlpha, nil)
+                          isEqual:primaryMirrorBeforeSupplemental],
+                  error.localizedDescription ?:
+                      @"supplemental Profile did not route to its second mirror");
+        NSDictionary *supplementalStockPlan =
+            FMCreateProfileStagePlanAtRootsWithSupplementalMirror(
+                stock, mirror, supplementalMirror, destinationProfiles, nil,
+                supplementalStatePath, @"TEST-BUILD", supplementalCatalog,
+                &error);
+        FMRequire(supplementalStockPlan != nil &&
+                      FMStageProfileAtRootsWithSupplementalMirror(
+                          stock, mirror, supplementalMirror, nil, nil,
+                          supplementalStockPlan[@"stockRestoreRelativePaths"],
+                          supplementalStatePath,
+                          FMProfileEngineNoFaultInjection, &error) &&
+                      [FMSHA256ForFileAtPath(supplementalMirrorFont, nil)
+                          isEqual:FMSHA256ForFileAtPath(
+                              supplementalStockFont, nil)],
+                  error.localizedDescription ?:
+                      @"supplemental Stock restore did not converge");
+
         NSString *publishedReplacements =
             [finalProfile stringByAppendingPathComponent:@"replacements"];
         NSString *publishedAlpha = [publishedReplacements

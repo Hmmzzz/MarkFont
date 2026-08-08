@@ -11,7 +11,7 @@
 #import "FMMountBackendProtocol.h"
 
 NSString *const FMMountBackendIdentifier = @"markfont-bindfs";
-NSString *const FMMountBackendVersion = @"1";
+NSString *const FMMountBackendVersion = @"2";
 NSString *const FMMountBackendExecutableLogicalPath =
     @"/usr/libexec/markfont-bindfs";
 NSString *const FMMountBackendRuntimeLibraryLogicalPath =

@@ -23,7 +23,7 @@ static NSDictionary<NSString *, id> *FMFixtureInspection(
         @"systemBuild" : @"21D61",
         @"mountBackend" : @{
             @"identifier" : @"markfont-bindfs",
-            @"version" : @"1",
+            @"version" : @"2",
             @"executablePresent" : @YES,
             @"runtimeLibraryPresent" : @YES,
             @"runtimeLibrarySecure" : @YES,

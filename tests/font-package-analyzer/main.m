@@ -114,10 +114,21 @@ static NSDictionary<NSString *, id> *FMCatalogForPaths(
     NSArray<NSDictionary<NSString *, NSString *> *> *pathHashes,
     NSString *systemBuild,
     NSError **error) {
-    NSMutableArray<NSDictionary<NSString *, id> *> *entries = [NSMutableArray array];
+    NSMutableArray<NSDictionary<NSString *, id> *> *primaryEntries =
+        [NSMutableArray array];
+    NSMutableArray<NSDictionary<NSString *, id> *> *supplementalEntries =
+        [NSMutableArray array];
+    NSString *supplementalPrefix =
+        [FMFontCatalogFontServicesCorePrivatePrefix stringByAppendingString:@"/"];
     for (NSDictionary<NSString *, NSString *> *item in pathHashes) {
+        NSString *path = item[@"path"];
+        BOOL supplemental = [path hasPrefix:supplementalPrefix];
+        NSString *manifestPath = supplemental
+            ? [path substringFromIndex:supplementalPrefix.length] : path;
+        NSMutableArray *entries = supplemental
+            ? supplementalEntries : primaryEntries;
         [entries addObject:@{
-            @"relativePath" : item[@"path"],
+            @"relativePath" : manifestPath,
             @"type" : @"regular",
             @"mode" : @0644,
             @"uid" : @0,
@@ -126,9 +137,23 @@ static NSDictionary<NSString *, id> *FMCatalogForPaths(
             @"sha256" : item[@"sha256"],
         }];
     }
-    return FMCreateFontCatalogFromManifest(
-        @{ @"schemaVersion" : @2, @"entries" : entries }, systemBuild,
-        @"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", error);
+    NSComparator byPath = ^NSComparisonResult(NSDictionary *left,
+                                               NSDictionary *right) {
+        return [left[@"relativePath"] compare:right[@"relativePath"]];
+    };
+    [primaryEntries sortUsingComparator:byPath];
+    [supplementalEntries sortUsingComparator:byPath];
+    NSDictionary *supplementalManifest = supplementalEntries.count > 0
+        ? @{ @"schemaVersion" : @2, @"entries" : supplementalEntries }
+        : nil;
+    return FMCreateFontCatalogFromManifests(
+        @{ @"schemaVersion" : @2, @"entries" : primaryEntries },
+        supplementalManifest, systemBuild,
+        @"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        supplementalManifest != nil
+            ? @"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            : nil,
+        error);
 }
 
 static NSDictionary<NSString *, id> *FMFixtureCatalog(NSError **error) {
@@ -275,6 +300,73 @@ static void FMRunFixtureTests(NSString *temporaryRoot) {
     FMRequire(FMDeleteFontProfileAtRoot(profilesRoot, @"import-host-test",
                                         @"TEST-BUILD", &error),
               [NSString stringWithFormat:@"saved package Profile delete failed: %@", error]);
+
+    // Exercise the complete iOS 18-26 path, not just the filename matcher:
+    // the exact PingFangUI package member must materialize under the virtual
+    // FontServices target while the legacy PingFang member is ignored.
+    NSData *collection =
+        [NSData dataWithContentsOfFile:@"/System/Library/Fonts/AppleSDGothicNeo.ttc"];
+    FMRequire(collection.length > 0, @"TTC compatibility fixture is missing");
+    NSDictionary *modernCatalog = FMCatalogForPaths(@[
+        @{
+            @"path" : @"FontServicesCorePrivate/PingFangUI.ttc",
+            @"sha256" : @"2222222222222222222222222222222222222222222222222222222222222222",
+        },
+    ], @"TEST-MODERN-BUILD", &error);
+    FMRequire(modernCatalog != nil,
+              [NSString stringWithFormat:@"modern catalog fixture failed: %@", error]);
+    NSString *modernChinesePath =
+        [temporaryRoot stringByAppendingPathComponent:@"dual-version-chinese.zip"];
+    FMRequire(FMWriteStoredZIP(modernChinesePath, @[
+        @{ @"name" : @"Package/PingFang.ttc", @"data" : collection },
+        @{ @"name" : @"Package/PingFangUI.ttc", @"data" : collection },
+    ], &error), @"dual-version Chinese ZIP fixture write failed");
+    NSDictionary *modernChinesePreview =
+        FMAnalyzeFontPackageAtPath(modernChinesePath, modernCatalog, &error);
+    FMRequire(modernChinesePreview != nil &&
+                  [modernChinesePreview[@"matchedTargetCount"] unsignedIntegerValue] == 1 &&
+                  [modernChinesePreview[@"compatibilityAlternateSourceCount"] unsignedIntegerValue] == 1 &&
+                  [modernChinesePreview[@"matches"][0][@"selectedSourceRelativePath"]
+                      isEqual:@"Package/PingFangUI.ttc"] &&
+                  [modernChinesePreview[@"matches"][0][@"targetRelativePath"]
+                      isEqual:@"FontServicesCorePrivate/PingFangUI.ttc"],
+              [NSString stringWithFormat:@"modern Chinese preview failed: %@",
+                                         modernChinesePreview ?: error]);
+    NSString *modernProfilesRoot =
+        [temporaryRoot stringByAppendingPathComponent:@"modern-profiles"];
+    NSDictionary *modernSaved = FMImportFontPackageProfile(
+        modernChinesePath, modernCatalog, modernProfilesRoot,
+        @"import-pingfang-ui", @"PingFang UI", &error);
+    FMRequire(modernSaved != nil &&
+                  [modernSaved[@"replacementCount"] unsignedIntegerValue] == 1,
+              [NSString stringWithFormat:@"modern Chinese save failed: %@", error]);
+    NSDictionary *modernDetails = FMFontProfileDetailsAtRoot(
+        modernProfilesRoot, @"import-pingfang-ui", @"TEST-MODERN-BUILD", &error);
+    NSString *modernReplacement = [modernProfilesRoot stringByAppendingPathComponent:
+        @"import-pingfang-ui/replacements/replacement-0001.ttc"];
+    FMRequire(modernDetails != nil &&
+                  [modernDetails[@"relativePaths"]
+                      isEqual:@[ @"FontServicesCorePrivate/PingFangUI.ttc" ]] &&
+                  [[NSData dataWithContentsOfFile:modernReplacement] isEqual:collection],
+              @"PingFangUI bytes were not saved under the FontServices target");
+    FMRequire(FMDeleteFontProfileAtRoot(modernProfilesRoot, @"import-pingfang-ui",
+                                        @"TEST-MODERN-BUILD", &error),
+              [NSString stringWithFormat:@"modern Chinese Profile delete failed: %@", error]);
+
+    NSString *legacyOnlyPath =
+        [temporaryRoot stringByAppendingPathComponent:@"legacy-chinese-only.zip"];
+    FMRequire(FMWriteStoredZIP(legacyOnlyPath, @[
+        @{ @"name" : @"Package/PingFang.ttc", @"data" : collection },
+    ], &error), @"legacy-only Chinese ZIP fixture write failed");
+    NSDictionary *legacyOnlyPreview =
+        FMAnalyzeFontPackageAtPath(legacyOnlyPath, modernCatalog, &error);
+    FMRequire(legacyOnlyPreview != nil &&
+                  [legacyOnlyPreview[@"matchedTargetCount"] unsignedIntegerValue] == 0 &&
+                  [legacyOnlyPreview[@"compatibilityAlternateSourceCount"] unsignedIntegerValue] == 1 &&
+                  FMImportFontPackageProfile(
+                      legacyOnlyPath, modernCatalog, modernProfilesRoot,
+                      @"import-legacy-only", @"Legacy Only", nil) == nil,
+              @"legacy-only Chinese content was not blocked on the modern target");
 
     NSString *conflictPath = [temporaryRoot stringByAppendingPathComponent:@"conflict.zip"];
     FMRequire(FMWriteStoredZIP(conflictPath, @[

@@ -6,6 +6,8 @@ FOUNDATION_EXPORT NSString *const FMLegacyProviderPreferenceLogicalPath;
 FOUNDATION_EXPORT NSString *const FMMountStorageRootLogicalPath;
 FOUNDATION_EXPORT NSString *const FMMountSystemFontsLogicalPath;
 FOUNDATION_EXPORT NSString *const FMMountRootfsFontsLogicalPath;
+FOUNDATION_EXPORT NSString *const FMMountFontServicesCorePrivateLogicalPath;
+FOUNDATION_EXPORT NSString *const FMMountFontServicesCorePrivateMirrorLogicalPath;
 
 FOUNDATION_EXPORT NSString *const FMMountPathsErrorDomain;
 
@@ -40,6 +42,14 @@ NSString *FMMountResolvedAppContainerPath(NSString *suffix);
 // Callers must not persist the returned physical path.
 NSString *FMMountResolvedStockFontsPath(void);
 
+// iOS 18-26 moved PingFangUI.ttc out of /System/Library/Fonts and into the
+// private FontServices CorePrivate directory. These resolvers keep that second
+// fixed target in the same RootHide/conventional-rootless path boundary as the
+// primary Fonts tree. Callers must first pass FMSystemFontLayout's version
+// policy and then prove the exact path exists on the current build.
+NSString *FMMountResolvedStockFontServicesCorePrivatePath(void);
+NSString *FMMountResolvedFontServicesCorePrivateMirrorPath(void);
+
 // Reads the legacy Provider plist according to its actual Enable/path semantics.
 // A present preference is compatible when it does not currently auto-mount a
 // target overlapping /System/Library/Fonts.
@@ -55,7 +65,9 @@ NSDictionary<NSString *, id> *_Nullable
 FMDisableLegacyProviderAutoMountForSystemFonts(NSError **error);
 
 // Cheap runtime check used by normal Profile and restart operations. It reads
-// only mount metadata; it never walks or hashes the font mirror.
+// only mount metadata; it never walks or hashes either font mirror. The
+// FontServices mapping is required only after its fixed mirror has been
+// prepared, preserving the single-mapping behavior of iOS 16-17 workspaces.
 BOOL FMMountManagedMappingIsActive(NSError **error);
 
 NS_ASSUME_NONNULL_END

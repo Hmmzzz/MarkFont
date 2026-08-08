@@ -145,6 +145,7 @@
 "%lu 个文件在本机没有同名目标" = "%lu files have no matching target on this device";
 "%lu 个文件不是有效字体" = "%lu files aren't valid fonts";
 "%lu 个相同副本已自动合并" = "%lu identical copies were merged automatically";
+"%lu 个其他系统版本文件已自动忽略" = "%lu files for other system versions were ignored automatically";
 "字体包中的文件都能按本机原版文件名对应。" = "Every file in the package matches an original filename on this device.";
 "可以保存" = "Ready to Save";
 "匹配预览" = "Match Preview";
@@ -158,10 +159,12 @@
 "当前仅可预览" = "Preview Only";
 "会涉及的镜像文件 · %lu" = "Affected Mirror Files · %lu";
 "需要处理的同名冲突 · %lu" = "Filename Conflicts · %lu";
+"其他系统版本 · %lu" = "Other System Version · %lu";
 "本机没有同名目标 · %lu" = "No Device Target · %lu";
 "无法识别的文件 · %lu" = "Unrecognized Files · %lu";
 "镜像  %@\n包内  %@" = "Mirror  %@\nPackage  %@";
 "%lu 份同名文件内容不同，当前不会选择任何一份" = "%lu files share a name but have different content; none will be selected";
+"包内  %@\n当前系统使用 %@，此文件不参与匹配" = "Package  %@\nThis system uses %@; this file won't be matched";
 "包内  %@\n本机原版字体中没有同名文件，保持忽略" = "Package  %@\nNo matching original font exists on this device; ignored";
 "包内  %@\n%@" = "Package  %@\n%@";
 "无法识别为字体" = "Not recognized as a font";

@@ -70,6 +70,7 @@ xcrun clang \
   "$font_manager_root/shared/FMDataModel.m" \
   "$font_manager_root/shared/FMFileStore.m" \
   "$font_manager_root/shared/FMTreeManifest.m" \
+  "$font_manager_root/shared/FMFontCatalog.m" \
   "$font_manager_root/shared/FMProfileEngine.m" \
   "$font_manager_root/tests/data-core/main.m" \
   -o "$test_build_dir/data-core-test"
@@ -86,6 +87,7 @@ xcrun clang \
   -I "$font_manager_root/shared" \
   "$font_manager_root/shared/FMDataModel.m" \
   "$font_manager_root/shared/FMFontCatalog.m" \
+  "$font_manager_root/shared/FMSystemFontLayout.m" \
   "$font_manager_root/tests/font-catalog/main.m" \
   -o "$test_build_dir/font-catalog-test"
 
@@ -299,14 +301,23 @@ mount_backend_executor="$font_manager_root/shared/FMMountBackendExecutor.m"
 if [[ $(rg -o '\bmount[[:space:]]*\(' "$mount_backend_source" | wc -l | tr -d ' ') != 1 ]] || \
    [[ $(rg -o '\bunmount[[:space:]]*\(' "$mount_backend_source" | wc -l | tr -d ' ') != 1 ]] || \
    [[ $(rg -o 'MNT_FORCE' "$mount_backend_source" | wc -l | tr -d ' ') != 1 ]] || \
-   ! rg -q 'mount\("bindfs", FMSystemFontsPath, MNT_RDONLY' \
+   ! rg -q 'mount\("bindfs", targetPath\.fileSystemRepresentation, MNT_RDONLY' \
       "$mount_backend_source" || \
-   ! rg -q 'unmount\(FMSystemFontsPath, MNT_FORCE\)' \
+   ! rg -q 'unmount\(targetPath\.fileSystemRepresentation, MNT_FORCE\)' \
       "$mount_backend_source" || \
-   ! rg -q 'FMSystemFontsPath = "/System/Library/Fonts"' \
+   ! rg -F -q 'FMSystemFontsPath = @"/System/Library/Fonts"' \
       "$mount_backend_source" || \
-   ! rg -q 'FMMirrorLogicalPath = @"/bindfs/System/Library/Fonts"' \
+   ! rg -F -q 'FMFontsMirrorLogicalPath = @"/bindfs/System/Library/Fonts"' \
       "$mount_backend_source" || \
+   ! rg -F -q 'FMFontServicesCorePrivatePath =' \
+      "$mount_backend_source" || \
+   ! rg -F -q '@"/System/Library/PrivateFrameworks/FontServices.framework/CorePrivate"' \
+      "$mount_backend_source" || \
+   ! rg -F -q 'FMFontServicesCorePrivateMirrorLogicalPath =' \
+      "$mount_backend_source" || \
+   ! rg -F -q '@"/bindfs/System/Library/PrivateFrameworks/FontServices.framework/CorePrivate"' \
+      "$mount_backend_source" || \
+   ! rg -q 'fputs\("markfont-bindfs 2\\n"' "$mount_backend_source" || \
    ! rg -q 'jbclient_root_steal_ucred' "$mount_backend_source" || \
    ! rg -q 'FMMappingIsExact' "$mount_backend_source" || \
    ! rg -q 'FMMountBackendProcessExitNotMounted' \
@@ -316,6 +327,42 @@ if [[ $(rg -o '\bmount[[:space:]]*\(' "$mount_backend_source" | wc -l | tr -d ' 
    ! rg -q '@"detachWasRequired"' "$mount_backend_executor" || \
    ! rg -q 'argc != 2' "$mount_backend_source"; then
   printf 'FAIL: the built-in backend lost its fixed-path, read-only, exact-mapping boundary.\n' >&2
+  exit 1
+fi
+
+system_font_layout_source="$font_manager_root/shared/FMSystemFontLayout.m"
+supplemental_workspace_source="$font_manager_root/shared/FMDeviceSupplementalFontWorkspace.m"
+if ! rg -q 'majorVersion >= 16 && majorVersion <= 17' \
+      "$system_font_layout_source" || \
+   ! rg -q 'majorVersion >= 18 && majorVersion <= 26' \
+      "$system_font_layout_source" || \
+   ! rg -q 'FMCurrentSystemFontLayout\(nil, nil\)' \
+      "$mount_backend_source" || \
+   ! rg -q 'FMSystemFontLayoutPrimaryFonts\) return mappings' \
+      "$mount_backend_source" || \
+   ! rg -q 'FMCurrentSystemFontLayout' \
+      "$font_manager_root/shared/FMDeviceFontCatalog.m" || \
+   ! rg -q 'FMCurrentSystemFontLayout' \
+      "$supplemental_workspace_source" || \
+   ! rg -q 'FMCurrentSystemFontLayout' \
+      "$font_manager_root/shared/FMMountPaths.m" || \
+   ! rg -q 'FMCurrentSystemFontLayout' \
+      "$font_manager_root/shared/FMEnvironmentProbe.m" || \
+   ! rg -q 'FMCurrentSystemFontLayout' \
+      "$font_manager_root/shared/FMMountInspection.m" || \
+   ! rg -q 'FMSystemFontLayoutPrimaryFonts' \
+      "$supplemental_workspace_source" || \
+   ! rg -q '@"status" : @"notRequired"' \
+      "$supplemental_workspace_source"; then
+  printf 'FAIL: system-version-first font layout or legacy single-mount boundary is missing.\n' >&2
+  exit 1
+fi
+
+if rg -n 'FMFontCatalogPingFangUIRelativePath|compatibilityAlias|aliasApplied|selectedSourceFileName' \
+      "$font_manager_root/shared" "$font_manager_root/app" || \
+   rg -n 'LanguageSupport/PingFangUI\.ttc|FontServicesCorePrivate/PingFang\.ttc' \
+      "$font_manager_root/shared" "$font_manager_root/app"; then
+  printf 'FAIL: an obsolete cross-name or wrong-path implementation remains.\n' >&2
   exit 1
 fi
 
@@ -393,6 +440,8 @@ if ! rg -q "package_prefix='@MARKFONT_PACKAGE_PREFIX@'" "$postinst" "$prerm" "$p
    ! rg -q '\.mirror-owned' "$postrm" || \
    ! rg -q 'remove_exact_tree "\$mirror_fonts_root"' "$postrm" || \
    ! rg -q 'remove_exact_tree "\$mirror_staging_root"' "$postrm" || \
+   ! rg -q 'remove_exact_tree "\$mirror_coreprivate_root"' "$postrm" || \
+   ! rg -q 'remove_exact_tree "\$mirror_coreprivate_staging_root"' "$postrm" || \
    ! rg -q 'remove_exact_tree "\$engine_root"' "$postrm" || \
    ! rg -q 'require_physical_mount_parent "\$mirror_library_root"' "$postrm" || \
    ! rg -q 'remove_app_container_data' "$postrm" || \
@@ -446,6 +495,17 @@ if rg -n '^Depends:.*(com\.nan\.bindfs|cn\.zqbb\.hello\.mnt|dash)' \
   exit 1
 fi
 
+if [[ $(rg -o 'THEOS_PACKAGE_SCHEME="\$scheme"' \
+           "$font_manager_root/scripts/build-packages" | wc -l | tr -d ' ') != 2 ]] || \
+   rg -q 'DEBUG=0|FINALPACKAGE=1' \
+      "$font_manager_root/scripts/build-packages" || \
+   ! rg -q '^DEBUG := 1$' "$font_manager_root/Config.mk" || \
+   ! rg -F -q "^0\\.3\\.3(-[1-9][0-9]*)?(\\+debug)?$" \
+      "$font_manager_root/scripts/verify-package"; then
+  printf 'FAIL: normal dual-scheme builds are not pinned to debug metadata.\n' >&2
+  exit 1
+fi
+
 if ! rg -F -q 'TARGET := iphone:clang:latest:16.0' \
       "$font_manager_root/Config.mk" || \
    ! rg -F -q 'THEOS_PACKAGE_SCHEME ?= roothide' \
@@ -466,6 +526,10 @@ if ! rg -F -q 'TARGET := iphone:clang:latest:16.0' \
    ! rg -F -q 'return jbroot(logicalMobilePath);' \
       "$font_manager_root/shared/FMMountPaths.m" || \
    ! rg -F -q 'return FMMountResolvedOriginalRootfsPath(FMMountRootfsFontsLogicalPath);' \
+      "$font_manager_root/shared/FMMountPaths.m" || \
+   ! rg -F -q 'FMMountResolvedStockFontServicesCorePrivatePath(void)' \
+      "$font_manager_root/shared/FMMountPaths.m" || \
+   ! rg -F -q 'FMMountFontServicesCorePrivateLogicalPath' \
       "$font_manager_root/shared/FMMountPaths.m" || \
    ! rg -F -q 'FMMountResolvedOriginalRootfsPath(' \
       "$font_manager_root/shared/FMDeviceAutoMount.m" || \
@@ -578,6 +642,14 @@ if ! rg -q 'inspect-font-catalog --confirm-build' "$font_manager_root/daemon/mai
    rg -n 'inspect-font-catalog|FMCreateDeviceFontCatalogPreview' \
       "$font_manager_root/app" "$font_manager_root/cli"; then
   printf 'FAIL: the read-only font catalog preview escaped the root helper boundary.\n' >&2
+  exit 1
+fi
+
+if ! rg -q 'FMFontCatalogPreviewRelativePaths' \
+      "$font_manager_root/app/FMDeviceProfileWorkspace.m" || \
+   rg -n 'LanguageSupport/PingFang(UI)?\.ttc' \
+      "$font_manager_root/app/FMDeviceProfileWorkspace.m"; then
+  printf 'FAIL: the System Default preview is not derived from the build-specific Stock catalog.\n' >&2
   exit 1
 fi
 
@@ -963,6 +1035,12 @@ fi
 
 if ! rg -q 'FMAcquireExclusiveDirectoryLock' \
       "$font_manager_root/shared/FMDeviceProfileStage.m" || \
+   ! rg -q 'FMEnsureDeviceSupplementalFontWorkspaceWithExistingLock' \
+      "$font_manager_root/shared/FMDeviceProfileStage.m" || \
+   ! rg -q 'FMDeviceSupplementalFontWorkspace\.m' \
+      "$font_manager_root/daemon/Makefile" || \
+   ! rg -q 'FontServicesCorePrivate/PingFangUI\.ttc' \
+      "$font_manager_root/tests/profile-activation-pipeline/main.m" || \
    ! rg -q 'transitionManagedPaths' \
       "$font_manager_root/shared/FMProfileEngine.m"; then
   printf 'FAIL: Profile stage lacks serialized crash-repair boundaries.\n' >&2

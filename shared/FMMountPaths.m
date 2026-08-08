@@ -7,12 +7,17 @@
 #import <unistd.h>
 
 #import "FMLegacyProviderAutoMountPolicy.h"
+#import "FMSystemFontLayout.h"
 
 NSString *const FMLegacyProviderPreferenceLogicalPath =
     @"/var/mobile/Library/Preferences/com.nan.auto-bindfs.plist";
 NSString *const FMMountStorageRootLogicalPath = @"/bindfs";
 NSString *const FMMountSystemFontsLogicalPath = @"/System/Library/Fonts";
 NSString *const FMMountRootfsFontsLogicalPath = @"/System/Library/Fonts";
+NSString *const FMMountFontServicesCorePrivateLogicalPath =
+    @"/System/Library/PrivateFrameworks/FontServices.framework/CorePrivate";
+NSString *const FMMountFontServicesCorePrivateMirrorLogicalPath =
+    @"/bindfs/System/Library/PrivateFrameworks/FontServices.framework/CorePrivate";
 
 NSString *const FMMountPathsErrorDomain =
     @"com.hmmzzz.fontmanager.mount-paths";
@@ -362,30 +367,93 @@ NSString *FMMountResolvedStockFontsPath(void) {
     return FMMountResolvedOriginalRootfsPath(FMMountRootfsFontsLogicalPath);
 }
 
-BOOL FMMountManagedMappingIsActive(NSError **error) {
-    BOOL rootSupported = NO;
-    NSString *mirrorLogicalPath =
-        FMMountResolvedMirrorLogicalPath(&rootSupported, NULL);
+NSString *FMMountResolvedStockFontServicesCorePrivatePath(void) {
+    return FMMountResolvedOriginalRootfsPath(
+        FMMountFontServicesCorePrivateLogicalPath);
+}
+
+NSString *FMMountResolvedFontServicesCorePrivateMirrorPath(void) {
+    return jbroot(FMMountFontServicesCorePrivateMirrorLogicalPath);
+}
+
+static BOOL FMMountExactReadOnlyMapping(NSString *targetLogicalPath,
+                                        NSString *mirrorPath,
+                                        BOOL *inspectionAvailable) {
     struct statfs mapping = {0};
-    if (!rootSupported ||
-        statfs(FMMountSystemFontsLogicalPath.fileSystemRepresentation,
-               &mapping) != 0) {
-        return FMMountPathsFail(
-            error, 6, @"The active font mapping could not be inspected.",
-            rootSupported ? errno : 0);
+    if (statfs(targetLogicalPath.fileSystemRepresentation, &mapping) != 0) {
+        if (inspectionAvailable != NULL) *inspectionAvailable = NO;
+        return NO;
     }
+    if (inspectionAvailable != NULL) *inspectionAvailable = YES;
 
     NSString *filesystemType =
         [NSString stringWithUTF8String:mapping.f_fstypename];
     NSString *target = [NSString stringWithUTF8String:mapping.f_mntonname];
     NSString *source = [NSString stringWithUTF8String:mapping.f_mntfromname];
-    NSString *mirrorPath = jbroot(mirrorLogicalPath);
-    BOOL exact = filesystemType != nil && source != nil &&
+    return filesystemType != nil && source != nil &&
         [filesystemType caseInsensitiveCompare:@"bindfs"] == NSOrderedSame &&
-        [target isEqual:FMMountSystemFontsLogicalPath] &&
+        [target isEqual:targetLogicalPath] &&
         [source.stringByResolvingSymlinksInPath
             isEqual:mirrorPath.stringByResolvingSymlinksInPath] &&
         (mapping.f_flags & MNT_RDONLY) != 0;
-    return exact || FMMountPathsFail(
-        error, 6, @"The active font mapping is not the managed read-only mirror.", 0);
+}
+
+BOOL FMMountManagedMappingIsActive(NSError **error) {
+    NSError *layoutError = nil;
+    FMSystemFontLayout layout = FMCurrentSystemFontLayout(nil, &layoutError);
+    if (layout == FMSystemFontLayoutUnsupported) {
+        FMMountPathsSetUnderlyingError(
+            error, 6, @"The current system font layout is unsupported.",
+            layoutError);
+        return NO;
+    }
+
+    BOOL rootSupported = NO;
+    NSString *mirrorLogicalPath =
+        FMMountResolvedMirrorLogicalPath(&rootSupported, NULL);
+    BOOL primaryInspectionAvailable = NO;
+    BOOL primaryExact = rootSupported && FMMountExactReadOnlyMapping(
+        FMMountSystemFontsLogicalPath, jbroot(mirrorLogicalPath),
+        &primaryInspectionAvailable);
+    if (!rootSupported || !primaryInspectionAvailable) {
+        return FMMountPathsFail(
+            error, 6, @"The active font mapping could not be inspected.",
+            rootSupported ? errno : 0);
+    }
+
+    if (layout == FMSystemFontLayoutPrimaryFonts) {
+        return primaryExact || FMMountPathsFail(
+            error, 6,
+            @"The active font mapping is not the managed read-only mirror.", 0);
+    }
+
+    NSString *supplementalMirror =
+        FMMountResolvedFontServicesCorePrivateMirrorPath();
+    struct stat supplementalMirrorInfo = {0};
+    errno = 0;
+    int supplementalMirrorResult =
+        lstat(supplementalMirror.fileSystemRepresentation,
+              &supplementalMirrorInfo);
+    if (supplementalMirrorResult != 0 && errno != ENOENT) {
+        return FMMountPathsFail(
+            error, 6, @"The supplemental font mirror could not be inspected.",
+            errno);
+    }
+    BOOL supplementalExpected = supplementalMirrorResult == 0;
+    if (supplementalExpected && !S_ISDIR(supplementalMirrorInfo.st_mode)) {
+        return FMMountPathsFail(
+            error, 6, @"The supplemental font mirror is not a directory.", 0);
+    }
+
+    BOOL supplementalInspectionAvailable = YES;
+    BOOL supplementalExact = !supplementalExpected || FMMountExactReadOnlyMapping(
+        FMMountFontServicesCorePrivateLogicalPath, supplementalMirror,
+        &supplementalInspectionAvailable);
+    if (!supplementalInspectionAvailable) {
+        return FMMountPathsFail(
+            error, 6, @"The supplemental font mapping could not be inspected.", errno);
+    }
+    return (primaryExact && supplementalExact) || FMMountPathsFail(
+        error, 6,
+        @"The active font mappings are not the managed read-only mirrors.", 0);
 }
