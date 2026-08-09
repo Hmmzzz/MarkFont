@@ -85,7 +85,7 @@ if [[ "$package_depends" != *"firmware (>= 16.0)"* || \
   fail 'runtime dependencies do not match the built-in backend contract'
 fi
 [[ "$package_version" =~ ^0\.3\.3(-[1-9][0-9]*)?(\+debug)?$ ]] || \
-  fail 'package version does not match the 0.3.3 candidate series'
+  fail 'package version does not match the 0.3.3 release/development series'
 [[ "$package_conflicts" == 'com.nan.bindfs, cn.zqbb.hello.mnt' ]] || \
   fail 'external mount package conflicts are missing or malformed'
 [[ "$package_icon" == \

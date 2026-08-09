@@ -4,24 +4,26 @@ MarkFont 是一款面向 rootless 与 RootHide 环境的 iOS 全局字体管理�
 
 ## Current Status
 
-当前最新正式版本为 `v0.3.1`（2026-08-08）。`v0.3.0` 将最低系统版本降至 iOS 16.0，
+当前最新正式版本为 `v0.3.3`（2026-08-09）。`v0.3.0` 将最低系统版本降至 iOS 16.0，
 增加 conventional rootless / RootHide 双 scheme 构建，并补上重新越狱时对 clean pending
 Profile mirror 的安全恢复；`v0.3.1` 进一步修复 conventional rootless 下随机 App data
-container 导致的 Profile 激活和卸载清理问题，同时把本地回归套件纳入仓库。
+container 导致的 Profile 激活和卸载清理问题，同时把本地回归套件纳入仓库。`v0.3.3` 新增
+iOS 18–26 的真实 FontServices/CorePrivate 字体目录支持，并按已确认系统版本严格区分
+`PingFang.ttc` 与 `PingFangUI.ttc`，不再进行跨文件名替换。
 
-`v0.3.1` 的 `iphoneos-arm64`（conventional rootless）与 `iphoneos-arm64e`（RootHide）
-正式包均已通过本机 package audit。2026-08-09，维护基线设备已由用户安装未发布的 RootHide
+`v0.3.3` 的 `iphoneos-arm64`（conventional rootless）与 `iphoneos-arm64e`（RootHide）
+正式包均已通过宿主回归和本机 package audit。2026-08-09，维护基线设备已由用户安装过 RootHide
 `0.3.3-4+debug` 候选；只读回归确认 iOS 17.3.1 仍选择旧版单目录、`PingFang.ttc` catalog
 与单一 mapping 策略，且 Profile/Stock preflight、状态和自动挂载回执正常。SSH 会话读取已挂载
 目标目录时仍出现内容为空的矛盾证据，且本轮未获授权执行重挂载、Respring 或 reboot，因此这不表示
 所有 jailbreak 组合或该设备的完整运行闭环均已验证。
 
-当前工作树已进入未发布的 `0.3.3` 双 scheme 修复候选。`0.3.2` 只补了中文文件名匹配，
-但仍把 iOS 18–26 的 `PingFangUI.ttc` 假定在旧 `/System/Library/Fonts` 树中，因此安装后
-仍会提示本机没有同名目标。`0.3.3` 改为管理真实 FontServices 目录，并移除了跨文件名替换。
-2026-08-09，用户反馈该候选已在 iOS 18 实机测试通过；设备 build、越狱版本、所装包摘要及
+未发布的 `0.3.2` 只补了中文文件名匹配，但仍把 iOS 18–26 的 `PingFangUI.ttc` 假定在旧
+`/System/Library/Fonts` 树中，因此安装后仍会提示本机没有同名目标。`v0.3.3` 改为管理真实
+FontServices 目录，并移除了跨文件名替换。2026-08-09，用户反馈该实现已在 iOS 18 实机测试通过；
+设备 build、越狱版本、所装包摘要及
 Stock restore / 重新越狱 auto-mount 等分项证据尚未独立归档，因此不能外推为全部 iOS 18–26
-组合均已验证。该候选尚未创建 tag 或 Release。
+组合均已验证。
 
 ## Screenshots
 
@@ -50,7 +52,7 @@ Stock restore / 重新越狱 auto-mount 等分项证据尚未独立归档，因�
 
 RootHide 主线的 App、只读 mapping 与内置后端链路已在 iPhone 15 Pro、iOS 17.3.1
 （21D61）和 Relaxin 0.4.2 上逐步验证。iOS 16 conventional rootless 与其他 RootHide
-组合需要分别使用对应 scheme 的软件包；`v0.3.1` 尚未在这些组合上逐一完成实机部署，
+组合需要分别使用对应 scheme 的软件包；`v0.3.3` 尚未在这些组合上逐一完成实机部署，
 未列出的设备与越狱组合也应视为尚未验证。
 
 中文字体目标先由 root helper 确认当前系统版本与 build，再从对应的 build-specific Stock
