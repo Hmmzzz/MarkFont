@@ -19,7 +19,9 @@ container 导致的 Profile 激活和卸载清理问题，同时把本地回归�
 当前工作树已进入未发布的 `0.3.3` 双 scheme 修复候选。`0.3.2` 只补了中文文件名匹配，
 但仍把 iOS 18–26 的 `PingFangUI.ttc` 假定在旧 `/System/Library/Fonts` 树中，因此安装后
 仍会提示本机没有同名目标。`0.3.3` 改为管理真实 FontServices 目录，并移除了跨文件名替换。
-该候选尚未创建 tag 或 Release，也尚未完成 iOS 18–26 越狱实机验证。
+2026-08-09，用户反馈该候选已在 iOS 18 实机测试通过；设备 build、越狱版本、所装包摘要及
+Stock restore / 重新越狱 auto-mount 等分项证据尚未独立归档，因此不能外推为全部 iOS 18–26
+组合均已验证。该候选尚未创建 tag 或 Release。
 
 ## Screenshots
 
@@ -62,7 +64,9 @@ RootHide 主线的 App、只读 mapping 与内置后端链路已在 iPhone 15 Pr
   会直接失败，不回退套用旧路径；
 - 字体包同时包含两者时，选择与当前 Stock 同名的文件，另一份作为其他系统版本忽略；
 - 字体包缺少当前 Stock 同名文件、只包含另一名称时，不做跨名写入，并明确作为其他系统
-  版本文件忽略。
+  版本文件忽略；
+- `PingFang.ttc` 与 `PingFangUI.ttc` 不是别名或兜底来源：被忽略项不携带 target ID/path，
+  不会生成 replacement，也不能把其中一份内容写到另一文件名的系统目标。
 
 该规则同时用于字体包导入和“系统默认”中文预览。iOS 18–26 首次应用包含
 `PingFangUI.ttc` 的 Profile 时，helper 会在同一引擎锁内创建并验证第二份 Stock 快照和镜像，

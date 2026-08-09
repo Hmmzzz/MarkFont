@@ -303,10 +303,13 @@ static void FMRunFixtureTests(NSString *temporaryRoot) {
 
     // Exercise the complete iOS 18-26 path, not just the filename matcher:
     // the exact PingFangUI package member must materialize under the virtual
-    // FontServices target while the legacy PingFang member is ignored.
-    NSData *collection =
+    // FontServices target while distinct PingFang bytes remain targetless.
+    NSData *modernCollection =
         [NSData dataWithContentsOfFile:@"/System/Library/Fonts/AppleSDGothicNeo.ttc"];
-    FMRequire(collection.length > 0, @"TTC compatibility fixture is missing");
+    NSData *legacyCollection = geneva;
+    FMRequire(modernCollection.length > 0 &&
+                  ![modernCollection isEqual:legacyCollection],
+              @"distinct Chinese-role font fixtures are missing");
     NSDictionary *modernCatalog = FMCatalogForPaths(@[
         @{
             @"path" : @"FontServicesCorePrivate/PingFangUI.ttc",
@@ -318,18 +321,23 @@ static void FMRunFixtureTests(NSString *temporaryRoot) {
     NSString *modernChinesePath =
         [temporaryRoot stringByAppendingPathComponent:@"dual-version-chinese.zip"];
     FMRequire(FMWriteStoredZIP(modernChinesePath, @[
-        @{ @"name" : @"Package/PingFang.ttc", @"data" : collection },
-        @{ @"name" : @"Package/PingFangUI.ttc", @"data" : collection },
+        @{ @"name" : @"Package/PingFang.ttc", @"data" : legacyCollection },
+        @{ @"name" : @"Package/PingFangUI.ttc", @"data" : modernCollection },
     ], &error), @"dual-version Chinese ZIP fixture write failed");
     NSDictionary *modernChinesePreview =
         FMAnalyzeFontPackageAtPath(modernChinesePath, modernCatalog, &error);
     FMRequire(modernChinesePreview != nil &&
                   [modernChinesePreview[@"matchedTargetCount"] unsignedIntegerValue] == 1 &&
-                  [modernChinesePreview[@"compatibilityAlternateSourceCount"] unsignedIntegerValue] == 1 &&
+                  [modernChinesePreview[@"otherSystemVersionSourceCount"] unsignedIntegerValue] == 1 &&
                   [modernChinesePreview[@"matches"][0][@"selectedSourceRelativePath"]
                       isEqual:@"Package/PingFangUI.ttc"] &&
                   [modernChinesePreview[@"matches"][0][@"targetRelativePath"]
-                      isEqual:@"FontServicesCorePrivate/PingFangUI.ttc"],
+                      isEqual:@"FontServicesCorePrivate/PingFangUI.ttc"] &&
+                  [[NSSet setWithArray:
+                      [modernChinesePreview[@"otherSystemVersionSources"][0] allKeys]]
+                      isEqual:[NSSet setWithArray:@[
+                          @"fileName", @"sourceRelativePath"
+                      ]]],
               [NSString stringWithFormat:@"modern Chinese preview failed: %@",
                                          modernChinesePreview ?: error]);
     NSString *modernProfilesRoot =
@@ -347,8 +355,11 @@ static void FMRunFixtureTests(NSString *temporaryRoot) {
     FMRequire(modernDetails != nil &&
                   [modernDetails[@"relativePaths"]
                       isEqual:@[ @"FontServicesCorePrivate/PingFangUI.ttc" ]] &&
-                  [[NSData dataWithContentsOfFile:modernReplacement] isEqual:collection],
-              @"PingFangUI bytes were not saved under the FontServices target");
+                  [[NSData dataWithContentsOfFile:modernReplacement]
+                      isEqual:modernCollection] &&
+                  ![[NSData dataWithContentsOfFile:modernReplacement]
+                      isEqual:legacyCollection],
+              @"legacy PingFang bytes crossed into the PingFangUI target");
     FMRequire(FMDeleteFontProfileAtRoot(modernProfilesRoot, @"import-pingfang-ui",
                                         @"TEST-MODERN-BUILD", &error),
               [NSString stringWithFormat:@"modern Chinese Profile delete failed: %@", error]);
@@ -356,13 +367,13 @@ static void FMRunFixtureTests(NSString *temporaryRoot) {
     NSString *legacyOnlyPath =
         [temporaryRoot stringByAppendingPathComponent:@"legacy-chinese-only.zip"];
     FMRequire(FMWriteStoredZIP(legacyOnlyPath, @[
-        @{ @"name" : @"Package/PingFang.ttc", @"data" : collection },
+        @{ @"name" : @"Package/PingFang.ttc", @"data" : legacyCollection },
     ], &error), @"legacy-only Chinese ZIP fixture write failed");
     NSDictionary *legacyOnlyPreview =
         FMAnalyzeFontPackageAtPath(legacyOnlyPath, modernCatalog, &error);
     FMRequire(legacyOnlyPreview != nil &&
                   [legacyOnlyPreview[@"matchedTargetCount"] unsignedIntegerValue] == 0 &&
-                  [legacyOnlyPreview[@"compatibilityAlternateSourceCount"] unsignedIntegerValue] == 1 &&
+                  [legacyOnlyPreview[@"otherSystemVersionSourceCount"] unsignedIntegerValue] == 1 &&
                   FMImportFontPackageProfile(
                       legacyOnlyPath, modernCatalog, modernProfilesRoot,
                       @"import-legacy-only", @"Legacy Only", nil) == nil,

@@ -164,7 +164,7 @@
 "无法识别的文件 · %lu" = "Unrecognized Files · %lu";
 "镜像  %@\n包内  %@" = "Mirror  %@\nPackage  %@";
 "%lu 份同名文件内容不同，当前不会选择任何一份" = "%lu files share a name but have different content; none will be selected";
-"包内  %@\n当前系统使用 %@，此文件不参与匹配" = "Package  %@\nThis system uses %@; this file won't be matched";
+"包内  %@\n此文件属于其他系统版本，不参与匹配或写入" = "Package  %@\nThis file belongs to another system version and won't be matched or written";
 "包内  %@\n本机原版字体中没有同名文件，保持忽略" = "Package  %@\nNo matching original font exists on this device; ignored";
 "包内  %@\n%@" = "Package  %@\n%@";
 "无法识别为字体" = "Not recognized as a font";
@@ -187,7 +187,8 @@
 "选择 ZIP 或字体文件，检查匹配后存入字体库。" = "Choose a ZIP or font file, review matches, then save it to the font library.";
 "选择 ZIP 或字体文件，先查看会对应到哪些本机系统字体。" = "Choose a ZIP or font file to see which system fonts it matches on this device.";
 "已连接本机字体目录；字体包导入将在写入链路完成后开放。" = "The device font folder is connected. Font package import will be enabled when the write path is ready.";
-"若导入字体包时闪退，请关闭系统设置中 MarkFont 的“粗体文本”设置。" = "If the app crashes while importing a font package, turn off Bold Text for MarkFont in Settings.";
+"导入闪退：请关闭“设置”中 MarkFont 的“粗体文本”。" = "Import crash: turn off Bold Text for MarkFont in Settings.";
+"iOS 18–26 中文：请导入专用 PingFangUI.ttc。" = "iOS 18–26 Chinese: import the dedicated PingFangUI.ttc.";
 "选择字体包" = "Choose Font Package";
 "字体包导入尚未开放" = "Font Package Import Isn't Available Yet";
 "暂时无法读取字体库" = "Unable to Read Font Library";

@@ -226,6 +226,15 @@ int main(void) {
                           isEqual:@[ @"FontServicesCorePrivate/PingFangUI.ttc",
                                      @"Core/SFUI.ttf" ]],
                   @"the iOS 18-26 FontServices source did not select PingFangUI.ttc");
+        NSDictionary *ambiguousChineseCatalog = FMCreateFontCatalogFromManifests(
+            manifest, ios18FontServicesManifest, @"AMBIGUOUS-BUILD",
+            @"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            @"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            &error);
+        FMRequire(ambiguousChineseCatalog != nil &&
+                      [FMFontCatalogPreviewRelativePaths(ambiguousChineseCatalog)
+                          isEqual:@[ @"Core/SFUI.ttf" ]],
+                  @"an ambiguous Chinese catalog was treated as a filename fallback");
         FMRequire(FMFontCatalogPreviewRelativePaths(@{}).count == 0,
                   @"Stock preview selector accepted an invalid catalog");
 

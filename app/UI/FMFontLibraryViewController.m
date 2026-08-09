@@ -8,6 +8,7 @@
 #import "FMFloatingActionDockView.h"
 #import "FMFontPackageImportSession.h"
 #import "FMProfileWorkspace.h"
+#import "FMSystemFontLayout.h"
 
 static NSString *_Nullable FMLibraryNormalizedProfileID(id value) {
     return value == nil || value == NSNull.null ? nil : [value description];
@@ -23,6 +24,11 @@ static NSString *FMLibraryCompactPackagePath(NSString *path) {
     if (components.count <= 2) return path;
     return [NSString pathWithComponents:
         [components subarrayWithRange:NSMakeRange(components.count - 2, 2)]];
+}
+
+static BOOL FMLibraryShouldShowIOS18To26ChineseImportTip(void) {
+    return FMCurrentSystemFontLayout(nil, nil) ==
+        FMSystemFontLayoutFontServicesCorePrivate;
 }
 
 static UIImage *FMCircularDeleteActionImage(UITraitCollection *traits) {
@@ -539,7 +545,7 @@ static NSString *FMFriendlyMirrorRole(NSString *relativePath) {
 typedef NS_ENUM(NSInteger, FMFontPackagePreviewSection) {
     FMFontPackagePreviewSectionMatches = 0,
     FMFontPackagePreviewSectionConflicts,
-    FMFontPackagePreviewSectionCompatibilityAlternates,
+    FMFontPackagePreviewSectionOtherSystemVersions,
     FMFontPackagePreviewSectionUnmatched,
     FMFontPackagePreviewSectionInvalid,
     FMFontPackagePreviewSectionCount,
@@ -654,9 +660,9 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
         case FMFontPackagePreviewSectionConflicts:
             return [self.preview[@"conflicts"] isKindOfClass:NSArray.class]
                 ? self.preview[@"conflicts"] : @[];
-        case FMFontPackagePreviewSectionCompatibilityAlternates:
-            return [self.preview[@"compatibilityAlternates"] isKindOfClass:NSArray.class]
-                ? self.preview[@"compatibilityAlternates"] : @[];
+        case FMFontPackagePreviewSectionOtherSystemVersions:
+            return [self.preview[@"otherSystemVersionSources"] isKindOfClass:NSArray.class]
+                ? self.preview[@"otherSystemVersionSources"] : @[];
         case FMFontPackagePreviewSectionUnmatched:
             return [self.preview[@"unmatched"] isKindOfClass:NSArray.class]
                 ? self.preview[@"unmatched"] : @[];
@@ -674,8 +680,8 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
     NSUInteger conflicts = [self.preview[@"conflictTargetCount"] unsignedIntegerValue];
     NSUInteger invalid = [self.preview[@"invalidFontEntryCount"] unsignedIntegerValue];
     NSUInteger deduplicated = [self.preview[@"deduplicatedSourceCount"] unsignedIntegerValue];
-    NSUInteger compatibilityAlternates =
-        [self.preview[@"compatibilityAlternateSourceCount"] unsignedIntegerValue];
+    NSUInteger otherSystemVersions =
+        [self.preview[@"otherSystemVersionSourceCount"] unsignedIntegerValue];
     UIColor *color = conflicts > 0 || matched == 0 ? FMWarnColor() : FMSuccessColor();
 
     UIView *header = [[UIView alloc] initWithFrame:CGRectMake(0, 0,
@@ -733,9 +739,9 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
         [notes addObject:[NSString stringWithFormat:FMLocalized(@"%lu 个相同副本已自动合并"),
                                                         (unsigned long)deduplicated]];
     }
-    if (compatibilityAlternates > 0) {
+    if (otherSystemVersions > 0) {
         [notes addObject:[NSString stringWithFormat:FMLocalized(@"%lu 个其他系统版本文件已自动忽略"),
-                                                        (unsigned long)compatibilityAlternates]];
+                                                        (unsigned long)otherSystemVersions]];
     }
     detail.text = notes.count > 0
         ? [notes componentsJoinedByString:@" · "]
@@ -898,7 +904,7 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
             return [NSString stringWithFormat:FMLocalized(@"会涉及的镜像文件 · %lu"), (unsigned long)count];
         case FMFontPackagePreviewSectionConflicts:
             return [NSString stringWithFormat:FMLocalized(@"需要处理的同名冲突 · %lu"), (unsigned long)count];
-        case FMFontPackagePreviewSectionCompatibilityAlternates:
+        case FMFontPackagePreviewSectionOtherSystemVersions:
             return [NSString stringWithFormat:FMLocalized(@"其他系统版本 · %lu"), (unsigned long)count];
         case FMFontPackagePreviewSectionUnmatched:
             return [NSString stringWithFormat:FMLocalized(@"本机没有同名目标 · %lu"), (unsigned long)count];
@@ -936,12 +942,11 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
             symbol = @"exclamationmark.triangle.fill";
             color = FMWarnColor();
             break;
-        case FMFontPackagePreviewSectionCompatibilityAlternates:
+        case FMFontPackagePreviewSectionOtherSystemVersions:
             content.text = item[@"fileName"];
-            content.secondaryText = [NSString stringWithFormat:FMLocalized(@"包内  %@\n当前系统使用 %@，此文件不参与匹配"),
+            content.secondaryText = [NSString stringWithFormat:FMLocalized(@"包内  %@\n此文件属于其他系统版本，不参与匹配或写入"),
                                                                FMLibraryCompactPackagePath(
-                                                                   item[@"sourceRelativePath"]),
-                                                               item[@"currentTargetFileName"]];
+                                                                   item[@"sourceRelativePath"])];
             symbol = @"arrow.triangle.branch";
             color = UIColor.secondaryLabelColor;
             break;
@@ -1174,6 +1179,28 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
     [self reloadLibrary];
 }
 
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    UIView *header = self.tableView.tableHeaderView;
+    CGFloat width = self.tableView.bounds.size.width;
+    if (header == nil || width <= 0) return;
+
+    CGRect frame = header.frame;
+    frame.size.width = width;
+    header.frame = frame;
+    [header setNeedsLayout];
+    [header layoutIfNeeded];
+    CGFloat height = [header
+        systemLayoutSizeFittingSize:CGSizeMake(width, UILayoutFittingCompressedSize.height)
+        withHorizontalFittingPriority:UILayoutPriorityRequired
+              verticalFittingPriority:UILayoutPriorityFittingSizeLevel].height;
+    if (height > 0 && fabs(frame.size.height - height) > 0.5) {
+        frame.size.height = height;
+        header.frame = frame;
+        self.tableView.tableHeaderView = header;
+    }
+}
+
 - (BOOL)canPreviewFontPackages {
     return [self.workspace respondsToSelector:@selector(previewFontPackageAtPath:error:)];
 }
@@ -1184,7 +1211,7 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
 }
 
 - (UIView *)makeImportHeader {
-    UIView *header = [[UIView alloc] initWithFrame:CGRectMake(0, 0, self.view.bounds.size.width, 236)];
+    UIView *header = [[UIView alloc] initWithFrame:CGRectMake(0, 0, self.view.bounds.size.width, 1)];
     UIView *card = FMCardView();
     card.translatesAutoresizingMaskIntoConstraints = NO;
     card.backgroundColor = FMTintedBackground(FMAccentColor());
@@ -1221,9 +1248,23 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
     UILabel *importTip = FMLabel(UIFontTextStyleCaption1, UIFontWeightRegular,
                                  UIColor.secondaryLabelColor);
     importTip.translatesAutoresizingMaskIntoConstraints = NO;
-    importTip.text = FMLocalized(@"若导入字体包时闪退，请关闭系统设置中 MarkFont 的“粗体文本”设置。");
+    importTip.text = [@"· " stringByAppendingString:
+        FMLocalized(@"导入闪退：请关闭“设置”中 MarkFont 的“粗体文本”。")];
+    importTip.textAlignment = NSTextAlignmentCenter;
     importTip.accessibilityIdentifier = @"profile_import_crash_hint";
-    [card addSubview:importTip];
+    [header addSubview:importTip];
+
+    UILabel *chineseImportTip = nil;
+    if (FMLibraryShouldShowIOS18To26ChineseImportTip()) {
+        chineseImportTip = FMLabel(UIFontTextStyleCaption1, UIFontWeightSemibold,
+                                   FMAccentColor());
+        chineseImportTip.translatesAutoresizingMaskIntoConstraints = NO;
+        chineseImportTip.text = [@"· " stringByAppendingString:
+            FMLocalized(@"iOS 18–26 中文：请导入专用 PingFangUI.ttc。")];
+        chineseImportTip.textAlignment = NSTextAlignmentCenter;
+        chineseImportTip.accessibilityIdentifier = @"profile_import_ios18_chinese_hint";
+        [header addSubview:chineseImportTip];
+    }
 
     UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
     button.translatesAutoresizingMaskIntoConstraints = NO;
@@ -1249,10 +1290,9 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
     [NSLayoutConstraint activateConstraints:@[
         [card.leadingAnchor constraintEqualToAnchor:header.leadingAnchor constant:20],
         [card.trailingAnchor constraintEqualToAnchor:header.trailingAnchor constant:-20],
-        [card.topAnchor constraintEqualToAnchor:header.topAnchor constant:12],
-        [card.bottomAnchor constraintEqualToAnchor:header.bottomAnchor constant:-12],
+        [card.topAnchor constraintEqualToAnchor:header.topAnchor constant:8],
         [icon.leadingAnchor constraintEqualToAnchor:card.leadingAnchor constant:18],
-        [icon.topAnchor constraintEqualToAnchor:card.topAnchor constant:20],
+        [icon.topAnchor constraintEqualToAnchor:card.topAnchor constant:16],
         [icon.widthAnchor constraintEqualToConstant:25],
         [icon.heightAnchor constraintEqualToConstant:25],
         [title.leadingAnchor constraintEqualToAnchor:icon.trailingAnchor constant:11],
@@ -1260,16 +1300,26 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
         [title.trailingAnchor constraintEqualToAnchor:card.trailingAnchor constant:-18],
         [detail.leadingAnchor constraintEqualToAnchor:card.leadingAnchor constant:18],
         [detail.trailingAnchor constraintEqualToAnchor:card.trailingAnchor constant:-18],
-        [detail.topAnchor constraintEqualToAnchor:icon.bottomAnchor constant:10],
-        [importTip.leadingAnchor constraintEqualToAnchor:card.leadingAnchor constant:18],
-        [importTip.trailingAnchor constraintEqualToAnchor:card.trailingAnchor constant:-18],
-        [importTip.topAnchor constraintEqualToAnchor:detail.bottomAnchor constant:8],
+        [detail.topAnchor constraintEqualToAnchor:icon.bottomAnchor constant:8],
         [button.leadingAnchor constraintEqualToAnchor:card.leadingAnchor constant:14],
         [button.trailingAnchor constraintEqualToAnchor:card.trailingAnchor constant:-14],
-        [button.topAnchor constraintGreaterThanOrEqualToAnchor:importTip.bottomAnchor constant:10],
-        [button.bottomAnchor constraintEqualToAnchor:card.bottomAnchor constant:-14],
-        [button.heightAnchor constraintEqualToConstant:46],
+        [button.topAnchor constraintEqualToAnchor:detail.bottomAnchor constant:12],
+        [button.bottomAnchor constraintEqualToAnchor:card.bottomAnchor constant:-12],
+        [button.heightAnchor constraintEqualToConstant:44],
+        [importTip.leadingAnchor constraintEqualToAnchor:header.leadingAnchor constant:24],
+        [importTip.trailingAnchor constraintEqualToAnchor:header.trailingAnchor constant:-24],
+        [importTip.bottomAnchor constraintEqualToAnchor:header.bottomAnchor constant:-8],
     ]];
+    if (chineseImportTip != nil) {
+        [NSLayoutConstraint activateConstraints:@[
+            [chineseImportTip.leadingAnchor constraintEqualToAnchor:header.leadingAnchor constant:24],
+            [chineseImportTip.trailingAnchor constraintEqualToAnchor:header.trailingAnchor constant:-24],
+            [chineseImportTip.topAnchor constraintEqualToAnchor:card.bottomAnchor constant:8],
+            [importTip.topAnchor constraintEqualToAnchor:chineseImportTip.bottomAnchor constant:3],
+        ]];
+    } else {
+        [importTip.topAnchor constraintEqualToAnchor:card.bottomAnchor constant:8].active = YES;
+    }
     return header;
 }
 

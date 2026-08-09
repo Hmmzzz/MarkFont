@@ -10,7 +10,7 @@ FontManager_FILES = main.m FMAppDelegate.m FMDeviceProfileWorkspace.m \
     ../shared/FMStatusContract.m ../shared/FMDataModel.m \
     ../shared/FMFontCatalog.m ../shared/FMFontPackageMatcher.m \
     ../shared/FMFontPackageAnalyzer.m ../shared/FMFontPackageImportSession.m \
-    ../shared/FMFontProfileStore.m \
+    ../shared/FMFontProfileStore.m ../shared/FMSystemFontLayout.m \
     ../shared/FMFileStore.m ../shared/FMHelperClient.m
 FontManager_FRAMEWORKS = UIKit QuartzCore CoreText UniformTypeIdentifiers
 FontManager_LIBRARIES = $(MARKFONT_PATH_LIBRARIES)

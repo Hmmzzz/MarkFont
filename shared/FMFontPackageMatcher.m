@@ -103,39 +103,34 @@ NSDictionary<NSString *, id> *FMMatchFontPackageFilesToCatalog(
         }];
     }
 
-    NSMutableDictionary<NSString *, NSDictionary<NSString *, id> *>
-        *compatibilityTargetByIgnoredSourceName = [NSMutableDictionary dictionary];
-    NSDictionary<NSString *, id> *legacyTarget = stockByName[@"PingFang.ttc"];
-    NSDictionary<NSString *, id> *modernTarget = stockByName[@"PingFangUI.ttc"];
-    if (legacyTarget != nil && modernTarget == nil) {
-        if ([packageByName[@"PingFangUI.ttc"] count] > 0) {
-            compatibilityTargetByIgnoredSourceName[@"PingFangUI.ttc"] = legacyTarget;
-        }
-    } else if (modernTarget != nil && legacyTarget == nil) {
-        if ([packageByName[@"PingFang.ttc"] count] > 0) {
-            compatibilityTargetByIgnoredSourceName[@"PingFang.ttc"] = modernTarget;
-        }
+    // These are distinct fonts for distinct system layouts. Remember only the
+    // filename that must be ignored; never associate it with the current Stock
+    // target or expose target metadata that could be reused as a replacement.
+    NSString *ignoredOtherSystemVersionFileName = nil;
+    BOOL hasLegacyChineseTarget = stockByName[@"PingFang.ttc"] != nil;
+    BOOL hasModernChineseTarget = stockByName[@"PingFangUI.ttc"] != nil;
+    if (hasLegacyChineseTarget && !hasModernChineseTarget) {
+        ignoredOtherSystemVersionFileName = @"PingFangUI.ttc";
+    } else if (hasModernChineseTarget && !hasLegacyChineseTarget) {
+        ignoredOtherSystemVersionFileName = @"PingFang.ttc";
     }
 
     NSMutableDictionary<NSString *, NSMutableArray<NSDictionary<NSString *, id> *> *>
         *sourcesByTargetID = [NSMutableDictionary dictionary];
     NSMutableDictionary<NSString *, NSDictionary<NSString *, id> *> *targetByID =
         [NSMutableDictionary dictionary];
-    NSMutableArray<NSDictionary<NSString *, id> *> *compatibilityAlternates =
+    NSMutableArray<NSDictionary<NSString *, id> *> *otherSystemVersionSources =
         [NSMutableArray array];
     NSMutableArray<NSDictionary<NSString *, id> *> *unmatched = [NSMutableArray array];
     NSArray<NSString *> *sortedPackageNames =
         [packageByName.allKeys sortedArrayUsingSelector:@selector(compare:)];
     for (NSString *fileName in sortedPackageNames) {
         NSArray<NSDictionary<NSString *, id> *> *sources = packageByName[fileName];
-        NSDictionary<NSString *, id> *ignoredForTarget =
-            compatibilityTargetByIgnoredSourceName[fileName];
-        if (ignoredForTarget != nil) {
+        if ([fileName isEqual:ignoredOtherSystemVersionFileName]) {
             for (NSDictionary<NSString *, id> *source in sources) {
-                [compatibilityAlternates addObject:@{
+                [otherSystemVersionSources addObject:@{
                     @"fileName" : fileName,
                     @"sourceRelativePath" : source[@"relativePath"],
-                    @"currentTargetFileName" : ignoredForTarget[@"fileName"],
                 }];
             }
             continue;
@@ -241,12 +236,12 @@ NSDictionary<NSString *, id> *FMMatchFontPackageFilesToCatalog(
         @"packageFontFileCount" : @(packageFiles.count),
         @"matchedTargetCount" : @(matches.count),
         @"unmatchedSourceCount" : @(unmatched.count),
-        @"compatibilityAlternateSourceCount" : @(compatibilityAlternates.count),
+        @"otherSystemVersionSourceCount" : @(otherSystemVersionSources.count),
         @"conflictTargetCount" : @(conflicts.count),
         @"deduplicatedSourceCount" : @(deduplicatedSourceCount),
         @"matches" : matches,
         @"unmatched" : unmatched,
-        @"compatibilityAlternates" : compatibilityAlternates,
+        @"otherSystemVersionSources" : otherSystemVersionSources,
         @"conflicts" : conflicts,
     };
 }

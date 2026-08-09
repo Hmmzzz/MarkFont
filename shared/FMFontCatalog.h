@@ -33,7 +33,8 @@ NSDictionary<NSString *, id> * _Nullable FMCreateFontCatalogFromManifests(
 // Selects the build-specific Stock files used by the System Default preview.
 // Device code must first create this catalog through the confirmed system-layout
 // policy: iOS 18-26 expose PingFangUI.ttc through the FontServices namespace,
-// while iOS 14-17 expose PingFang.ttc below the primary Fonts tree.
+// while iOS 14-17 expose PingFang.ttc below the primary Fonts tree. A catalog
+// containing both distinct Chinese targets is ambiguous and selects neither.
 NSArray<NSString *> *FMFontCatalogPreviewRelativePaths(
     NSDictionary<NSString *, id> *catalog);
 

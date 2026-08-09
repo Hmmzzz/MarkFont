@@ -56,11 +56,16 @@ NSArray<NSString *> *FMFontCatalogPreviewRelativePaths(
     }
 
     NSMutableArray<NSString *> *paths = [NSMutableArray arrayWithCapacity:2];
-    // Prefer the modern name only when it actually exists in this build's
-    // verified Stock snapshot; legacy Stock exposes PingFang.ttc instead.
-    NSString *chinesePath = relativePathByFileName[@"PingFangUI.ttc"] ?:
-        relativePathByFileName[@"PingFang.ttc"];
-    if (chinesePath != nil) [paths addObject:chinesePath];
+    // A verified device catalog exposes exactly one build-specific Chinese
+    // target. Do not express the two distinct TTC files as a preference or
+    // fallback; an ambiguous catalog supplies neither one to preview.
+    NSString *modernChinesePath = relativePathByFileName[@"PingFangUI.ttc"];
+    NSString *legacyChinesePath = relativePathByFileName[@"PingFang.ttc"];
+    if (modernChinesePath != nil && legacyChinesePath == nil) {
+        [paths addObject:modernChinesePath];
+    } else if (legacyChinesePath != nil && modernChinesePath == nil) {
+        [paths addObject:legacyChinesePath];
+    }
 
     NSString *latinPath = relativePathByFileName[@"SFUI.ttf"];
     if (latinPath != nil && ![paths containsObject:latinPath]) {

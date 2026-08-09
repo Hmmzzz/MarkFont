@@ -36,8 +36,9 @@ runner 需要 macOS/Xcode、`rg`，以及本地工作区的 `../../scripts/jb-en
 
 - state/baseline schema、原子文件写入、tree manifest 与 operation lock；
 - iOS 16–26 先确认版本再选择 build-specific 字体目录、旧 Fonts 与新版 FontServices 双来源清单、
-  `PingFang.ttc` / `PingFangUI.ttc` 大小写敏感的精确同名选择与跨名拒绝、字体包解析、受控导入会话和
-  Profile 持久化；
+  `PingFang.ttc` / `PingFangUI.ttc` 大小写敏感的精确同名选择与跨名拒绝；另一系统版本文件只作为
+  不含 target ID/path 的忽略项，测试还使用两份不同字体内容确认不会跨名保存 replacement；
+  同时覆盖字体包解析、受控导入会话和 Profile 持久化；
 - Profile adoption、stage、Stock mirror、legacy takeover 与中断恢复；
 - mount/backend compatibility、auto-mount、自动 Respring 和 restart evidence；
 - secure directory、helper/CLI/App 权限边界，以及 package lifecycle 的静态契约。

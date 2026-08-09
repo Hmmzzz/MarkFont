@@ -358,7 +358,9 @@ if ! rg -q 'majorVersion >= 16 && majorVersion <= 17' \
   exit 1
 fi
 
-if rg -n 'FMFontCatalogPingFangUIRelativePath|compatibilityAlias|aliasApplied|selectedSourceFileName' \
+if rg -n 'FMFontCatalogPingFangUIRelativePath|compatibilityAlias|aliasApplied|selectedSourceFileName|compatibilityTargetByIgnoredSourceName|compatibilityAlternate|currentTargetFileName' \
+      "$font_manager_root/shared" "$font_manager_root/app" || \
+   rg -n 'PingFangUI\.ttc"\][[:space:]]*\?:' \
       "$font_manager_root/shared" "$font_manager_root/app" || \
    rg -n 'LanguageSupport/PingFangUI\.ttc|FontServicesCorePrivate/PingFang\.ttc' \
       "$font_manager_root/shared" "$font_manager_root/app"; then
@@ -623,6 +625,39 @@ if rg -n 'inspect-provider|FMFetchProviderInspection|兼容性检测' \
     "$font_manager_root/daemon/main.m" \
     "$font_manager_root/shared/FMHelperClient."*; then
   printf 'FAIL: the removed manual whole-tree inspection product path returned.\n' >&2
+  exit 1
+fi
+
+font_library_ui_source="$font_manager_root/app/UI/FMFontLibraryViewController.m"
+font_library_header_fit_count=$(rg -c 'systemLayoutSizeFittingSize' \
+  "$font_library_ui_source" || true)
+if [[ "$font_library_header_fit_count" -lt 2 ]] || \
+   ! rg -qF '../shared/FMSystemFontLayout.m' "$font_manager_root/app/Makefile" || \
+   ! rg -qF '#import "FMSystemFontLayout.h"' "$font_library_ui_source" || \
+   ! rg -qF 'FMLibraryShouldShowIOS18To26ChineseImportTip' \
+      "$font_library_ui_source" || \
+   ! rg -qF 'FMCurrentSystemFontLayout(nil, nil) ==' "$font_library_ui_source" || \
+   ! rg -qF 'FMSystemFontLayoutFontServicesCorePrivate' \
+      "$font_library_ui_source" || \
+   ! rg -qF 'if (FMLibraryShouldShowIOS18To26ChineseImportTip()) {' \
+      "$font_library_ui_source" || \
+   ! rg -qF 'profile_import_ios18_chinese_hint' "$font_library_ui_source" || \
+   ! rg -qF '[header addSubview:chineseImportTip]' "$font_library_ui_source" || \
+   ! rg -qF '[header addSubview:importTip]' "$font_library_ui_source" || \
+   [[ $(rg -cF '[@"· " stringByAppendingString:' "$font_library_ui_source" || true) -lt 2 ]] || \
+   ! rg -qF 'chineseImportTip.textAlignment = NSTextAlignmentCenter;' \
+      "$font_library_ui_source" || \
+   ! rg -qF 'importTip.textAlignment = NSTextAlignmentCenter;' \
+      "$font_library_ui_source" || \
+   ! rg -q 'chineseImportTip\.topAnchor constraintEqualToAnchor:card\.bottomAnchor' \
+      "$font_library_ui_source" || \
+   ! rg -qF '[importTip.topAnchor constraintEqualToAnchor:card.bottomAnchor constant:8].active = YES;' \
+      "$font_library_ui_source" || \
+   ! rg -q 'importTip\.bottomAnchor constraintEqualToAnchor:header\.bottomAnchor' \
+      "$font_library_ui_source" || \
+   ! rg -qF '"iOS 18–26 中文：请导入专用 PingFangUI.ttc。"' \
+      "$font_manager_root/app/Resources/en.lproj/Localizable.strings"; then
+  printf 'FAIL: the compact, version-gated font-import guidance contract is missing.\n' >&2
   exit 1
 fi
 

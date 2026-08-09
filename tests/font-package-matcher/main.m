@@ -94,13 +94,13 @@ int main(void) {
         FMRequire([legacyBoth[@"packageFontFileCount"] unsignedIntegerValue] == 5 &&
                       [legacyBoth[@"matchedTargetCount"] unsignedIntegerValue] == 2 &&
                       [legacyBoth[@"unmatchedSourceCount"] unsignedIntegerValue] == 1 &&
-                      [legacyBoth[@"compatibilityAlternateSourceCount"] unsignedIntegerValue] == 1 &&
+                      [legacyBoth[@"otherSystemVersionSourceCount"] unsignedIntegerValue] == 1 &&
                       [legacyBoth[@"conflictTargetCount"] unsignedIntegerValue] == 0 &&
                       [legacyBoth[@"deduplicatedSourceCount"] unsignedIntegerValue] == 1,
                   @"legacy dual-name matching counts are inconsistent");
         NSDictionary *pingFangMatch = legacyBoth[@"matches"][0];
         NSDictionary *sfuiMatch = legacyBoth[@"matches"][1];
-        NSDictionary *legacyAlternate = legacyBoth[@"compatibilityAlternates"][0];
+        NSDictionary *legacyOtherVersion = legacyBoth[@"otherSystemVersionSources"][0];
         FMRequire([pingFangMatch[@"targetRelativePath"]
                        isEqual:@"LanguageSupport/PingFang.ttc"] &&
                       [pingFangMatch[@"selectedSourceRelativePath"]
@@ -109,14 +109,12 @@ int main(void) {
                       [sfuiMatch[@"duplicateSourceRelativePaths"]
                           isEqual:@[ @"CoreUI/SFUI.ttf" ]] &&
                       [legacyBoth[@"unmatched"][0][@"fileName"] isEqual:@"Unknown.otf"] &&
-                      [legacyAlternate[@"fileName"] isEqual:@"PingFangUI.ttc"] &&
-                      [legacyAlternate[@"currentTargetFileName"] isEqual:@"PingFang.ttc"] &&
-                      [[NSSet setWithArray:legacyAlternate.allKeys]
+                      [legacyOtherVersion[@"fileName"] isEqual:@"PingFangUI.ttc"] &&
+                      [[NSSet setWithArray:legacyOtherVersion.allKeys]
                           isEqual:[NSSet setWithArray:@[
-                              @"fileName", @"sourceRelativePath",
-                              @"currentTargetFileName"
+                              @"fileName", @"sourceRelativePath"
                           ]]],
-                  @"iOS 14-17 exact Chinese file did not win over the modern alternate");
+                  @"iOS 14-17 did not isolate the modern Chinese source from all targets");
 
         NSDictionary *modernCatalog =
             FMCatalogWithChineseFile(@"PingFangUI.ttc", @"22A3354", &error);
@@ -126,32 +124,36 @@ int main(void) {
             FMPackageEntry(@"PingFang.ttc", legacyChineseHash),
             FMPackageEntry(@"PingFangUI.ttc", modernChineseHash),
         ], modernCatalog, &error);
+        NSDictionary *modernOtherVersion = modernBoth[@"otherSystemVersionSources"][0];
         FMRequire([modernBoth[@"matchedTargetCount"] unsignedIntegerValue] == 1 &&
-                      [modernBoth[@"compatibilityAlternateSourceCount"] unsignedIntegerValue] == 1 &&
+                      [modernBoth[@"otherSystemVersionSourceCount"] unsignedIntegerValue] == 1 &&
                       [modernBoth[@"conflictTargetCount"] unsignedIntegerValue] == 0 &&
                       [modernBoth[@"matches"][0][@"targetRelativePath"]
                           isEqual:@"FontServicesCorePrivate/PingFangUI.ttc"] &&
                       [modernBoth[@"matches"][0][@"selectedSourceRelativePath"]
                           isEqual:@"PingFangUI.ttc"] &&
-                      [modernBoth[@"compatibilityAlternates"][0][@"fileName"]
-                          isEqual:@"PingFang.ttc"],
-                  @"iOS 18-26 exact Chinese file did not win over the legacy alternate");
+                      [modernOtherVersion[@"fileName"] isEqual:@"PingFang.ttc"] &&
+                      [[NSSet setWithArray:modernOtherVersion.allKeys]
+                          isEqual:[NSSet setWithArray:@[
+                              @"fileName", @"sourceRelativePath"
+                          ]]],
+                  @"iOS 18-26 did not isolate the legacy Chinese source from all targets");
 
-        NSDictionary *legacyFallback = FMMatchFontPackageFilesToCatalog(@[
+        NSDictionary *legacyOtherVersionOnly = FMMatchFontPackageFilesToCatalog(@[
             FMPackageEntry(@"PingFangUI.ttc", modernChineseHash),
         ], legacyCatalog, &error);
-        FMRequire([legacyFallback[@"matchedTargetCount"] unsignedIntegerValue] == 0 &&
-                      [legacyFallback[@"compatibilityAlternateSourceCount"] unsignedIntegerValue] == 1 &&
-                      [legacyFallback[@"compatibilityAlternates"][0][@"fileName"]
+        FMRequire([legacyOtherVersionOnly[@"matchedTargetCount"] unsignedIntegerValue] == 0 &&
+                      [legacyOtherVersionOnly[@"otherSystemVersionSourceCount"] unsignedIntegerValue] == 1 &&
+                      [legacyOtherVersionOnly[@"otherSystemVersionSources"][0][@"fileName"]
                           isEqual:@"PingFangUI.ttc"],
                   @"modern package name was not safely ignored on a legacy build");
 
-        NSDictionary *modernFallback = FMMatchFontPackageFilesToCatalog(@[
+        NSDictionary *modernOtherVersionOnly = FMMatchFontPackageFilesToCatalog(@[
             FMPackageEntry(@"PingFang.ttc", legacyChineseHash),
         ], modernCatalog, &error);
-        FMRequire([modernFallback[@"matchedTargetCount"] unsignedIntegerValue] == 0 &&
-                      [modernFallback[@"compatibilityAlternateSourceCount"] unsignedIntegerValue] == 1 &&
-                      [modernFallback[@"compatibilityAlternates"][0][@"fileName"]
+        FMRequire([modernOtherVersionOnly[@"matchedTargetCount"] unsignedIntegerValue] == 0 &&
+                      [modernOtherVersionOnly[@"otherSystemVersionSourceCount"] unsignedIntegerValue] == 1 &&
+                      [modernOtherVersionOnly[@"otherSystemVersionSources"][0][@"fileName"]
                           isEqual:@"PingFang.ttc"],
                   @"legacy package name was not safely ignored on a modern build");
 
@@ -159,7 +161,7 @@ int main(void) {
             FMPackageEntry(@"LanguageSupport/pingfang.ttc", legacyChineseHash),
         ], legacyCatalog, &error);
         FMRequire([caseMismatch[@"matchedTargetCount"] unsignedIntegerValue] == 0 &&
-                      [caseMismatch[@"compatibilityAlternateSourceCount"]
+                      [caseMismatch[@"otherSystemVersionSourceCount"]
                           unsignedIntegerValue] == 0 &&
                       [caseMismatch[@"unmatchedSourceCount"] unsignedIntegerValue] == 1,
                   @"case-mismatched Chinese filename was not rejected");
