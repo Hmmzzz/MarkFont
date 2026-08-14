@@ -1245,15 +1245,6 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
     detail.numberOfLines = 2;
     [card addSubview:detail];
 
-    UILabel *importTip = FMLabel(UIFontTextStyleCaption1, UIFontWeightRegular,
-                                 UIColor.secondaryLabelColor);
-    importTip.translatesAutoresizingMaskIntoConstraints = NO;
-    importTip.text = [@"· " stringByAppendingString:
-        FMLocalized(@"导入闪退：请关闭“设置”中 MarkFont 的“粗体文本”。")];
-    importTip.textAlignment = NSTextAlignmentCenter;
-    importTip.accessibilityIdentifier = @"profile_import_crash_hint";
-    [header addSubview:importTip];
-
     UILabel *chineseImportTip = nil;
     if (FMLibraryShouldShowIOS18To26ChineseImportTip()) {
         chineseImportTip = FMLabel(UIFontTextStyleCaption1, UIFontWeightSemibold,
@@ -1306,19 +1297,16 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
         [button.topAnchor constraintEqualToAnchor:detail.bottomAnchor constant:12],
         [button.bottomAnchor constraintEqualToAnchor:card.bottomAnchor constant:-12],
         [button.heightAnchor constraintEqualToConstant:44],
-        [importTip.leadingAnchor constraintEqualToAnchor:header.leadingAnchor constant:24],
-        [importTip.trailingAnchor constraintEqualToAnchor:header.trailingAnchor constant:-24],
-        [importTip.bottomAnchor constraintEqualToAnchor:header.bottomAnchor constant:-8],
     ]];
     if (chineseImportTip != nil) {
         [NSLayoutConstraint activateConstraints:@[
             [chineseImportTip.leadingAnchor constraintEqualToAnchor:header.leadingAnchor constant:24],
             [chineseImportTip.trailingAnchor constraintEqualToAnchor:header.trailingAnchor constant:-24],
             [chineseImportTip.topAnchor constraintEqualToAnchor:card.bottomAnchor constant:8],
-            [importTip.topAnchor constraintEqualToAnchor:chineseImportTip.bottomAnchor constant:3],
+            [chineseImportTip.bottomAnchor constraintEqualToAnchor:header.bottomAnchor constant:-8],
         ]];
     } else {
-        [importTip.topAnchor constraintEqualToAnchor:card.bottomAnchor constant:8].active = YES;
+        [card.bottomAnchor constraintEqualToAnchor:header.bottomAnchor constant:-8].active = YES;
     }
     return header;
 }

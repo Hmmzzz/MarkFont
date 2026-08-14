@@ -28,22 +28,6 @@
     self.window = [[UIWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];
     self.window.tintColor = FMAccentColor();
 
-    UINavigationBarAppearance *navigationAppearance = [[UINavigationBarAppearance alloc] init];
-    [navigationAppearance configureWithTransparentBackground];
-    navigationAppearance.backgroundColor = FMCanvasColor();
-    navigationAppearance.shadowColor = UIColor.clearColor;
-    navigationAppearance.largeTitleTextAttributes = @{
-        NSForegroundColorAttributeName : UIColor.labelColor,
-        NSFontAttributeName : [UIFont systemFontOfSize:34 weight:UIFontWeightBold],
-    };
-    navigationAppearance.titleTextAttributes = @{
-        NSForegroundColorAttributeName : UIColor.labelColor,
-        NSFontAttributeName : [UIFont systemFontOfSize:17 weight:UIFontWeightSemibold],
-    };
-    UINavigationBar.appearance.standardAppearance = navigationAppearance;
-    UINavigationBar.appearance.scrollEdgeAppearance = navigationAppearance;
-    UINavigationBar.appearance.compactAppearance = navigationAppearance;
-
     [NSNotificationCenter.defaultCenter
         addObserver:self
            selector:@selector(languagePreferenceDidChange:)
@@ -58,7 +42,10 @@
     FMDeviceProfileWorkspace *workspace = [[FMDeviceProfileWorkspace alloc] init];
     FMProfileLabViewController *profiles =
         [[FMProfileLabViewController alloc] initWithWorkspace:workspace];
-    return [[UINavigationController alloc] initWithRootViewController:profiles];
+    UINavigationController *navigation =
+        [[UINavigationController alloc] initWithRootViewController:profiles];
+    FMConfigureNavigationController(navigation);
+    return navigation;
 }
 
 - (void)installRootViewControllerAnimated:(BOOL)animated {

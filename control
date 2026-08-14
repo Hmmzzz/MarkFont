@@ -1,6 +1,6 @@
 Package: com.hmmzzz.fontmanager
 Name: MarkFont
-Version: 0.3.3
+Version: 0.3.5
 Architecture: iphoneos-arm64
 Description: iOS 16+ 全局字体管理器，支持 conventional rootless 与 RootHide。
  可在 App 内导入 ZIP、TTF、TTC 和 OTF 字体，创建并切换多套字体方案，

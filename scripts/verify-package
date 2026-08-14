@@ -84,8 +84,8 @@ if [[ "$package_depends" != *"firmware (>= 16.0)"* || \
       "$package_depends" == *"dash"* ]]; then
   fail 'runtime dependencies do not match the built-in backend contract'
 fi
-[[ "$package_version" =~ ^0\.3\.3(-[1-9][0-9]*)?(\+debug)?$ ]] || \
-  fail 'package version does not match the 0.3.3 release/development series'
+[[ "$package_version" =~ ^0\.3\.5(-[1-9][0-9]*)?(\+debug)?$ ]] || \
+  fail 'package version does not match the 0.3.5 release/development series'
 [[ "$package_conflicts" == 'com.nan.bindfs, cn.zqbb.hello.mnt' ]] || \
   fail 'external mount package conflicts are missing or malformed'
 [[ "$package_icon" == \
@@ -205,8 +205,8 @@ done
 app_info="$data_root/Applications/FontManager.app/Info.plist"
 [[ -f "$app_info" && \
    $(plutil -extract MinimumOSVersion raw -o - "$app_info") == '16.0' && \
-   $(plutil -extract CFBundleShortVersionString raw -o - "$app_info") == '0.3.3' && \
-   $(plutil -extract CFBundleVersion raw -o - "$app_info") == '7' ]] || \
+   $(plutil -extract CFBundleShortVersionString raw -o - "$app_info") == '0.3.5' && \
+   $(plutil -extract CFBundleVersion raw -o - "$app_info") == '9' ]] || \
   fail 'application Info.plist version or minimum iOS is malformed'
 
 mount_backend="$data_root/usr/libexec/markfont-bindfs"

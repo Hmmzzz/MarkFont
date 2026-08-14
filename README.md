@@ -110,7 +110,7 @@ make package-all
 rootless 包架构为 `iphoneos-arm64`。上述专用构建目标会在打包后自动运行
 `scripts/verify-package`，检查路径布局、Mach-O 架构与最低系统版本、linking、entitlements、
 文件权限和 launchd 配置。普通开发构建保持 `DEBUG=1`；Theos 生成的正整数 build number
-（例如 `0.3.3-1+debug`、`0.3.3-2+debug`）属于合法候选版本。只有明确进入发布流程时才改用
+（例如 `0.3.5-1+debug`、`0.3.5-2+debug`）属于合法候选版本。只有明确进入发布流程时才改用
 release 构建参数。请勿在两种环境间混装软件包。
 
 ## Warning

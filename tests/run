@@ -502,7 +502,7 @@ if [[ $(rg -o 'THEOS_PACKAGE_SCHEME="\$scheme"' \
    rg -q 'DEBUG=0|FINALPACKAGE=1' \
       "$font_manager_root/scripts/build-packages" || \
    ! rg -q '^DEBUG := 1$' "$font_manager_root/Config.mk" || \
-   ! rg -F -q "^0\\.3\\.3(-[1-9][0-9]*)?(\\+debug)?$" \
+   ! rg -F -q "^0\\.3\\.5(-[1-9][0-9]*)?(\\+debug)?$" \
       "$font_manager_root/scripts/verify-package"; then
   printf 'FAIL: normal dual-scheme builds are not pinned to debug metadata.\n' >&2
   exit 1
@@ -629,9 +629,21 @@ if rg -n 'inspect-provider|FMFetchProviderInspection|兼容性检测' \
 fi
 
 font_library_ui_source="$font_manager_root/app/UI/FMFontLibraryViewController.m"
+app_delegate_source="$font_manager_root/app/FMAppDelegate.m"
+profile_lab_ui_source="$font_manager_root/app/UI/FMProfileLabViewController.m"
+design_system_source="$font_manager_root/app/UI/FMDesignSystem.h"
 font_library_header_fit_count=$(rg -c 'systemLayoutSizeFittingSize' \
   "$font_library_ui_source" || true)
-if [[ "$font_library_header_fit_count" -lt 2 ]] || \
+navigation_configuration_call_count=$( \
+  rg -o 'FMConfigureNavigationController\(navigation\);' \
+    "$app_delegate_source" "$profile_lab_ui_source" | wc -l | tr -d ' ' || true)
+if rg -n 'UINavigationBar[.]appearance' "$font_manager_root/app" || \
+   [[ "$navigation_configuration_call_count" -ne 3 ]] || \
+   ! rg -qF 'navigationBar.standardAppearance = appearance;' \
+      "$design_system_source" || \
+   ! rg -qF 'navigationBar.compactScrollEdgeAppearance = appearance;' \
+      "$design_system_source" || \
+   [[ "$font_library_header_fit_count" -lt 2 ]] || \
    ! rg -qF '../shared/FMSystemFontLayout.m' "$font_manager_root/app/Makefile" || \
    ! rg -qF '#import "FMSystemFontLayout.h"' "$font_library_ui_source" || \
    ! rg -qF 'FMLibraryShouldShowIOS18To26ChineseImportTip' \
@@ -643,21 +655,21 @@ if [[ "$font_library_header_fit_count" -lt 2 ]] || \
       "$font_library_ui_source" || \
    ! rg -qF 'profile_import_ios18_chinese_hint' "$font_library_ui_source" || \
    ! rg -qF '[header addSubview:chineseImportTip]' "$font_library_ui_source" || \
-   ! rg -qF '[header addSubview:importTip]' "$font_library_ui_source" || \
-   [[ $(rg -cF '[@"· " stringByAppendingString:' "$font_library_ui_source" || true) -lt 2 ]] || \
+   [[ $(rg -cF '[@"· " stringByAppendingString:' "$font_library_ui_source" || true) -ne 1 ]] || \
    ! rg -qF 'chineseImportTip.textAlignment = NSTextAlignmentCenter;' \
-      "$font_library_ui_source" || \
-   ! rg -qF 'importTip.textAlignment = NSTextAlignmentCenter;' \
       "$font_library_ui_source" || \
    ! rg -q 'chineseImportTip\.topAnchor constraintEqualToAnchor:card\.bottomAnchor' \
       "$font_library_ui_source" || \
-   ! rg -qF '[importTip.topAnchor constraintEqualToAnchor:card.bottomAnchor constant:8].active = YES;' \
+   ! rg -q 'chineseImportTip\.bottomAnchor constraintEqualToAnchor:header\.bottomAnchor' \
       "$font_library_ui_source" || \
-   ! rg -q 'importTip\.bottomAnchor constraintEqualToAnchor:header\.bottomAnchor' \
+   ! rg -qF '[card.bottomAnchor constraintEqualToAnchor:header.bottomAnchor constant:-8].active = YES;' \
       "$font_library_ui_source" || \
+   rg -n 'profile_import_crash_hint|导入闪退：请关闭|Import crash: turn off Bold Text' \
+      "$font_library_ui_source" \
+      "$font_manager_root/app/Resources/en.lproj/Localizable.strings" || \
    ! rg -qF '"iOS 18–26 中文：请导入专用 PingFangUI.ttc。"' \
       "$font_manager_root/app/Resources/en.lproj/Localizable.strings"; then
-  printf 'FAIL: the compact, version-gated font-import guidance contract is missing.\n' >&2
+  printf 'FAIL: the isolated picker appearance or compact font-import guidance contract is missing.\n' >&2
   exit 1
 fi
 

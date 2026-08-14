@@ -107,6 +107,34 @@ static inline UIView *FMCardView(void) {
     return view;
 }
 
+// Keep MarkFont's navigation styling on navigation controllers owned by the
+// app. A process-wide UINavigationBar appearance proxy also styles system view
+// controllers presented in-process, including UIDocumentPickerViewController.
+// That can conflict with accessibility-driven font traits inside the Files UI.
+static inline void FMConfigureNavigationController(
+    UINavigationController *navigationController) {
+    if (navigationController == nil) return;
+
+    UINavigationBarAppearance *appearance = [[UINavigationBarAppearance alloc] init];
+    [appearance configureWithTransparentBackground];
+    appearance.backgroundColor = FMCanvasColor();
+    appearance.shadowColor = UIColor.clearColor;
+    appearance.largeTitleTextAttributes = @{
+        NSForegroundColorAttributeName : UIColor.labelColor,
+        NSFontAttributeName : [UIFont systemFontOfSize:34 weight:UIFontWeightBold],
+    };
+    appearance.titleTextAttributes = @{
+        NSForegroundColorAttributeName : UIColor.labelColor,
+        NSFontAttributeName : [UIFont systemFontOfSize:17 weight:UIFontWeightSemibold],
+    };
+
+    UINavigationBar *navigationBar = navigationController.navigationBar;
+    navigationBar.standardAppearance = appearance;
+    navigationBar.scrollEdgeAppearance = appearance;
+    navigationBar.compactAppearance = appearance;
+    navigationBar.compactScrollEdgeAppearance = appearance;
+}
+
 static inline UILabel *FMLabel(UIFontTextStyle style, UIFontWeight weight, UIColor *color) {
     UILabel *label = [[UILabel alloc] initWithFrame:CGRectZero];
     UIFontDescriptor *descriptor = [UIFontDescriptor preferredFontDescriptorWithTextStyle:style];

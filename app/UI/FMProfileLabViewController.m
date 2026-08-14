@@ -1291,6 +1291,7 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
         }];
     UINavigationController *navigation =
         [[UINavigationController alloc] initWithRootViewController:settings];
+    FMConfigureNavigationController(navigation);
     navigation.modalPresentationStyle = UIModalPresentationPageSheet;
     navigation.view.accessibilityViewIsModal = YES;
     navigation.presentationController.delegate = self;
@@ -1315,6 +1316,7 @@ static const NSTimeInterval FMWorkspaceRecoveryRetryDelay = 1.0;
         }];
     UINavigationController *navigation =
         [[UINavigationController alloc] initWithRootViewController:library];
+    FMConfigureNavigationController(navigation);
     navigation.modalPresentationStyle = UIModalPresentationPageSheet;
     navigation.view.accessibilityViewIsModal = YES;
     UISheetPresentationController *sheet = navigation.sheetPresentationController;
