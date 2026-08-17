@@ -617,7 +617,7 @@ static NSUInteger FMMixCoveredPathCount(
         [self slotForIdentifier:FMFontSlotIdentifierLockScreen];
     if ([lockSlot[@"sharedStyleRelativePaths"] count] == 0) return guidance;
     return [NSString stringWithFormat:@"%@\n\n%@", guidance,
-        FMLocalized(@"锁屏时间槽位只管理可独立替换的 ADT Numeric 和 LockClock；SF Pro、圆角等共用系统英文字体的样式会跟随英文字体方案。")];
+        FMLocalized(@"锁屏时间槽位会按当前系统匹配 ADTTime 或 ADTNumeric；SF Pro、圆角等共用系统英文字体的样式会跟随英文字体方案。")];
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView
@@ -782,7 +782,7 @@ static NSUInteger FMMixCoveredPathCount(
         FMLocalized(@"所选方案未包含的槽位文件，会使用兜底方案。");
     if ([self.slot[@"sharedStyleRelativePaths"] count] == 0) return guidance;
     return [NSString stringWithFormat:@"%@\n\n%@", guidance,
-        FMLocalized(@"锁屏时间槽位只管理可独立替换的 ADT Numeric 和 LockClock；SF Pro、圆角等共用系统英文字体的样式会跟随英文字体方案。")];
+        FMLocalized(@"锁屏时间槽位会按当前系统匹配 ADTTime 或 ADTNumeric；SF Pro、圆角等共用系统英文字体的样式会跟随英文字体方案。")];
 }
 
 - (NSString *)pickerCoverageSummaryForScheme:(NSDictionary<NSString *, id> *)scheme {

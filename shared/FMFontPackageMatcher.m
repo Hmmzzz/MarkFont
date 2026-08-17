@@ -104,15 +104,23 @@ NSDictionary<NSString *, id> *FMMatchFontPackageFilesToCatalog(
     }
 
     // These are distinct fonts for distinct system layouts. Remember only the
-    // filename that must be ignored; never associate it with the current Stock
-    // target or expose target metadata that could be reused as a replacement.
-    NSString *ignoredOtherSystemVersionFileName = nil;
+    // filenames that must be ignored; never associate them with current Stock
+    // targets or expose target metadata that could be reused as replacements.
+    NSMutableSet<NSString *> *ignoredOtherSystemVersionFileNames =
+        [NSMutableSet set];
     BOOL hasLegacyChineseTarget = stockByName[@"PingFang.ttc"] != nil;
     BOOL hasModernChineseTarget = stockByName[@"PingFangUI.ttc"] != nil;
     if (hasLegacyChineseTarget && !hasModernChineseTarget) {
-        ignoredOtherSystemVersionFileName = @"PingFangUI.ttc";
+        [ignoredOtherSystemVersionFileNames addObject:@"PingFangUI.ttc"];
     } else if (hasModernChineseTarget && !hasLegacyChineseTarget) {
-        ignoredOtherSystemVersionFileName = @"PingFang.ttc";
+        [ignoredOtherSystemVersionFileNames addObject:@"PingFang.ttc"];
+    }
+    BOOL hasLegacyClockTarget = stockByName[@"ADTTime.ttc"] != nil;
+    BOOL hasModernClockTarget = stockByName[@"ADTNumeric.ttc"] != nil;
+    if (hasLegacyClockTarget && !hasModernClockTarget) {
+        [ignoredOtherSystemVersionFileNames addObject:@"ADTNumeric.ttc"];
+    } else if (hasModernClockTarget && !hasLegacyClockTarget) {
+        [ignoredOtherSystemVersionFileNames addObject:@"ADTTime.ttc"];
     }
 
     NSMutableDictionary<NSString *, NSMutableArray<NSDictionary<NSString *, id> *> *>
@@ -126,7 +134,7 @@ NSDictionary<NSString *, id> *FMMatchFontPackageFilesToCatalog(
         [packageByName.allKeys sortedArrayUsingSelector:@selector(compare:)];
     for (NSString *fileName in sortedPackageNames) {
         NSArray<NSDictionary<NSString *, id> *> *sources = packageByName[fileName];
-        if ([fileName isEqual:ignoredOtherSystemVersionFileName]) {
+        if ([ignoredOtherSystemVersionFileNames containsObject:fileName]) {
             for (NSDictionary<NSString *, id> *source in sources) {
                 [otherSystemVersionSources addObject:@{
                     @"fileName" : fileName,

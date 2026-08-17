@@ -71,7 +71,36 @@ static NSDictionary<NSString *, id> *FMSlot(
 
 int main(void) {
     @autoreleasepool {
-        NSArray<NSString *> *legacyPaths = @[
+        NSArray<NSString *> *ios16Paths = @[
+            @"Core/SFUI.ttf",
+            @"CoreUI/SFUIRounded.ttf",
+            @"LanguageSupport/PingFang.ttc",
+            @"AppFonts/LockClock.ttf",
+            @"Watch/ADTTime.ttc",
+        ];
+        NSArray<NSDictionary<NSString *, id> *> *slots =
+            FMResolvedFontSlotsForCatalog(FMCatalog(ios16Paths));
+        FMRequire(slots.count == 3, @"iOS 16 layout should resolve three slots");
+        NSDictionary<NSString *, id> *chinese =
+            FMSlot(slots, FMFontSlotIdentifierChinese);
+        NSDictionary<NSString *, id> *latin = FMSlot(slots, FMFontSlotIdentifierLatin);
+        NSDictionary<NSString *, id> *lock = FMSlot(slots, FMFontSlotIdentifierLockScreen);
+        FMRequire([lock[@"relativePaths"] isEqual:@[ @"Watch/ADTTime.ttc" ]],
+                  @"iOS 16 lock slot must resolve only ADTTime");
+        FMRequire([lock[@"sharedStyleRelativePaths"] isEqual:@[
+                          @"Core/SFUI.ttf", @"CoreUI/SFUIRounded.ttf"
+                      ]] &&
+                      [lock[@"sharedStyleOwnerSlotID"]
+                          isEqual:FMFontSlotIdentifierLatin],
+                  @"iOS 16 shared clock styles must point to the Latin owner");
+        FMRequire(
+            [FMFontSlotIdentifierForRelativePath(slots, @"Watch/ADTTime.ttc")
+                isEqual:FMFontSlotIdentifierLockScreen] &&
+                FMFontSlotIdentifierForRelativePath(
+                    slots, @"AppFonts/LockClock.ttf") == nil,
+            @"ADTTime must own the iOS 16 slot while LockClock stays outside it");
+
+        NSArray<NSString *> *ios17Paths = @[
             @"Core/SFUI.ttf",
             @"Core/SFUIItalic.ttf",
             @"Core/SFUIMono.ttf",
@@ -86,13 +115,11 @@ int main(void) {
             @"Watch/SFCompact.ttf",
             @"Watch/SFCompactRounded.ttf",
         ];
-        NSArray<NSDictionary<NSString *, id> *> *slots =
-            FMResolvedFontSlotsForCatalog(FMCatalog(legacyPaths));
-        FMRequire(slots.count == 3, @"legacy layout should resolve three slots");
-        NSDictionary<NSString *, id> *chinese =
-            FMSlot(slots, FMFontSlotIdentifierChinese);
-        NSDictionary<NSString *, id> *latin = FMSlot(slots, FMFontSlotIdentifierLatin);
-        NSDictionary<NSString *, id> *lock = FMSlot(slots, FMFontSlotIdentifierLockScreen);
+        slots = FMResolvedFontSlotsForCatalog(FMCatalog(ios17Paths));
+        FMRequire(slots.count == 3, @"iOS 17 layout should resolve three slots");
+        chinese = FMSlot(slots, FMFontSlotIdentifierChinese);
+        latin = FMSlot(slots, FMFontSlotIdentifierLatin);
+        lock = FMSlot(slots, FMFontSlotIdentifierLockScreen);
         FMRequire([chinese[@"relativePaths"] isEqual:@[ @"LanguageSupport/PingFang.ttc" ]],
                   @"Chinese slot must resolve to the legacy PingFang target");
         FMRequire([latin[@"relativePaths"]
@@ -100,10 +127,8 @@ int main(void) {
                                  @"CoreUI/SFUIRounded.ttf",
                                  @"Core/SFUIMono.ttf" ]],
                   @"Latin slot must resolve to the SF UI family");
-        FMRequire([lock[@"relativePaths"] isEqual:@[
-                      @"Watch/ADTNumeric.ttc",
-                      @"AppFonts/LockClock.ttf",
-                  ]], @"Lock screen slot must contain only dedicated clock files");
+        FMRequire([lock[@"relativePaths"] isEqual:@[ @"Watch/ADTNumeric.ttc" ]],
+                  @"iOS 17 lock slot must resolve only ADTNumeric");
         FMRequire([lock[@"sharedStyleRelativePaths"] isEqual:@[
                           @"Core/SFUI.ttf", @"CoreUI/SFUIRounded.ttf"
                       ]] &&
@@ -121,8 +146,8 @@ int main(void) {
                     isEqual:FMFontSlotIdentifierLatin] &&
                 [FMFontSlotIdentifierForRelativePath(slots, @"Watch/ADTNumeric.ttc")
                     isEqual:FMFontSlotIdentifierLockScreen] &&
-                [FMFontSlotIdentifierForRelativePath(slots, @"AppFonts/LockClock.ttf")
-                    isEqual:FMFontSlotIdentifierLockScreen] &&
+                FMFontSlotIdentifierForRelativePath(
+                    slots, @"AppFonts/LockClock.ttf") == nil &&
                 FMFontSlotIdentifierForRelativePath(
                     slots, @"CoreAddition/AppleColorEmoji-160px.ttc") == nil,
             @"slot lookup must map slot paths and leave other paths to fallback");
@@ -150,11 +175,11 @@ int main(void) {
                           isEqual:@[ @"Core/SFUI.ttf", @"CoreUI/SFUISoft.ttc",
                                      @"CoreUI/SFUIRounded.ttf" ]],
                   @"modern Latin slot must include the soft variant");
-        FMRequire(lock != nil && [lock[@"relativePaths"] isEqual:@[
-                      @"Core/ADTNumeric.ttc", @"AppFonts/LockClock.ttf"
-                  ]] && [lock[@"sharedStyleRelativePaths"] isEqual:@[
+        FMRequire(lock != nil &&
+                      [lock[@"relativePaths"] isEqual:@[ @"Core/ADTNumeric.ttc" ]] &&
+                      [lock[@"sharedStyleRelativePaths"] isEqual:@[
                       @"Core/SFUI.ttf", @"CoreUI/SFUIRounded.ttf"
-                  ]], @"modern lock slot must separate Core ADTNumeric from shared styles");
+                  ]], @"modern lock slot must contain only Core ADTNumeric");
 
         // An ambiguous catalog (both Chinese targets) yields no Chinese slot.
         slots = FMResolvedFontSlotsForCatalog(FMCatalogWithSupplement(
@@ -163,12 +188,24 @@ int main(void) {
         FMRequire(FMSlot(slots, FMFontSlotIdentifierChinese) == nil,
                   @"ambiguous Chinese targets must suppress the Chinese slot");
 
-        // Shared lock-screen styles alone do not create an independently
-        // replaceable lock slot.
+        // A mixed-version catalog is not a valid basis for choosing a clock
+        // target. As with the Chinese exact-one policy, fail closed.
+        slots = FMResolvedFontSlotsForCatalog(FMCatalog(@[
+            @"Core/SFUI.ttf",
+            @"LanguageSupport/PingFang.ttc",
+            @"Watch/ADTTime.ttc",
+            @"Watch/ADTNumeric.ttc",
+        ]));
+        FMRequire(FMSlot(slots, FMFontSlotIdentifierLockScreen) == nil,
+                  @"ambiguous ADT targets must suppress the lock slot");
+
+        // Shared lock-screen styles and LockClock alone do not create an
+        // independently replaceable lock slot.
         slots = FMResolvedFontSlotsForCatalog(FMCatalog(@[
             @"Core/SFUI.ttf",
             @"Core/SFUIItalic.ttf",
             @"LanguageSupport/PingFang.ttc",
+            @"AppFonts/LockClock.ttf",
         ]));
         FMRequire(slots.count == 2 &&
                       FMSlot(slots, FMFontSlotIdentifierLockScreen) == nil,
@@ -180,7 +217,7 @@ int main(void) {
                   @"invalid catalog must fail closed to no slots");
 
         // The plain-path variant agrees with the catalog variant.
-        slots = FMResolvedFontSlotsForRelativePaths(legacyPaths);
+        slots = FMResolvedFontSlotsForRelativePaths(ios17Paths);
         FMRequire([FMSlot(slots, FMFontSlotIdentifierChinese)[@"relativePaths"]
                       isEqual:@[ @"LanguageSupport/PingFang.ttc" ]] &&
                       [FMSlot(slots, FMFontSlotIdentifierLockScreen)
@@ -189,7 +226,7 @@ int main(void) {
                           isEqual:FMFontSlotIdentifierLatin],
                   @"path-list resolution must agree with catalog resolution");
 
-        printf("PASS: mix slots keep dedicated clock files separate from shared Latin styles\n");
+        printf("PASS: clock slot matches the current ADT target and excludes LockClock/shared Latin styles\n");
         return 0;
     }
 }

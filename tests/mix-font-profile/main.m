@@ -54,7 +54,6 @@ static NSDictionary<NSString *, id> *FMFixtureCatalog(void) {
         @"Core/SFUI.ttf",
         @"Core/SFUIItalic.ttf",
         @"LanguageSupport/PingFang.ttc",
-        @"AppFonts/LockClock.ttf",
         @"CoreAddition/AppleColorEmoji-160px.ttc",
         @"Watch/ADTNumeric.ttc",
     ] sortedArrayUsingSelector:@selector(compare:)];
@@ -148,7 +147,6 @@ int main(void) {
         NSString *latin = @"Core/SFUI.ttf";
         NSString *latinItalic = @"Core/SFUIItalic.ttf";
         NSString *lockNumeric = @"Watch/ADTNumeric.ttc";
-        NSString *lockScreen = @"AppFonts/LockClock.ttf";
         NSString *emoji = @"CoreAddition/AppleColorEmoji-160px.ttc";
 
         NSString *root = FMMakeTempRoot();
@@ -189,8 +187,8 @@ int main(void) {
         NSDictionary *lockSummary = slots[2];
         FMRequire([lockSummary[@"fallbackRelativePaths"] isEqual:@[]] &&
                       [lockSummary[@"stockRelativePaths"]
-                          isEqual:@[ lockNumeric, lockScreen ]],
-                  @"dedicated clock paths must stay independent from Latin fallback");
+                          isEqual:@[ lockNumeric ]],
+                  @"version-matched clock path must stay independent from Latin fallback");
 
         // Materialize the same merge.
         NSDictionary *saved = FMCreateMixedFontProfileAtRoot(

@@ -7,9 +7,9 @@ NSString *const FMFontSlotIdentifierChinese = @"chinese";
 NSString *const FMFontSlotIdentifierLatin = @"latin";
 NSString *const FMFontSlotIdentifierLockScreen = @"lockscreen";
 
-// Declaration order is used to keep slot file sets disjoint. The Chinese entry
-// is a placeholder; its single target is resolved by the build-specific layout
-// policy instead of a plain file-name lookup.
+// Declaration order is used to keep slot file sets disjoint. The Chinese and
+// lock-screen entries are placeholders; their single targets are resolved by
+// build-specific exact-one policies instead of a broad file-name lookup.
 static NSArray<NSDictionary<NSString *, id> *> *FMFontSlotDefinitions(void) {
     return @[
         @{
@@ -32,13 +32,12 @@ static NSArray<NSDictionary<NSString *, id> *> *FMFontSlotDefinitions(void) {
         @{
             @"slotID" : FMFontSlotIdentifierLockScreen,
             @"name" : @"锁屏时间字体",
-            // Only dedicated clock assets belong to this independently
-            // replaceable slot. ADTNumeric moves from Watch/ to Core/ on iOS
-            // 18, but filename-based catalog resolution remains stable.
-            @"fileNames" : @[
-                @"ADTNumeric.ttc",
-                @"LockClock.ttf",
-            ],
+            // iOS 16 uses ADTTime while newer builds use ADTNumeric (which
+            // itself moves from Watch/ to Core/ on iOS 18). Only the exact
+            // target present in the validated current-build catalog is an
+            // independently replaceable clock slot. LockClock.ttf is a
+            // registered system resource, but is not the PosterKit time face.
+            @"dedicatedClockPolicy" : @YES,
             // PosterKit's default SF Pro and Rounded clock styles are backed
             // by the same physical files as system Latin text. Surface that
             // relationship to the UI without making the paths overlap.
@@ -91,6 +90,17 @@ NSArray<NSDictionary<NSString *, id> *> *FMResolvedFontSlotsForRelativePaths(
                 [fileNames addObject:@"PingFangUI.ttc"];
             } else if (legacy != nil && modern == nil) {
                 [fileNames addObject:@"PingFang.ttc"];
+            }
+        } else if ([definition[@"dedicatedClockPolicy"] boolValue]) {
+            // The supported builds expose exactly one dedicated PosterKit
+            // clock collection. Fail closed if a malformed or mixed-version
+            // catalog contains both names instead of guessing a target.
+            NSString *legacy = relativePathByFileName[@"ADTTime.ttc"];
+            NSString *modern = relativePathByFileName[@"ADTNumeric.ttc"];
+            if (legacy != nil && modern == nil) {
+                [fileNames addObject:@"ADTTime.ttc"];
+            } else if (modern != nil && legacy == nil) {
+                [fileNames addObject:@"ADTNumeric.ttc"];
             }
         } else {
             [fileNames addObjectsFromArray:definition[@"fileNames"]];

@@ -18,7 +18,8 @@ FOUNDATION_EXPORT NSString *const FMFontSlotIdentifierLockScreen;
 // The Chinese slot follows the same layout policy as the device catalog: it
 // resolves to PingFangUI.ttc only when PingFang.ttc is absent, to PingFang.ttc
 // only when PingFangUI.ttc is absent, and to nothing when both or neither are
-// present.
+// present. The lock-screen slot applies the same exact-one rule to ADTTime.ttc
+// (iOS 16) and ADTNumeric.ttc (newer builds); LockClock.ttf is not a slot target.
 NSArray<NSDictionary<NSString *, id> *> *FMResolvedFontSlotsForCatalog(
     NSDictionary<NSString *, id> *catalog);
 

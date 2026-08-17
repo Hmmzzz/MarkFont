@@ -669,6 +669,8 @@ fi
 
 font_library_ui_source="$font_manager_root/app/UI/FMFontLibraryViewController.m"
 mix_font_ui_source="$font_manager_root/app/UI/FMMixFontViewController.m"
+font_slot_catalog_source="$font_manager_root/shared/FMFontSlotCatalog.m"
+font_package_matcher_source="$font_manager_root/shared/FMFontPackageMatcher.m"
 app_delegate_source="$font_manager_root/app/FMAppDelegate.m"
 profile_lab_ui_source="$font_manager_root/app/UI/FMProfileLabViewController.m"
 design_system_source="$font_manager_root/app/UI/FMDesignSystem.h"
@@ -710,6 +712,23 @@ if rg -n 'UINavigationBar[.]appearance' "$font_manager_root/app" || \
    ! rg -qF '"iOS 18–26 中文：请导入专用 PingFangUI.ttc。"' \
       "$font_manager_root/app/Resources/en.lproj/Localizable.strings"; then
   printf 'FAIL: the isolated picker appearance or compact font-import guidance contract is missing.\n' >&2
+  exit 1
+fi
+
+if ! rg -qF 'relativePathByFileName[@"ADTTime.ttc"]' \
+      "$font_slot_catalog_source" || \
+   ! rg -qF 'relativePathByFileName[@"ADTNumeric.ttc"]' \
+      "$font_slot_catalog_source" || \
+   rg -qF 'relativePathByFileName[@"LockClock.ttf"]' \
+      "$font_slot_catalog_source" || \
+   ! rg -qF 'hasLegacyClockTarget' "$font_package_matcher_source" || \
+   ! rg -qF 'hasModernClockTarget' "$font_package_matcher_source" || \
+   ! rg -qF '锁屏时间槽位会按当前系统匹配 ADTTime 或 ADTNumeric' \
+      "$mix_font_ui_source" || \
+   rg -qF 'ADT Numeric 和 LockClock' \
+      "$mix_font_ui_source" \
+      "$font_manager_root/app/Resources/en.lproj/Localizable.strings"; then
+  printf 'FAIL: the build-matched ADT clock slot or package isolation contract is missing.\n' >&2
   exit 1
 fi
 
