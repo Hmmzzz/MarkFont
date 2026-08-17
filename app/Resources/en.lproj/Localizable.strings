@@ -363,7 +363,7 @@
 "混搭字体" = "Mix & Match";
 "中文字体" = "Chinese font";
 "英文字体" = "English font";
-"锁屏字体" = "Lock screen font";
+"锁屏时间字体" = "Lock screen clock";
 "混搭预览" = "Mix preview";
 "中文 · %@" = "Chinese · %@";
 "英文 · %@" = "English · %@";
@@ -419,3 +419,4 @@
 "来源方案包含缺失或异常的字体文件。" = "A source scheme contains a missing or invalid font file.";
 "来源方案的字体文件与记录不一致。" = "A source scheme font file does not match its recorded hash.";
 "创建混搭方案" = "Create a mix";
+"锁屏时间的 SF Pro 与圆角样式会和系统英文共用字体文件；两处选择不同时，共用文件以锁屏方案为准。" = "SF Pro and Rounded lock-screen clocks share font files with system Latin text. If the two selections differ, the lock-screen scheme takes precedence for shared files.";

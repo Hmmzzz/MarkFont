@@ -75,10 +75,16 @@ int main(void) {
             @"Core/SFUI.ttf",
             @"Core/SFUIItalic.ttf",
             @"Core/SFUIMono.ttf",
+            @"Core/NewYork.ttf",
+            @"Core/SFArabic.ttf",
+            @"Core/SFHebrew.ttf",
+            @"CoreUI/SFUIRounded.ttf",
             @"LanguageSupport/PingFang.ttc",
             @"AppFonts/LockClock.ttf",
             @"CoreAddition/AppleColorEmoji-160px.ttc",
+            @"Watch/ADTNumeric.ttc",
             @"Watch/SFCompact.ttf",
+            @"Watch/SFCompactRounded.ttf",
         ];
         NSArray<NSDictionary<NSString *, id> *> *slots =
             FMResolvedFontSlotsForCatalog(FMCatalog(legacyPaths));
@@ -91,16 +97,35 @@ int main(void) {
                   @"Chinese slot must resolve to the legacy PingFang target");
         FMRequire([latin[@"relativePaths"]
                       isEqual:@[ @"Core/SFUI.ttf", @"Core/SFUIItalic.ttf",
+                                 @"CoreUI/SFUIRounded.ttf",
                                  @"Core/SFUIMono.ttf" ]],
                   @"Latin slot must resolve to the SF UI family");
-        FMRequire([lock[@"relativePaths"] isEqual:@[ @"AppFonts/LockClock.ttf" ]],
-                  @"Lock screen slot must resolve to LockClock.ttf");
+        FMRequire([lock[@"relativePaths"] isEqual:@[
+                      @"Core/SFUI.ttf",
+                      @"CoreUI/SFUIRounded.ttf",
+                      @"Watch/ADTNumeric.ttc",
+                      @"Core/NewYork.ttf",
+                      @"Core/SFArabic.ttf",
+                      @"Core/SFHebrew.ttf",
+                      @"Watch/SFCompact.ttf",
+                      @"Watch/SFCompactRounded.ttf",
+                      @"AppFonts/LockClock.ttf",
+                  ]], @"Lock screen slot must resolve the PosterKit time-font files");
+        FMRequire([latin[@"sharedRelativePaths"] isEqual:@[
+                      @"Core/SFUI.ttf", @"CoreUI/SFUIRounded.ttf"
+                  ]] &&
+                      [lock[@"sharedRelativePaths"] isEqual:@[
+                          @"Core/SFUI.ttf", @"CoreUI/SFUIRounded.ttf"
+                      ]],
+                  @"shared SF UI clock targets must be explicit in both slots");
 
         FMRequire(
             [FMFontSlotIdentifierForRelativePath(
                  slots, @"LanguageSupport/PingFang.ttc")
                 isEqual:FMFontSlotIdentifierChinese] &&
                 [FMFontSlotIdentifierForRelativePath(slots, @"Core/SFUI.ttf")
+                    isEqual:FMFontSlotIdentifierLockScreen] &&
+                [FMFontSlotIdentifierForRelativePath(slots, @"Core/SFUIItalic.ttf")
                     isEqual:FMFontSlotIdentifierLatin] &&
                 [FMFontSlotIdentifierForRelativePath(slots, @"AppFonts/LockClock.ttf")
                     isEqual:FMFontSlotIdentifierLockScreen] &&
@@ -111,18 +136,31 @@ int main(void) {
         // The modern layout swaps the Chinese target into the FontServices
         // virtual namespace and hides the legacy file entirely.
         slots = FMResolvedFontSlotsForCatalog(FMCatalogWithSupplement(
-            @[ @"Core/SFUI.ttf", @"CoreUI/SFUISoft.ttc", @"AppFonts/LockClock.ttf" ],
+            @[
+                @"Core/ADTNumeric.ttc",
+                @"Core/SFUI.ttf",
+                @"CoreUI/SFUISoft.ttc",
+                @"CoreUI/SFUIRounded.ttf",
+                @"AppFonts/LockClock.ttf",
+            ],
             @[ @"PingFangUI.ttc" ]));
         chinese = FMSlot(slots, FMFontSlotIdentifierChinese);
         latin = FMSlot(slots, FMFontSlotIdentifierLatin);
+        lock = FMSlot(slots, FMFontSlotIdentifierLockScreen);
         FMRequire(chinese != nil &&
                       [chinese[@"relativePaths"]
                           isEqual:@[ @"FontServicesCorePrivate/PingFangUI.ttc" ]],
                   @"modern layout must resolve the Chinese slot through CorePrivate");
         FMRequire(latin != nil &&
                       [latin[@"relativePaths"]
-                          isEqual:@[ @"Core/SFUI.ttf", @"CoreUI/SFUISoft.ttc" ]],
+                          isEqual:@[ @"Core/SFUI.ttf", @"CoreUI/SFUISoft.ttc",
+                                     @"CoreUI/SFUIRounded.ttf" ]],
                   @"modern Latin slot must include the soft variant");
+        FMRequire(lock != nil && [lock[@"relativePaths"] isEqual:@[
+                      @"Core/SFUI.ttf", @"CoreUI/SFUIRounded.ttf",
+                      @"Core/ADTNumeric.ttc", @"AppFonts/LockClock.ttf"
+                  ]],
+                  @"modern lock slot must follow the Core ADTNumeric layout");
 
         // An ambiguous catalog (both Chinese targets) yields no Chinese slot.
         slots = FMResolvedFontSlotsForCatalog(FMCatalogWithSupplement(
@@ -131,14 +169,15 @@ int main(void) {
         FMRequire(FMSlot(slots, FMFontSlotIdentifierChinese) == nil,
                   @"ambiguous Chinese targets must suppress the Chinese slot");
 
-        // Slots without any matching file disappear.
+        // Slots without any matching file disappear. SFUIItalic is Latin but
+        // is not itself one of PosterKit's lock-screen time-font targets.
         slots = FMResolvedFontSlotsForCatalog(FMCatalog(@[
-            @"Core/SFUI.ttf",
+            @"Core/SFUIItalic.ttf",
             @"LanguageSupport/PingFang.ttc",
         ]));
         FMRequire(slots.count == 2 &&
                       FMSlot(slots, FMFontSlotIdentifierLockScreen) == nil,
-                  @"missing LockClock must hide the lock screen slot");
+                  @"catalog without a time-font target must hide the lock screen slot");
         FMRequire(FMResolvedFontSlotsForRelativePaths(@[]).count == 0,
                   @"empty path list must resolve no slots");
         FMRequire(FMResolvedFontSlotsForCatalog(@{ @"schemaVersion" : @2 })
@@ -149,11 +188,13 @@ int main(void) {
         slots = FMResolvedFontSlotsForRelativePaths(legacyPaths);
         FMRequire([FMSlot(slots, FMFontSlotIdentifierChinese)[@"relativePaths"]
                       isEqual:@[ @"LanguageSupport/PingFang.ttc" ]] &&
-                      [FMSlot(slots, FMFontSlotIdentifierLockScreen)[@"relativePaths"]
-                          isEqual:@[ @"AppFonts/LockClock.ttf" ]],
+                      [FMSlot(slots, FMFontSlotIdentifierLockScreen)
+                              [@"relativePaths"] containsObject:@"Core/SFUI.ttf"] &&
+                      [FMFontSlotIdentifierForRelativePath(slots, @"Core/SFUI.ttf")
+                          isEqual:FMFontSlotIdentifierLockScreen],
                   @"path-list resolution must agree with catalog resolution");
 
-        printf("PASS: mix slots resolve per layout, hide empty slots, and stay disjoint\n");
+        printf("PASS: mix slots resolve PosterKit time fonts and shared-path priority\n");
         return 0;
     }
 }

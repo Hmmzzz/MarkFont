@@ -183,8 +183,9 @@ int main(void) {
                       [latinSummary[@"stockRelativePaths"] isEqual:@[ latinItalic ]],
                   @"unassigned Latin slot must fall back and keep the rest stock");
         NSDictionary *lockSummary = slots[2];
-        FMRequire([lockSummary[@"stockRelativePaths"] isEqual:@[ lockScreen ]],
-                  @"uncovered lock screen path must stay stock");
+        FMRequire([lockSummary[@"fallbackRelativePaths"] isEqual:@[ latin ]] &&
+                      [lockSummary[@"stockRelativePaths"] isEqual:@[ lockScreen ]],
+                  @"shared SFUI must fall back while LockClock stays stock");
 
         // Materialize the same merge.
         NSDictionary *saved = FMCreateMixedFontProfileAtRoot(
@@ -279,10 +280,43 @@ int main(void) {
         FMRequire(saved != nil && [saved[@"replacementCount"] unsignedIntegerValue] == 1,
                   @"slot-only mix must contain exactly the slot file");
 
+        // SFUI is shared by Latin UI and the SF Pro lock-screen clock. When
+        // both slots provide it, the lock-screen selection wins exactly once.
+        NSDictionary *sharedAssignments = @{
+            FMFontSlotIdentifierLatin : @"import-b",
+            FMFontSlotIdentifierLockScreen : @"import-c",
+        };
+        preview = FMMixFontProfilePreviewAtRoot(
+            profilesRoot, catalog, sharedAssignments, nil, &error);
+        FMRequire(preview != nil &&
+                      [preview[@"replacementCount"] unsignedIntegerValue] == 1,
+                  @"shared SFUI target must be merged only once");
+        NSDictionary *sharedLatinSummary = preview[@"slots"][1];
+        NSDictionary *sharedLockSummary = preview[@"slots"][2];
+        FMRequire([sharedLatinSummary[@"otherSlotRelativePaths"]
+                      isEqual:@[ latin ]] &&
+                      [sharedLockSummary[@"replacedRelativePaths"]
+                          isEqual:@[ latin ]],
+                  @"lock-screen slot must own shared SFUI when it provides it");
+        saved = FMCreateMixedFontProfileAtRoot(
+            profilesRoot, catalog, sharedAssignments, nil,
+            @"import-mix-0003", @"锁屏优先混搭", &error);
+        FMRequire(saved != nil && [saved[@"replacementCount"] unsignedIntegerValue] == 1,
+                  @"shared-target mix could not be materialized");
+        document = FMReadJSONObjectAtPath([[profilesRoot
+            stringByAppendingPathComponent:@"import-mix-0003"]
+            stringByAppendingPathComponent:@"profile.json"], nil);
+        NSDictionary *sharedReplacement = [document[@"replacements"] firstObject];
+        FMRequire([sharedReplacement[@"relativePath"] isEqual:latin] &&
+                      [FMStoredReplacement(profilesRoot, @"import-mix-0003",
+                          sharedReplacement[@"fileName"])
+                          isEqual:FMSourcePayload(@"import-c", latin)],
+                  @"shared SFUI bytes must come from the lock-screen scheme");
+
         // Nothing selected at all is rejected.
         error = nil;
         saved = FMCreateMixedFontProfileAtRoot(
-            profilesRoot, catalog, @{}, nil, @"import-mix-0003", @"空混搭", &error);
+            profilesRoot, catalog, @{}, nil, @"import-mix-0004", @"空混搭", &error);
         FMRequire(saved == nil && error.code == FMMixFontProfileErrorEmptyResult,
                   @"empty mix must fail closed");
 
@@ -309,7 +343,7 @@ int main(void) {
                       error.code == FMMixFontProfileErrorInvalidProfile,
                   @"catalog-mismatched source scheme must be rejected");
 
-        printf("PASS: mix merge resolves slot precedence, fallback, recipes, and adoption compatibility\n");
+        printf("PASS: mix merge resolves shared lock priority, fallback, recipes, and adoption compatibility\n");
         return 0;
     }
 }

@@ -224,6 +224,32 @@ static NSString *FMMixSlotSymbolName(NSString *slotID) {
     return covered;
 }
 
+- (NSArray<NSDictionary<NSString *, id> *> *)slotsByMergePriority {
+    return [self.slots sortedArrayUsingComparator:^NSComparisonResult(
+        NSDictionary<NSString *, id> *left,
+        NSDictionary<NSString *, id> *right) {
+        NSInteger leftPriority = [left[@"mergePriority"] integerValue];
+        NSInteger rightPriority = [right[@"mergePriority"] integerValue];
+        if (leftPriority > rightPriority) return NSOrderedAscending;
+        if (leftPriority < rightPriority) return NSOrderedDescending;
+        return [left[@"slotID"] compare:right[@"slotID"]];
+    }];
+}
+
+// Mirrors the materializer's precedence for paths shared by more than one
+// visible slot. The lock-screen slot wins SFUI/SFUIRounded only when its chosen
+// scheme actually provides that file; otherwise the Latin choice can provide
+// it, followed by the fallback scheme and finally Stock.
+- (NSDictionary<NSString *, id> *)schemeProvidingRelativePath:(NSString *)relativePath {
+    for (NSDictionary<NSString *, id> *slot in [self slotsByMergePriority]) {
+        if (![slot[@"relativePaths"] containsObject:relativePath]) continue;
+        NSDictionary<NSString *, id> *scheme = [self schemeAssignedToSlot:slot];
+        if ([scheme[@"paths"] containsObject:relativePath]) return scheme;
+    }
+    NSDictionary<NSString *, id> *fallback = [self fallbackScheme];
+    return [fallback[@"paths"] containsObject:relativePath] ? fallback : @{};
+}
+
 - (BOOL)hasAnyReplacement {
     if ([self fallbackScheme].count > 0) return YES;
     for (NSDictionary<NSString *, id> *slot in self.slots) {
@@ -247,50 +273,43 @@ static NSString *FMMixSlotSymbolName(NSString *slotID) {
 
 - (UIFont *)effectivePreviewFontForSlot:(NSDictionary<NSString *, id> *)slot
                                    latin:(BOOL)latin {
-    NSDictionary<NSString *, id> *scheme = [self schemeAssignedToSlot:slot];
-    if ([self coveredPathCountForSlot:slot] == 0) scheme = [self fallbackScheme];
-    if (scheme.count == 0) return nil;
-    NSString *path = nil;
-    if (latin) {
-        path = [scheme[@"previewLatinFontPath"] isKindOfClass:NSString.class]
-            ? scheme[@"previewLatinFontPath"]
-            : nil;
-        if (path == nil) {
-            path = [scheme[@"previewFontPath"] isKindOfClass:NSString.class]
-                ? scheme[@"previewFontPath"]
+    if (![slot isKindOfClass:NSDictionary.class]) return nil;
+    for (NSString *relativePath in slot[@"relativePaths"]) {
+        NSDictionary<NSString *, id> *scheme =
+            [self schemeProvidingRelativePath:relativePath];
+        NSString *path = [scheme[@"filePathByRelativePath"]
+            isKindOfClass:NSDictionary.class]
+                ? scheme[@"filePathByRelativePath"][relativePath]
                 : nil;
-        }
-    } else {
-        path = [scheme[@"previewFontPath"] isKindOfClass:NSString.class]
-            ? scheme[@"previewFontPath"]
-            : nil;
+        UIFont *font = FMPreviewFontAtPath(path, latin ? 19 : 28);
+        if (font != nil) return font;
     }
-    return FMPreviewFontAtPath(path, latin ? 19 : 28);
+    return nil;
 }
 
 - (UIFont *)effectiveClockPreviewFontForSlot:(NSDictionary<NSString *, id> *)slot {
     if (![slot isKindOfClass:NSDictionary.class]) return nil;
-    NSString *relativePath = ((NSArray<NSString *> *)slot[@"relativePaths"]).firstObject;
-    if (relativePath == nil) return nil;
-    NSDictionary<NSString *, id> *scheme = [self schemeAssignedToSlot:slot];
-    if (![scheme[@"paths"] containsObject:relativePath]) {
-        scheme = [self fallbackScheme];
+    for (NSString *relativePath in slot[@"relativePaths"]) {
+        NSDictionary<NSString *, id> *scheme =
+            [self schemeProvidingRelativePath:relativePath];
+        NSString *path = [scheme[@"filePathByRelativePath"]
+            isKindOfClass:NSDictionary.class]
+                ? scheme[@"filePathByRelativePath"][relativePath]
+                : nil;
+        UIFont *font = FMPreviewFontAtPath(path, 38);
+        if (font != nil) return font;
     }
-    if (scheme.count == 0) return nil;
-    NSString *path = [scheme[@"filePathByRelativePath"] isKindOfClass:NSDictionary.class]
-        ? scheme[@"filePathByRelativePath"][relativePath]
-        : nil;
-    return FMPreviewFontAtPath(path, 38);
+    return nil;
 }
 
 - (NSString *)effectiveSchemeNameForSlot:(NSDictionary<NSString *, id> *)slot {
     if (![slot isKindOfClass:NSDictionary.class]) return FMLocalized(@"系统默认");
-    NSDictionary<NSString *, id> *scheme = [self schemeAssignedToSlot:slot];
-    if ([self coveredPathCountForSlot:slot] == 0) {
-        scheme = [self fallbackScheme];
-        if (scheme.count == 0) return FMLocalized(@"系统默认");
+    for (NSString *relativePath in slot[@"relativePaths"]) {
+        NSDictionary<NSString *, id> *scheme =
+            [self schemeProvidingRelativePath:relativePath];
+        if (scheme.count > 0) return scheme[@"name"];
     }
-    return scheme[@"name"];
+    return FMLocalized(@"系统默认");
 }
 
 - (UIView *)makePreviewHeader {
@@ -624,9 +643,16 @@ static NSString *FMMixSlotSymbolName(NSString *slotID) {
 - (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {
     (void)tableView;
     if (self.workspaceError != nil) return nil;
-    return section == 0
-        ? FMLocalized(@"为每个主要字体选择一个方案；方案未包含的文件会自动使用兜底方案。")
-        : FMLocalized(@"以上没有覆盖到的全部字体，都会使用这里选择的方案。");
+    if (section != 0) {
+        return FMLocalized(@"以上没有覆盖到的全部字体，都会使用这里选择的方案。");
+    }
+    NSString *guidance = FMLocalized(
+        @"为每个主要字体选择一个方案；方案未包含的文件会自动使用兜底方案。");
+    NSDictionary<NSString *, id> *lockSlot =
+        [self slotForIdentifier:FMFontSlotIdentifierLockScreen];
+    if ([lockSlot[@"sharedRelativePaths"] count] == 0) return guidance;
+    return [NSString stringWithFormat:@"%@\n\n%@", guidance,
+        FMLocalized(@"锁屏时间的 SF Pro 与圆角样式会和系统英文共用字体文件；两处选择不同时，共用文件以锁屏方案为准。")];
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView

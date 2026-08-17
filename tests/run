@@ -720,6 +720,10 @@ if [[ $(rg -cF 'action:@selector(openMixComposer:)' \
    ! rg -qF 'mixButton.accessibilityIdentifier = @"profile_mix";' \
       "$font_library_ui_source" || \
    ! rg -qF 'FMFontLibraryActionStackView' "$font_library_ui_source" || \
+   ! rg -qF 'mixConfiguration.baseBackgroundColor = FMAccentColor();' \
+      "$font_library_ui_source" || \
+   ! rg -qF 'mixConfiguration.baseForegroundColor = UIColor.whiteColor;' \
+      "$font_library_ui_source" || \
    ! rg -qF 'if ([profileID isEqual:self.replacingProfileID]) continue;' \
       "$mix_font_ui_source" || \
    [[ $(rg -cF '[self schemeForProfileID:profileID].count > 0' \

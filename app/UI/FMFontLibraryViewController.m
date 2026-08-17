@@ -1413,13 +1413,13 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
         mixButton.translatesAutoresizingMaskIntoConstraints = NO;
         mixButton.accessibilityIdentifier = @"profile_mix";
         UIButtonConfiguration *mixConfiguration =
-            [UIButtonConfiguration tintedButtonConfiguration];
+            [UIButtonConfiguration filledButtonConfiguration];
         mixConfiguration.title = FMLocalized(@"创建混搭方案");
         mixConfiguration.image = [UIImage systemImageNamed:@"wand.and.stars"];
         mixConfiguration.imagePadding = 7;
         mixConfiguration.cornerStyle = UIButtonConfigurationCornerStyleLarge;
-        mixConfiguration.baseBackgroundColor = FMTintedBackground(FMAccentColor());
-        mixConfiguration.baseForegroundColor = FMAccentColor();
+        mixConfiguration.baseBackgroundColor = FMAccentColor();
+        mixConfiguration.baseForegroundColor = UIColor.whiteColor;
         mixButton.configuration = mixConfiguration;
         [mixButton addTarget:self action:@selector(openMixComposer:)
             forControlEvents:UIControlEventTouchUpInside];

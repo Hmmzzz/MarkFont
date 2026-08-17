@@ -16,10 +16,12 @@ static NSArray<NSDictionary<NSString *, id> *> *FMFontSlotDefinitions(void) {
             @"slotID" : FMFontSlotIdentifierChinese,
             @"name" : @"中文字体",
             @"chinesePolicy" : @YES,
+            @"mergePriority" : @300,
         },
         @{
             @"slotID" : FMFontSlotIdentifierLatin,
             @"name" : @"英文字体",
+            @"mergePriority" : @100,
             @"fileNames" : @[
                 @"SFUI.ttf",
                 @"SFUIItalic.ttf",
@@ -31,8 +33,25 @@ static NSArray<NSDictionary<NSString *, id> *> *FMFontSlotDefinitions(void) {
         },
         @{
             @"slotID" : FMFontSlotIdentifierLockScreen,
-            @"name" : @"锁屏字体",
-            @"fileNames" : @[ @"LockClock.ttf" ],
+            @"name" : @"锁屏时间字体",
+            // iOS 16-26 PosterKit time-font identifiers resolve into these
+            // catalog files. SFUI/SFUIRounded are shared with general UI text;
+            // ADTNumeric and SFCompact move from Watch/ to Core/ on iOS 18,
+            // but filename-based catalog resolution remains stable.
+            @"mergePriority" : @200,
+            @"fileNames" : @[
+                @"SFUI.ttf",
+                @"SFUIRounded.ttf",
+                @"ADTNumeric.ttc",
+                @"NewYork.ttf",
+                @"SFArabic.ttf",
+                @"SFArabicRounded.ttf",
+                @"SFHebrew.ttf",
+                @"SFHebrewRounded.ttf",
+                @"SFCompact.ttf",
+                @"SFCompactRounded.ttf",
+                @"LockClock.ttf",
+            ],
         },
     ];
 }
@@ -66,8 +85,8 @@ NSArray<NSDictionary<NSString *, id> *> *FMResolvedFontSlotsForRelativePaths(
         }
     }
 
-    NSMutableArray<NSDictionary<NSString *, id> *> *slots = [NSMutableArray array];
-    NSMutableSet<NSString *> *claimedPaths = [NSMutableSet set];
+    NSMutableArray<NSMutableDictionary<NSString *, id> *> *slots =
+        [NSMutableArray array];
     for (NSDictionary<NSString *, id> *definition in FMFontSlotDefinitions()) {
         NSMutableArray<NSString *> *fileNames = [NSMutableArray array];
         if ([definition[@"chinesePolicy"] boolValue]) {
@@ -87,18 +106,34 @@ NSArray<NSDictionary<NSString *, id> *> *FMResolvedFontSlotsForRelativePaths(
         NSMutableArray<NSString *> *relativePaths = [NSMutableArray array];
         for (NSString *fileName in fileNames) {
             NSString *relativePath = relativePathByFileName[fileName];
-            if (relativePath == nil || [claimedPaths containsObject:relativePath]) {
-                continue;
-            }
-            [claimedPaths addObject:relativePath];
+            if (relativePath == nil) continue;
             [relativePaths addObject:relativePath];
         }
         if (relativePaths.count == 0) continue;
-        [slots addObject:@{
+        [slots addObject:[@{
             @"slotID" : definition[@"slotID"],
             @"name" : FMLocalized(definition[@"name"]),
             @"relativePaths" : relativePaths,
-        }];
+            @"mergePriority" : definition[@"mergePriority"] ?: @0,
+        } mutableCopy]];
+    }
+
+    NSMutableDictionary<NSString *, NSNumber *> *pathUseCounts =
+        [NSMutableDictionary dictionary];
+    for (NSDictionary<NSString *, id> *slot in slots) {
+        for (NSString *relativePath in slot[@"relativePaths"]) {
+            pathUseCounts[relativePath] = @([pathUseCounts[relativePath]
+                unsignedIntegerValue] + 1);
+        }
+    }
+    for (NSMutableDictionary<NSString *, id> *slot in slots) {
+        NSMutableArray<NSString *> *sharedPaths = [NSMutableArray array];
+        for (NSString *relativePath in slot[@"relativePaths"]) {
+            if ([pathUseCounts[relativePath] unsignedIntegerValue] > 1) {
+                [sharedPaths addObject:relativePath];
+            }
+        }
+        slot[@"sharedRelativePaths"] = sharedPaths;
     }
     return slots;
 }
@@ -107,12 +142,19 @@ NSString *FMFontSlotIdentifierForRelativePath(
     NSArray<NSDictionary<NSString *, id> *> *resolvedSlots,
     NSString *relativePath) {
     if (![relativePath isKindOfClass:NSString.class]) return nil;
+    NSString *owner = nil;
+    NSInteger ownerPriority = NSIntegerMin;
     for (NSDictionary<NSString *, id> *slot in resolvedSlots) {
         NSArray<NSString *> *paths =
             [slot[@"relativePaths"] isKindOfClass:NSArray.class]
                 ? slot[@"relativePaths"]
                 : nil;
-        if ([paths containsObject:relativePath]) return slot[@"slotID"];
+        NSInteger priority = [slot[@"mergePriority"] integerValue];
+        if ([paths containsObject:relativePath] &&
+            (owner == nil || priority > ownerPriority)) {
+            owner = slot[@"slotID"];
+            ownerPriority = priority;
+        }
     }
-    return nil;
+    return owner;
 }
