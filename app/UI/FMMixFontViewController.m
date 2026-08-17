@@ -44,8 +44,6 @@ static NSUInteger FMMixCoveredPathCount(
 
 @interface FMMixFontViewController ()
 @property(nonatomic, strong) id<FMProfileWorkspace> workspace;
-@property(nonatomic, copy, nullable) NSDictionary<NSString *, id> *mixRecipe;
-@property(nonatomic, copy, nullable) NSString *replacingProfileID;
 @property(nonatomic, copy) NSArray<NSDictionary<NSString *, id> *> *slots;
 @property(nonatomic, copy) NSArray<NSDictionary<NSString *, id> *> *schemes;
 @property(nonatomic, strong) NSMutableDictionary<NSString *, NSString *> *slotAssignments;
@@ -58,14 +56,10 @@ static NSUInteger FMMixCoveredPathCount(
 
 @implementation FMMixFontViewController
 
-- (instancetype)initWithWorkspace:(id<FMProfileWorkspace>)workspace
-                         mixRecipe:(nullable NSDictionary<NSString *, id> *)mixRecipe
-                replacingProfileID:(nullable NSString *)replacingProfileID {
+- (instancetype)initWithWorkspace:(id<FMProfileWorkspace>)workspace {
     self = [super initWithStyle:UITableViewStyleInsetGrouped];
     if (self != nil) {
         _workspace = workspace;
-        _mixRecipe = [mixRecipe copy];
-        _replacingProfileID = [replacingProfileID copy];
         _slots = @[];
         _schemes = @[];
         _slotAssignments = [NSMutableDictionary dictionary];
@@ -123,7 +117,6 @@ static NSUInteger FMMixCoveredPathCount(
     }
     self.slots = FMResolvedFontSlotsForRelativePaths(self.workspace.managedRelativePaths);
     [self reloadSchemes];
-    [self applyRecipeIfNeeded];
     [self refreshInterface];
 }
 
@@ -135,10 +128,6 @@ static NSUInteger FMMixCoveredPathCount(
             ![profileID hasPrefix:@"import-"]) {
             continue;
         }
-        // An edited mix may be used as a source only after this edit round has
-        // produced a new self-contained Profile. Excluding it here prevents a
-        // recipe from pointing back to the Profile that this flow may delete.
-        if ([profileID isEqual:self.replacingProfileID]) continue;
         NSDictionary<NSString *, id> *details =
             [self.workspace detailsForProfileID:profileID error:nil];
         if (details == nil) continue;
@@ -175,35 +164,6 @@ static NSUInteger FMMixCoveredPathCount(
     }
     for (NSString *slotID in staleSlotIDs) {
         [self.slotAssignments removeObjectForKey:slotID];
-    }
-}
-
-- (void)applyRecipeIfNeeded {
-    if (self.mixRecipe == nil || self.slotAssignments.count > 0) return;
-    NSDictionary<NSString *, id> *recipeSlots =
-        [self.mixRecipe[@"slots"] isKindOfClass:NSDictionary.class]
-            ? self.mixRecipe[@"slots"]
-            : @{};
-    for (NSString *slotID in recipeSlots.allKeys) {
-        NSDictionary<NSString *, id> *source = recipeSlots[slotID];
-        NSString *profileID = [source isKindOfClass:NSDictionary.class]
-            ? source[@"profileID"]
-            : nil;
-        if (![profileID isKindOfClass:NSString.class]) continue;
-        NSDictionary<NSString *, id> *slot = [self slotForIdentifier:slotID];
-        NSDictionary<NSString *, id> *scheme = [self schemeForProfileID:profileID];
-        if (scheme.count > 0 &&
-            FMMixCoveredPathCount(scheme, slot[@"relativePaths"]) > 0) {
-            self.slotAssignments[slotID] = profileID;
-        }
-    }
-    NSDictionary<NSString *, id> *fallback = self.mixRecipe[@"fallback"];
-    NSString *fallbackID = [fallback isKindOfClass:NSDictionary.class]
-        ? fallback[@"profileID"]
-        : nil;
-    if ([fallbackID isKindOfClass:NSString.class] &&
-        [self schemeForProfileID:fallbackID].count > 0) {
-        self.fallbackProfileID = fallbackID;
     }
 }
 
@@ -526,7 +486,6 @@ static NSUInteger FMMixCoveredPathCount(
 
     NSDictionary<NSString *, NSString *> *slotAssignments = [self.slotAssignments copy];
     NSString *fallbackProfileID = self.fallbackProfileID;
-    NSString *replacingProfileID = self.replacingProfileID;
     id<FMProfileWorkspace> workspace = self.workspace;
     __weak typeof(self) weakSelf = self;
     [self presentViewController:progress animated:YES completion:^{
@@ -537,11 +496,6 @@ static NSUInteger FMMixCoveredPathCount(
                                               fallbackProfileID:fallbackProfileID
                                                      profileName:trimmed
                                                            error:&error];
-            // The replaced mix Profile is obsolete once the new version
-            // exists; deletion is refused by the workspace while it is active.
-            if (saved != nil && replacingProfileID.length > 0) {
-                [workspace deleteProfileID:replacingProfileID error:nil];
-            }
             dispatch_async(dispatch_get_main_queue(), ^{
                 typeof(self) strongSelf = weakSelf;
                 if (strongSelf == nil) return;

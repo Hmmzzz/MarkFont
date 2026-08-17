@@ -271,15 +271,6 @@ static NSString *FMFriendlyMirrorRole(NSString *relativePath) {
     self.loadError = error.localizedDescription;
     self.tableView.tableHeaderView = [self makeSpecimenHeader];
     [self installFloatingActionDock];
-    if ([self.details[@"isMix"] boolValue]) {
-        UIBarButtonItem *remix =
-            [[UIBarButtonItem alloc] initWithTitle:FMLocalized(@"调整混搭")
-                                             style:UIBarButtonItemStylePlain
-                                            target:self
-                                            action:@selector(remixProfile:)];
-        remix.accessibilityIdentifier = @"scheme_remix";
-        self.navigationItem.rightBarButtonItem = remix;
-    }
 }
 
 - (UIView *)makeSpecimenHeader {
@@ -594,21 +585,6 @@ static NSString *FMFriendlyMirrorRole(NSString *relativePath) {
     [self.navigationController dismissViewControllerAnimated:YES completion:^{
         if (applyHandler != nil) applyHandler(profileID);
     }];
-}
-
-- (void)remixProfile:(id)sender {
-    (void)sender;
-    NSString *profileID = FMLibraryNormalizedProfileID(self.profile[@"id"]);
-    if (profileID == nil) return;
-    NSDictionary<NSString *, id> *recipe =
-        [self.details[@"mixRecipe"] isKindOfClass:NSDictionary.class]
-            ? self.details[@"mixRecipe"]
-            : @{};
-    FMMixFontViewController *composer =
-        [[FMMixFontViewController alloc] initWithWorkspace:self.workspace
-                                                  mixRecipe:recipe
-                                         replacingProfileID:profileID];
-    [self.navigationController pushViewController:composer animated:YES];
 }
 
 - (BOOL)showsMixComposition {
@@ -1328,9 +1304,7 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
 - (void)openMixComposer:(id)sender {
     (void)sender;
     FMMixFontViewController *composer =
-        [[FMMixFontViewController alloc] initWithWorkspace:self.workspace
-                                                  mixRecipe:nil
-                                         replacingProfileID:nil];
+        [[FMMixFontViewController alloc] initWithWorkspace:self.workspace];
     [self.navigationController pushViewController:composer animated:YES];
 }
 

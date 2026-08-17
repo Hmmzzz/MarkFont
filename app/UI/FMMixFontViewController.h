@@ -10,12 +10,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface FMMixFontViewController : UITableViewController
 
-// mixRecipe/replacingProfileID pre-fill an edit round of an existing mix
-// Profile; after a successful save the replaced Profile is deleted when it is
-// no longer active.
-- (instancetype)initWithWorkspace:(id<FMProfileWorkspace>)workspace
-                        mixRecipe:(nullable NSDictionary<NSString *, id> *)mixRecipe
-               replacingProfileID:(nullable NSString *)replacingProfileID NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithWorkspace:(id<FMProfileWorkspace>)workspace NS_DESIGNATED_INITIALIZER;
 - (instancetype)initWithStyle:(UITableViewStyle)style NS_UNAVAILABLE;
 - (instancetype)initWithNibName:(nullable NSString *)nibNameOrNil
                          bundle:(nullable NSBundle *)nibBundleOrNil NS_UNAVAILABLE;

@@ -396,7 +396,6 @@
 "所选方案未包含的槽位文件，会使用兜底方案。" = "Slot files missing from the chosen scheme fall back to the fallback scheme.";
 "选择「系统默认」时，未覆盖的字体保持本机原生内容。" = "With System Default, uncovered fonts keep their stock contents.";
 "%@ · 混搭" = "%@ · Mix";
-"调整混搭" = "Edit mix";
 "混搭组成" = "Mix composition";
 "使用兜底方案" = "Uses the fallback scheme";
 "其余字体" = "Everything else";

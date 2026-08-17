@@ -735,7 +735,19 @@ fi
 
 if [[ $(rg -cF 'action:@selector(openMixComposer:)' \
            "$font_library_ui_source" || true) -ne 1 ]] || \
-   ! rg -qF 'action:@selector(remixProfile:)' "$font_library_ui_source" || \
+   ! rg -qF '[[FMMixFontViewController alloc] initWithWorkspace:self.workspace];' \
+      "$font_library_ui_source" || \
+   rg -q 'remixProfile:|scheme_remix|FMLocalized\(@"调整混搭"\)' \
+      "$font_library_ui_source" || \
+   rg -q 'mixRecipe:|replacingProfileID|applyRecipeIfNeeded' \
+      "$mix_font_ui_source" \
+      "$font_manager_root/app/UI/FMMixFontViewController.h" || \
+   rg -qF '"调整混搭"' \
+      "$font_manager_root/app/Resources/en.lproj/Localizable.strings" || \
+   ! rg -qF 'return FMLocalized(@"混搭组成");' \
+      "$font_library_ui_source" || \
+   [[ $(rg -cF 'self.details[@"mixRecipe"]' \
+           "$font_library_ui_source" || true) -ne 1 ]] || \
    rg -qF 'library_mix_entry' "$font_library_ui_source" || \
    ! rg -qF 'mixButton.accessibilityIdentifier = @"profile_mix";' \
       "$font_library_ui_source" || \
@@ -744,12 +756,6 @@ if [[ $(rg -cF 'action:@selector(openMixComposer:)' \
       "$font_library_ui_source" || \
    ! rg -qF 'mixConfiguration.baseForegroundColor = UIColor.whiteColor;' \
       "$font_library_ui_source" || \
-   ! rg -qF 'if ([profileID isEqual:self.replacingProfileID]) continue;' \
-      "$mix_font_ui_source" || \
-   [[ $(rg -cF 'if (scheme.count > 0 &&' \
-           "$mix_font_ui_source" || true) -ne 1 ]] || \
-   [[ $(rg -cF '[self schemeForProfileID:fallbackID].count > 0' \
-           "$mix_font_ui_source" || true) -ne 1 ]] || \
    rg -q 'applySavedProfileID|FMLocalized\(@"立即应用"\)' \
       "$mix_font_ui_source" || \
    [[ $(rg -cF '[done addAction:' "$mix_font_ui_source" || true) -ne 1 ]] || \
@@ -758,7 +764,7 @@ if [[ $(rg -cF 'action:@selector(openMixComposer:)' \
    ! rg -qF 'sharedStyleRelativePaths' "$mix_font_ui_source" || \
    [[ $(rg -cF '[self schemeRowIsSelectable:row]' \
            "$mix_font_ui_source" || true) -ne 2 ]]; then
-  printf 'FAIL: the mix editor safety, slot guidance, or save-return contract is missing.\n' >&2
+  printf 'FAIL: the mix creation, read-only details, slot guidance, or save-return contract is missing.\n' >&2
   exit 1
 fi
 
