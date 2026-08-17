@@ -8,6 +8,7 @@
 #import "FMFontPackageAnalyzer.h"
 #import "FMFontProfileStore.h"
 #import "FMHelperClient.h"
+#import "FMMixFontProfile.h"
 
 NSString *const FMDeviceProfileWorkspaceErrorDomain =
     @"com.hmmzzz.fontmanager.device-workspace";
@@ -196,7 +197,10 @@ static BOOL FMDeviceWorkspaceFail(NSError **error,
         NSString *name = profile[@"name"];
         if ([profileID isKindOfClass:NSString.class] &&
             [name isKindOfClass:NSString.class]) {
-            [summaries addObject:@{ @"id" : profileID, @"name" : name }];
+            NSMutableDictionary<NSString *, NSString *> *summary =
+                [@{ @"id" : profileID, @"name" : name } mutableCopy];
+            if ([profile[@"isMix"] boolValue]) summary[@"isMix"] = @"1";
+            [summaries addObject:summary];
         }
     }
     return summaries;
@@ -276,6 +280,27 @@ static BOOL FMDeviceWorkspaceFail(NSError **error,
         NSUUID.UUID.UUIDString.lowercaseString];
     return FMImportFontPackageProfile(sourcePath, catalog, profilesRoot,
                                       profileID, profileName, error);
+}
+
+- (NSDictionary<NSString *, id> *)saveMixedProfileWithSlotAssignments:(NSDictionary<NSString *, NSString *> *)slotAssignments
+                                                    fallbackProfileID:(NSString *)fallbackProfileID
+                                                           profileName:(NSString *)profileName
+                                                                 error:(NSError **)error {
+    if (![self loadCatalogIfNeeded:error]) return nil;
+    NSDictionary *catalog = [self.catalogPreview[@"catalog"] isKindOfClass:NSDictionary.class]
+        ? self.catalogPreview[@"catalog"]
+        : nil;
+    NSString *profilesRoot = [self profileStoreRoot];
+    if (catalog == nil || profilesRoot.length == 0) {
+        FMDeviceWorkspaceFail(error, FMDeviceProfileWorkspaceErrorEnvironment,
+                              FMLocalized(@"本机字体目录或字体库位置无效。"), nil);
+        return nil;
+    }
+    NSString *profileID = [@"import-mix-" stringByAppendingString:
+        NSUUID.UUID.UUIDString.lowercaseString];
+    return FMCreateMixedFontProfileAtRoot(profilesRoot, catalog, slotAssignments,
+                                          fallbackProfileID, profileID,
+                                          profileName, error);
 }
 
 - (BOOL)changesUnavailable:(NSError **)error {

@@ -139,6 +139,45 @@ xcrun clang \
   -framework Foundation \
   -I "$font_manager_root/shared" \
   "$font_manager_root/shared/FMDataModel.m" \
+  "$font_manager_root/shared/FMFontCatalog.m" \
+  "$font_manager_root/shared/FMFontSlotCatalog.m" \
+  "$font_manager_root/tests/font-slot-catalog/main.m" \
+  -o "$test_build_dir/font-slot-catalog-test"
+
+"$test_build_dir/font-slot-catalog-test"
+
+xcrun clang \
+  -fobjc-arc \
+  -fblocks \
+  -Wall \
+  -Wextra \
+  -Werror \
+  -framework Foundation \
+  -framework CoreText \
+  -I "$font_manager_root/shared" \
+  "$font_manager_root/shared/FMDataModel.m" \
+  "$font_manager_root/shared/FMFileStore.m" \
+  "$font_manager_root/shared/FMFontCatalog.m" \
+  "$font_manager_root/shared/FMFontPackageMatcher.m" \
+  "$font_manager_root/shared/FMFontPackageAnalyzer.m" \
+  "$font_manager_root/shared/FMFontProfileStore.m" \
+  "$font_manager_root/shared/FMFontSlotCatalog.m" \
+  "$font_manager_root/shared/FMMixFontProfile.m" \
+  "$font_manager_root/shared/FMProfileAdoptionValidator.m" \
+  "$font_manager_root/tests/mix-font-profile/main.m" \
+  -o "$test_build_dir/mix-font-profile-test"
+
+"$test_build_dir/mix-font-profile-test"
+
+xcrun clang \
+  -fobjc-arc \
+  -fblocks \
+  -Wall \
+  -Wextra \
+  -Werror \
+  -framework Foundation \
+  -I "$font_manager_root/shared" \
+  "$font_manager_root/shared/FMDataModel.m" \
   "$font_manager_root/shared/FMFileStore.m" \
   "$font_manager_root/shared/FMFontCatalog.m" \
   "$font_manager_root/shared/FMProfileAdoptionValidator.m" \
@@ -629,6 +668,7 @@ if rg -n 'inspect-provider|FMFetchProviderInspection|兼容性检测' \
 fi
 
 font_library_ui_source="$font_manager_root/app/UI/FMFontLibraryViewController.m"
+mix_font_ui_source="$font_manager_root/app/UI/FMMixFontViewController.m"
 app_delegate_source="$font_manager_root/app/FMAppDelegate.m"
 profile_lab_ui_source="$font_manager_root/app/UI/FMProfileLabViewController.m"
 design_system_source="$font_manager_root/app/UI/FMDesignSystem.h"
@@ -670,6 +710,23 @@ if rg -n 'UINavigationBar[.]appearance' "$font_manager_root/app" || \
    ! rg -qF '"iOS 18–26 中文：请导入专用 PingFangUI.ttc。"' \
       "$font_manager_root/app/Resources/en.lproj/Localizable.strings"; then
   printf 'FAIL: the isolated picker appearance or compact font-import guidance contract is missing.\n' >&2
+  exit 1
+fi
+
+if [[ $(rg -cF 'action:@selector(openMixComposer:)' \
+           "$font_library_ui_source" || true) -ne 1 ]] || \
+   ! rg -qF 'action:@selector(remixProfile:)' "$font_library_ui_source" || \
+   rg -qF 'library_mix_entry' "$font_library_ui_source" || \
+   ! rg -qF 'mixButton.accessibilityIdentifier = @"profile_mix";' \
+      "$font_library_ui_source" || \
+   ! rg -qF 'FMFontLibraryActionStackView' "$font_library_ui_source" || \
+   ! rg -qF 'if ([profileID isEqual:self.replacingProfileID]) continue;' \
+      "$mix_font_ui_source" || \
+   [[ $(rg -cF '[self schemeForProfileID:profileID].count > 0' \
+           "$mix_font_ui_source" || true) -ne 1 ]] || \
+   [[ $(rg -cF '[self schemeForProfileID:fallbackID].count > 0' \
+           "$mix_font_ui_source" || true) -ne 1 ]]; then
+  printf 'FAIL: the mix editor selector or source-profile safety contract is missing.\n' >&2
   exit 1
 fi
 

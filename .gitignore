@@ -20,3 +20,4 @@ CLAUDE.md
 *.swp
 *.tmp
 .work/
+.zcode/

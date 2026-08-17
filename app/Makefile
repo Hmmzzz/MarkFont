@@ -5,13 +5,14 @@ APPLICATION_NAME = FontManager
 
 FontManager_FILES = main.m FMAppDelegate.m FMDeviceProfileWorkspace.m \
     UI/FMFloatingActionDockView.m UI/FMProfileLabViewController.m \
-    UI/FMFontLibraryViewController.m \
+    UI/FMFontLibraryViewController.m UI/FMMixFontViewController.m \
     UI/FMSettingsViewController.m UI/FMCompatibilityViewController.m \
     ../shared/FMStatusContract.m ../shared/FMDataModel.m \
     ../shared/FMFontCatalog.m ../shared/FMFontPackageMatcher.m \
     ../shared/FMFontPackageAnalyzer.m ../shared/FMFontPackageImportSession.m \
     ../shared/FMFontProfileStore.m ../shared/FMSystemFontLayout.m \
-    ../shared/FMFileStore.m ../shared/FMHelperClient.m
+    ../shared/FMFileStore.m ../shared/FMHelperClient.m \
+    ../shared/FMFontSlotCatalog.m ../shared/FMMixFontProfile.m
 FontManager_FRAMEWORKS = UIKit QuartzCore CoreText UniformTypeIdentifiers
 FontManager_LIBRARIES = $(MARKFONT_PATH_LIBRARIES)
 FontManager_CFLAGS = -fobjc-arc -Wall -Wextra $(MARKFONT_PATH_CFLAGS) -I../shared -IUI

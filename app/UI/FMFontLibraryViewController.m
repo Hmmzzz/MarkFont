@@ -7,6 +7,8 @@
 #import "FMDesignSystem.h"
 #import "FMFloatingActionDockView.h"
 #import "FMFontPackageImportSession.h"
+#import "FMFontSlotCatalog.h"
+#import "FMMixFontViewController.h"
 #import "FMProfileWorkspace.h"
 #import "FMSystemFontLayout.h"
 
@@ -30,6 +32,36 @@ static BOOL FMLibraryShouldShowIOS18To26ChineseImportTip(void) {
     return FMCurrentSystemFontLayout(nil, nil) ==
         FMSystemFontLayoutFontServicesCorePrivate;
 }
+
+// Keep the two related library actions together when their localized titles
+// fit. At narrow widths or Accessibility Dynamic Type sizes, stack them so
+// neither action is truncated or forced to shrink.
+@interface FMFontLibraryActionStackView : UIStackView
+@end
+
+@implementation FMFontLibraryActionStackView
+
+- (void)layoutSubviews {
+    CGFloat requiredWidth = self.spacing;
+    for (UIView *view in self.arrangedSubviews) {
+        CGFloat intrinsicWidth = view.intrinsicContentSize.width;
+        if (intrinsicWidth > 0) requiredWidth += intrinsicWidth;
+    }
+    BOOL usesAccessibilityText = UIContentSizeCategoryIsAccessibilityCategory(
+        self.traitCollection.preferredContentSizeCategory);
+    UILayoutConstraintAxis desiredAxis = usesAccessibilityText ||
+        (self.bounds.size.width > 0 && requiredWidth > self.bounds.size.width)
+            ? UILayoutConstraintAxisVertical
+            : UILayoutConstraintAxisHorizontal;
+    if (self.axis != desiredAxis) {
+        self.axis = desiredAxis;
+        [self invalidateIntrinsicContentSize];
+        [self.superview setNeedsLayout];
+    }
+    [super layoutSubviews];
+}
+
+@end
 
 static UIImage *FMCircularDeleteActionImage(UITraitCollection *traits) {
     CGSize size = CGSizeMake(44, 44);
@@ -239,6 +271,15 @@ static NSString *FMFriendlyMirrorRole(NSString *relativePath) {
     self.loadError = error.localizedDescription;
     self.tableView.tableHeaderView = [self makeSpecimenHeader];
     [self installFloatingActionDock];
+    if ([self.details[@"isMix"] boolValue]) {
+        UIBarButtonItem *remix =
+            [[UIBarButtonItem alloc] initWithTitle:FMLocalized(@"调整混搭")
+                                             style:UIBarButtonItemStylePlain
+                                            target:self
+                                            action:@selector(remixProfile:)];
+        remix.accessibilityIdentifier = @"scheme_remix";
+        self.navigationItem.rightBarButtonItem = remix;
+    }
 }
 
 - (UIView *)makeSpecimenHeader {
@@ -450,23 +491,29 @@ static NSString *FMFriendlyMirrorRole(NSString *relativePath) {
 
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
     (void)tableView;
-    return 1;
+    if (self.loadError.length > 0) return 1;
+    return [self showsMixComposition] ? 2 : 1;
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
     (void)tableView;
-    (void)section;
     if (self.loadError.length > 0) return 1;
+    if (section == 0 && [self showsMixComposition]) {
+        return (NSInteger)[self mixCompositionRows].count;
+    }
     return (NSInteger)[self.details[@"relativePaths"] count];
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
     (void)tableView;
-    (void)section;
     NSUInteger count = [self.details[@"relativePaths"] count];
-    return self.loadError.length > 0
-               ? FMLocalized(@"方案详情")
-               : [NSString stringWithFormat:FMLocalized(@"涉及的镜像文件 · %lu"), (unsigned long)count];
+    if (self.loadError.length > 0) {
+        return FMLocalized(@"方案详情");
+    }
+    if (section == 0 && [self showsMixComposition]) {
+        return FMLocalized(@"混搭组成");
+    }
+    return [NSString stringWithFormat:FMLocalized(@"涉及的镜像文件 · %lu"), (unsigned long)count];
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {
@@ -490,6 +537,15 @@ static NSString *FMFriendlyMirrorRole(NSString *relativePath) {
         content.secondaryText = self.loadError;
         content.image = [UIImage systemImageNamed:@"exclamationmark.triangle.fill"];
         content.imageProperties.tintColor = FMDangerColor();
+    } else if (indexPath.section == 0 && [self showsMixComposition]) {
+        NSArray<NSDictionary<NSString *, NSString *> *> *rows = [self mixCompositionRows];
+        NSDictionary<NSString *, NSString *> *row =
+            rows.count > (NSUInteger)indexPath.row ? rows[(NSUInteger)indexPath.row] : @{};
+        content.text = row[@"label"] ?: @"";
+        content.secondaryText = row[@"value"] ?: @"";
+        content.image = [UIImage systemImageNamed:@"paintbrush.fill"];
+        content.imageProperties.tintColor = FMAccentColor();
+        cell.accessibilityIdentifier = @"scheme_mix_source";
     } else {
         NSArray<NSString *> *paths = self.details[@"relativePaths"];
         NSString *relativePath = paths[(NSUInteger)indexPath.row];
@@ -538,6 +594,61 @@ static NSString *FMFriendlyMirrorRole(NSString *relativePath) {
     [self.navigationController dismissViewControllerAnimated:YES completion:^{
         if (applyHandler != nil) applyHandler(profileID);
     }];
+}
+
+- (void)remixProfile:(id)sender {
+    (void)sender;
+    NSString *profileID = FMLibraryNormalizedProfileID(self.profile[@"id"]);
+    if (profileID == nil) return;
+    NSDictionary<NSString *, id> *recipe =
+        [self.details[@"mixRecipe"] isKindOfClass:NSDictionary.class]
+            ? self.details[@"mixRecipe"]
+            : @{};
+    FMMixFontViewController *composer =
+        [[FMMixFontViewController alloc] initWithWorkspace:self.workspace
+                                                  mixRecipe:recipe
+                                         replacingProfileID:profileID
+                                                applyHandler:self.applyHandler];
+    [self.navigationController pushViewController:composer animated:YES];
+}
+
+- (BOOL)showsMixComposition {
+    return self.loadError.length == 0 && [self.details[@"isMix"] boolValue];
+}
+
+- (NSArray<NSDictionary<NSString *, NSString *> *> *)mixCompositionRows {
+    if (![self showsMixComposition]) return @[];
+    NSDictionary<NSString *, id> *recipe = self.details[@"mixRecipe"];
+    NSDictionary<NSString *, id> *recipeSlots =
+        [recipe[@"slots"] isKindOfClass:NSDictionary.class] ? recipe[@"slots"] : @{};
+    NSDictionary<NSString *, id> *recipeFallback =
+        [recipe[@"fallback"] isKindOfClass:NSDictionary.class] ? recipe[@"fallback"] : nil;
+    NSArray<NSDictionary<NSString *, id> *> *slots =
+        FMResolvedFontSlotsForRelativePaths(self.workspace.managedRelativePaths);
+    NSMutableArray<NSDictionary<NSString *, NSString *> *> *rows = [NSMutableArray array];
+    for (NSDictionary<NSString *, id> *slot in slots) {
+        NSDictionary<NSString *, id> *source =
+            [recipeSlots[slot[@"slotID"]] isKindOfClass:NSDictionary.class]
+                ? recipeSlots[slot[@"slotID"]]
+                : nil;
+        NSString *name = [source[@"name"] isKindOfClass:NSString.class]
+            ? source[@"name"]
+            : nil;
+        [rows addObject:@{
+            @"label" : slot[@"name"],
+            @"value" : name ?: FMLocalized(@"使用兜底方案"),
+        }];
+    }
+    NSString *fallbackName = nil;
+    if ([recipeFallback[@"name"] isKindOfClass:NSString.class] &&
+        [(NSString *)recipeFallback[@"name"] length] > 0) {
+        fallbackName = recipeFallback[@"name"];
+    }
+    [rows addObject:@{
+        @"label" : FMLocalized(@"其余字体"),
+        @"value" : fallbackName ?: FMLocalized(@"系统默认"),
+    }];
+    return rows;
 }
 
 @end
@@ -1210,6 +1321,21 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
         @selector(saveFontPackageAtPath:profileName:error:)];
 }
 
+- (BOOL)canSaveMixedProfiles {
+    return [self.workspace respondsToSelector:
+        @selector(saveMixedProfileWithSlotAssignments:fallbackProfileID:profileName:error:)];
+}
+
+- (void)openMixComposer:(id)sender {
+    (void)sender;
+    FMMixFontViewController *composer =
+        [[FMMixFontViewController alloc] initWithWorkspace:self.workspace
+                                                  mixRecipe:nil
+                                         replacingProfileID:nil
+                                                applyHandler:self.applyHandler];
+    [self.navigationController pushViewController:composer animated:YES];
+}
+
 - (UIView *)makeImportHeader {
     UIView *header = [[UIView alloc] initWithFrame:CGRectMake(0, 0, self.view.bounds.size.width, 1)];
     UIView *card = FMCardView();
@@ -1276,7 +1402,41 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
     }
     button.configuration = configuration;
     [button addTarget:self action:@selector(importFont:) forControlEvents:UIControlEventTouchUpInside];
-    [card addSubview:button];
+    [button.heightAnchor constraintGreaterThanOrEqualToConstant:44].active = YES;
+
+    // The header action row pairs package import with mix creation when the
+    // workspace supports saving mixed profiles; otherwise import keeps the
+    // full-width row.
+    UIView *actionRow = nil;
+    if ([self canSaveMixedProfiles]) {
+        UIButton *mixButton = [UIButton buttonWithType:UIButtonTypeSystem];
+        mixButton.translatesAutoresizingMaskIntoConstraints = NO;
+        mixButton.accessibilityIdentifier = @"profile_mix";
+        UIButtonConfiguration *mixConfiguration =
+            [UIButtonConfiguration tintedButtonConfiguration];
+        mixConfiguration.title = FMLocalized(@"创建混搭方案");
+        mixConfiguration.image = [UIImage systemImageNamed:@"wand.and.stars"];
+        mixConfiguration.imagePadding = 7;
+        mixConfiguration.cornerStyle = UIButtonConfigurationCornerStyleLarge;
+        mixConfiguration.baseBackgroundColor = FMTintedBackground(FMAccentColor());
+        mixConfiguration.baseForegroundColor = FMAccentColor();
+        mixButton.configuration = mixConfiguration;
+        [mixButton addTarget:self action:@selector(openMixComposer:)
+            forControlEvents:UIControlEventTouchUpInside];
+        [mixButton.heightAnchor constraintGreaterThanOrEqualToConstant:44].active = YES;
+
+        FMFontLibraryActionStackView *stack =
+            [[FMFontLibraryActionStackView alloc]
+                initWithArrangedSubviews:@[ button, mixButton ]];
+        stack.translatesAutoresizingMaskIntoConstraints = NO;
+        stack.axis = UILayoutConstraintAxisHorizontal;
+        stack.spacing = 10;
+        stack.distribution = UIStackViewDistributionFillEqually;
+        actionRow = stack;
+    } else {
+        actionRow = button;
+    }
+    [card addSubview:actionRow];
 
     [NSLayoutConstraint activateConstraints:@[
         [card.leadingAnchor constraintEqualToAnchor:header.leadingAnchor constant:20],
@@ -1292,11 +1452,11 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
         [detail.leadingAnchor constraintEqualToAnchor:card.leadingAnchor constant:18],
         [detail.trailingAnchor constraintEqualToAnchor:card.trailingAnchor constant:-18],
         [detail.topAnchor constraintEqualToAnchor:icon.bottomAnchor constant:8],
-        [button.leadingAnchor constraintEqualToAnchor:card.leadingAnchor constant:14],
-        [button.trailingAnchor constraintEqualToAnchor:card.trailingAnchor constant:-14],
-        [button.topAnchor constraintEqualToAnchor:detail.bottomAnchor constant:12],
-        [button.bottomAnchor constraintEqualToAnchor:card.bottomAnchor constant:-12],
-        [button.heightAnchor constraintEqualToConstant:44],
+        [actionRow.leadingAnchor constraintEqualToAnchor:card.leadingAnchor constant:14],
+        [actionRow.trailingAnchor constraintEqualToAnchor:card.trailingAnchor constant:-14],
+        [actionRow.topAnchor constraintEqualToAnchor:detail.bottomAnchor constant:12],
+        [actionRow.bottomAnchor constraintEqualToAnchor:card.bottomAnchor constant:-12],
+        [actionRow.heightAnchor constraintGreaterThanOrEqualToConstant:44],
     ]];
     if (chineseImportTip != nil) {
         [NSLayoutConstraint activateConstraints:@[
@@ -1411,6 +1571,10 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
     }
     else if (FMLibraryProfileIDsEqual(profileID, confirmedID)) status = FMLocalized(@"使用中");
     NSString *name = FMFriendlyProfileName(profileID, profile[@"name"]);
+    if ([profile[@"isMix"] isKindOfClass:NSString.class] ||
+        [profile[@"isMix"] boolValue]) {
+        name = [NSString stringWithFormat:FMLocalized(@"%@ · 混搭"), name];
+    }
     [cell configureWithProfileID:profileID
                             name:name
                      previewFont:profileID == nil

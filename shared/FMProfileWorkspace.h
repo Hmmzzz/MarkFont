@@ -46,6 +46,14 @@ NS_ASSUME_NONNULL_BEGIN
                                                       profileName:(NSString *)profileName
                                                             error:(NSError **)error;
 
+// Materializes a mix-and-match Profile from already saved schemes (slot
+// assignments plus one optional fallback scheme) into the same app-owned
+// library. It carries the same restrictions as saveFontPackageAtPath.
+- (nullable NSDictionary<NSString *, id> *)saveMixedProfileWithSlotAssignments:(NSDictionary<NSString *, NSString *> *)slotAssignments
+                                                               fallbackProfileID:(nullable NSString *)fallbackProfileID
+                                                                      profileName:(NSString *)profileName
+                                                                            error:(NSError **)error;
+
 // Changes only the persistent opt-in policy. Enabling it never requests a
 // Respring immediately; it can be consumed only by a later launchd automount.
 - (BOOL)setAutomaticRespringEnabled:(BOOL)enabled error:(NSError **)error;

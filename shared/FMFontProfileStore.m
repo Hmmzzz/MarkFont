@@ -232,6 +232,18 @@ static NSDictionary<NSString *, id> *FMLoadValidatedProfile(
     return profile;
 }
 
+BOOL FMEnsureFontProfileStoreRoot(NSString *profilesRoot, NSError **error) {
+    return FMEnsureProfilesRoot(profilesRoot, error);
+}
+
+NSDictionary<NSString *, id> *FMFontProfileStoreValidatedProfileAtRoot(
+    NSString *profilesRoot,
+    NSString *profileID,
+    NSString *systemBuild,
+    NSError **error) {
+    return FMLoadValidatedProfile(profilesRoot, profileID, systemBuild, YES, error);
+}
+
 NSArray<NSDictionary<NSString *, id> *> *FMListFontProfilesAtRoot(
     NSString *profilesRoot,
     NSString *systemBuild,
@@ -272,6 +284,7 @@ NSArray<NSDictionary<NSString *, id> *> *FMListFontProfilesAtRoot(
             @"id" : profile[@"id"],
             @"name" : profile[@"name"],
             @"replacementCount" : @([profile[@"replacements"] count]),
+            @"isMix" : @([profile[@"mixRecipe"] isKindOfClass:NSDictionary.class]),
         }];
     }
     [profiles sortUsingComparator:^NSComparisonResult(NSDictionary *left,
@@ -296,17 +309,26 @@ NSDictionary<NSString *, id> *FMFontProfileDetailsAtRoot(
     NSString *replacementsDirectory = [FMProfileDirectory(profilesRoot, profileID)
         stringByAppendingPathComponent:@"replacements"];
     NSMutableArray<NSString *> *relativePaths = [NSMutableArray array];
+    NSMutableDictionary<NSString *, NSString *> *filePathByRelativePath =
+        [NSMutableDictionary dictionary];
     for (NSDictionary<NSString *, id> *replacement in profile[@"replacements"]) {
         [relativePaths addObject:replacement[@"relativePath"]];
+        filePathByRelativePath[replacement[@"relativePath"]] =
+            [replacementsDirectory stringByAppendingPathComponent:replacement[@"fileName"]];
     }
     NSMutableDictionary<NSString *, id> *details = [@{
         @"id" : profile[@"id"],
         @"name" : profile[@"name"],
         @"relativePaths" : relativePaths,
         @"replacementCount" : @(relativePaths.count),
+        @"filePathByRelativePath" : filePathByRelativePath,
     } mutableCopy];
     [details addEntriesFromDictionary:
         FMFontProfilePreviewPaths(profile, replacementsDirectory)];
+    if ([profile[@"mixRecipe"] isKindOfClass:NSDictionary.class]) {
+        details[@"isMix"] = @YES;
+        details[@"mixRecipe"] = profile[@"mixRecipe"];
+    }
     return details;
 }
 

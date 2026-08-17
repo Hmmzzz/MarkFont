@@ -26,6 +26,18 @@ NSDictionary<NSString *, id> * _Nullable FMFontProfileDetailsAtRoot(
     NSString *systemBuild,
     NSError **error);
 
+// Creates the app-owned Profile library root when it is missing. Shared with
+// the mix-and-match Profile builder, which publishes into the same root.
+BOOL FMEnsureFontProfileStoreRoot(NSString *profilesRoot, NSError **error);
+
+// Loads and fully validates one stored Profile (document schema, build match,
+// replacement file presence) for use as a mix-and-match source scheme.
+NSDictionary<NSString *, id> * _Nullable FMFontProfileStoreValidatedProfileAtRoot(
+    NSString *profilesRoot,
+    NSString *profileID,
+    NSString *systemBuild,
+    NSError **error);
+
 // Revalidates the selected package, copies only unambiguous matched fonts into
 // a hidden staging directory, publishes one complete Profile directory, and
 // returns a small summary. The source package is never modified or retained.
