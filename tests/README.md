@@ -12,6 +12,12 @@
 ./tests/run
 ```
 
+独立 clone 如果没有父工作区的 `scripts/jb-env`，可在已配置好 macOS/Xcode 环境后直接运行：
+
+```bash
+MARKFONT_LOCAL_TEST_ENV_READY=1 ./tests/run
+```
+
 也可以从越狱开发工作区根目录执行等价入口：
 
 ```bash
@@ -27,8 +33,9 @@ markfont/tests/run
   -> 当前 markfont/tests
 ```
 
-runner 需要 macOS/Xcode、`rg`，以及本地工作区的 `../../scripts/jb-env`。它在 `/tmp`
-创建独立构建目录并在退出时清理，不连接设备、不部署 package，也不执行 Respring 或 reboot。
+runner 需要 macOS/Xcode 与 `rg`。默认入口会使用本地工作区的 `../../scripts/jb-env` 固定环境；
+设置 `MARKFONT_LOCAL_TEST_ENV_READY=1` 时则使用当前 shell 的 Xcode 环境。它在 `/tmp` 创建独立
+构建目录并在退出时清理，不连接设备、不部署 package，也不执行 Respring 或 reboot。
 
 ## 覆盖范围
 
