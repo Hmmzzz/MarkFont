@@ -55,6 +55,7 @@ static NSDictionary<NSString *, id> *FMFixtureCatalog(void) {
         @"Core/SFUIItalic.ttf",
         @"LanguageSupport/PingFang.ttc",
         @"CoreAddition/AppleColorEmoji-160px.ttc",
+        @"Watch/ADTTime.ttc",
         @"Watch/ADTNumeric.ttc",
     ] sortedArrayUsingSelector:@selector(compare:)];
     NSMutableArray<NSDictionary<NSString *, id> *> *entries = [NSMutableArray array];

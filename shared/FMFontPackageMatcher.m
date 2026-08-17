@@ -115,11 +115,11 @@ NSDictionary<NSString *, id> *FMMatchFontPackageFilesToCatalog(
     } else if (hasModernChineseTarget && !hasLegacyChineseTarget) {
         [ignoredOtherSystemVersionFileNames addObject:@"PingFang.ttc"];
     }
-    BOOL hasLegacyClockTarget = stockByName[@"ADTTime.ttc"] != nil;
-    BOOL hasModernClockTarget = stockByName[@"ADTNumeric.ttc"] != nil;
-    if (hasLegacyClockTarget && !hasModernClockTarget) {
+    BOOL hasTimeClockTarget = stockByName[@"ADTTime.ttc"] != nil;
+    BOOL hasNumericClockTarget = stockByName[@"ADTNumeric.ttc"] != nil;
+    if (hasTimeClockTarget && !hasNumericClockTarget) {
         [ignoredOtherSystemVersionFileNames addObject:@"ADTNumeric.ttc"];
-    } else if (hasModernClockTarget && !hasLegacyClockTarget) {
+    } else if (hasNumericClockTarget && !hasTimeClockTarget) {
         [ignoredOtherSystemVersionFileNames addObject:@"ADTTime.ttc"];
     }
 

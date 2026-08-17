@@ -111,6 +111,7 @@ int main(void) {
             @"LanguageSupport/PingFang.ttc",
             @"AppFonts/LockClock.ttf",
             @"CoreAddition/AppleColorEmoji-160px.ttc",
+            @"Watch/ADTTime.ttc",
             @"Watch/ADTNumeric.ttc",
             @"Watch/SFCompact.ttf",
             @"Watch/SFCompactRounded.ttf",
@@ -147,6 +148,8 @@ int main(void) {
                 [FMFontSlotIdentifierForRelativePath(slots, @"Watch/ADTNumeric.ttc")
                     isEqual:FMFontSlotIdentifierLockScreen] &&
                 FMFontSlotIdentifierForRelativePath(
+                    slots, @"Watch/ADTTime.ttc") == nil &&
+                FMFontSlotIdentifierForRelativePath(
                     slots, @"AppFonts/LockClock.ttf") == nil &&
                 FMFontSlotIdentifierForRelativePath(
                     slots, @"CoreAddition/AppleColorEmoji-160px.ttc") == nil,
@@ -161,6 +164,7 @@ int main(void) {
                 @"CoreUI/SFUISoft.ttc",
                 @"CoreUI/SFUIRounded.ttf",
                 @"AppFonts/LockClock.ttf",
+                @"Watch/ADTTime.ttc",
             ],
             @[ @"PingFangUI.ttc" ]));
         chinese = FMSlot(slots, FMFontSlotIdentifierChinese);
@@ -188,16 +192,20 @@ int main(void) {
         FMRequire(FMSlot(slots, FMFontSlotIdentifierChinese) == nil,
                   @"ambiguous Chinese targets must suppress the Chinese slot");
 
-        // A mixed-version catalog is not a valid basis for choosing a clock
-        // target. As with the Chinese exact-one policy, fail closed.
+        // iOS 17+ legitimately keeps ADTTime for Watch while PosterKit uses
+        // ADTNumeric. Numeric must win without claiming the Time path.
         slots = FMResolvedFontSlotsForCatalog(FMCatalog(@[
             @"Core/SFUI.ttf",
             @"LanguageSupport/PingFang.ttc",
             @"Watch/ADTTime.ttc",
             @"Watch/ADTNumeric.ttc",
         ]));
-        FMRequire(FMSlot(slots, FMFontSlotIdentifierLockScreen) == nil,
-                  @"ambiguous ADT targets must suppress the lock slot");
+        lock = FMSlot(slots, FMFontSlotIdentifierLockScreen);
+        FMRequire([lock[@"relativePaths"]
+                      isEqual:@[ @"Watch/ADTNumeric.ttc" ]] &&
+                      FMFontSlotIdentifierForRelativePath(
+                          slots, @"Watch/ADTTime.ttc") == nil,
+                  @"coexisting ADT files must keep Numeric as the lock target");
 
         // Shared lock-screen styles and LockClock alone do not create an
         // independently replaceable lock slot.
@@ -226,7 +234,7 @@ int main(void) {
                           isEqual:FMFontSlotIdentifierLatin],
                   @"path-list resolution must agree with catalog resolution");
 
-        printf("PASS: clock slot matches the current ADT target and excludes LockClock/shared Latin styles\n");
+        printf("PASS: clock slot prefers coexisting ADTNumeric and falls back to iOS 16 ADTTime\n");
         return 0;
     }
 }

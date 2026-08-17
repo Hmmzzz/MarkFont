@@ -68,21 +68,20 @@ static NSDictionary<NSString *, id> *FMCatalogWithChineseFile(
         error);
 }
 
-static NSDictionary<NSString *, id> *FMCatalogWithClockFile(
-    NSString *fileName,
+static NSDictionary<NSString *, id> *FMCatalogWithClockPaths(
+    NSArray<NSString *> *clockRelativePaths,
     NSString *systemBuild,
     NSError **error) {
-    NSString *relativePath = [fileName isEqual:@"ADTTime.ttc"]
-        ? @"Watch/ADTTime.ttc"
-        : @"Core/ADTNumeric.ttc";
-    NSArray<NSDictionary<NSString *, id> *> *entries = [@[
-        FMRegularEntry(
+    NSMutableArray<NSDictionary<NSString *, id> *> *entries =
+        [NSMutableArray arrayWithObject:FMRegularEntry(
             @"Core/SFUI.ttf",
-            @"1111111111111111111111111111111111111111111111111111111111111111"),
-        FMRegularEntry(
+            @"1111111111111111111111111111111111111111111111111111111111111111")];
+    for (NSString *relativePath in clockRelativePaths) {
+        [entries addObject:FMRegularEntry(
             relativePath,
-            @"3333333333333333333333333333333333333333333333333333333333333333"),
-    ] sortedArrayUsingComparator:^NSComparisonResult(NSDictionary *left,
+            @"3333333333333333333333333333333333333333333333333333333333333333")];
+    }
+    [entries sortUsingComparator:^NSComparisonResult(NSDictionary *left,
                                                        NSDictionary *right) {
         return [left[@"relativePath"] compare:right[@"relativePath"]];
     }];
@@ -190,7 +189,7 @@ int main(void) {
         NSString *modernClockHash =
             @"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd";
         NSDictionary *ios16ClockCatalog =
-            FMCatalogWithClockFile(@"ADTTime.ttc", @"20C65", &error);
+            FMCatalogWithClockPaths(@[ @"Watch/ADTTime.ttc" ], @"20C65", &error);
         FMRequire(ios16ClockCatalog != nil,
                   [NSString stringWithFormat:@"iOS 16 clock catalog setup failed: %@",
                                              error]);
@@ -214,7 +213,10 @@ int main(void) {
                   @"iOS 16 must match ADTTime and isolate ADTNumeric/LockClock");
 
         NSDictionary *modernClockCatalog =
-            FMCatalogWithClockFile(@"ADTNumeric.ttc", @"22A3354", &error);
+            FMCatalogWithClockPaths(@[
+                @"Core/ADTNumeric.ttc",
+                @"Watch/ADTTime.ttc",
+            ], @"22A3354", &error);
         FMRequire(modernClockCatalog != nil,
                   [NSString stringWithFormat:@"modern clock catalog setup failed: %@",
                                              error]);
@@ -222,17 +224,19 @@ int main(void) {
             FMPackageEntry(@"Clock/ADTTime.ttc", legacyClockHash),
             FMPackageEntry(@"Clock/ADTNumeric.ttc", modernClockHash),
         ], modernClockCatalog, &error);
-        FMRequire([modernClockBoth[@"matchedTargetCount"] unsignedIntegerValue] == 1 &&
+        FMRequire([modernClockBoth[@"matchedTargetCount"] unsignedIntegerValue] == 2 &&
                       [modernClockBoth[@"otherSystemVersionSourceCount"]
-                          unsignedIntegerValue] == 1 &&
+                          unsignedIntegerValue] == 0 &&
                       [modernClockBoth[@"unmatchedSourceCount"] unsignedIntegerValue] == 0 &&
                       [modernClockBoth[@"matches"][0][@"targetRelativePath"]
                           isEqual:@"Core/ADTNumeric.ttc"] &&
                       [modernClockBoth[@"matches"][0][@"selectedSourceRelativePath"]
                           isEqual:@"Clock/ADTNumeric.ttc"] &&
-                      [modernClockBoth[@"otherSystemVersionSources"][0][@"fileName"]
-                          isEqual:@"ADTTime.ttc"],
-                  @"newer builds must match ADTNumeric and isolate ADTTime");
+                      [modernClockBoth[@"matches"][1][@"targetRelativePath"]
+                          isEqual:@"Watch/ADTTime.ttc"] &&
+                      [modernClockBoth[@"matches"][1][@"selectedSourceRelativePath"]
+                          isEqual:@"Clock/ADTTime.ttc"],
+                  @"newer builds must preserve both coexisting ADT targets");
 
         NSDictionary *caseMismatch = FMMatchFontPackageFilesToCatalog(@[
             FMPackageEntry(@"LanguageSupport/pingfang.ttc", legacyChineseHash),

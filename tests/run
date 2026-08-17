@@ -721,9 +721,10 @@ if ! rg -qF 'relativePathByFileName[@"ADTTime.ttc"]' \
       "$font_slot_catalog_source" || \
    rg -qF 'relativePathByFileName[@"LockClock.ttf"]' \
       "$font_slot_catalog_source" || \
-   ! rg -qF 'hasLegacyClockTarget' "$font_package_matcher_source" || \
-   ! rg -qF 'hasModernClockTarget' "$font_package_matcher_source" || \
-   ! rg -qF '锁屏时间槽位会按当前系统匹配 ADTTime 或 ADTNumeric' \
+   ! rg -qF 'if (modern != nil)' "$font_slot_catalog_source" || \
+   ! rg -qF 'hasTimeClockTarget' "$font_package_matcher_source" || \
+   ! rg -qF 'hasNumericClockTarget' "$font_package_matcher_source" || \
+   ! rg -qF '锁屏时间槽位在 iOS 16 使用 ADTTime，在 iOS 17–26 使用 ADTNumeric' \
       "$mix_font_ui_source" || \
    rg -qF 'ADT Numeric 和 LockClock' \
       "$mix_font_ui_source" \

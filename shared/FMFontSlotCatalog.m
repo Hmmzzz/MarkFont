@@ -9,7 +9,7 @@ NSString *const FMFontSlotIdentifierLockScreen = @"lockscreen";
 
 // Declaration order is used to keep slot file sets disjoint. The Chinese and
 // lock-screen entries are placeholders; their single targets are resolved by
-// build-specific exact-one policies instead of a broad file-name lookup.
+// build-specific policies instead of a broad file-name lookup.
 static NSArray<NSDictionary<NSString *, id> *> *FMFontSlotDefinitions(void) {
     return @[
         @{
@@ -32,11 +32,10 @@ static NSArray<NSDictionary<NSString *, id> *> *FMFontSlotDefinitions(void) {
         @{
             @"slotID" : FMFontSlotIdentifierLockScreen,
             @"name" : @"锁屏时间字体",
-            // iOS 16 uses ADTTime while newer builds use ADTNumeric (which
-            // itself moves from Watch/ to Core/ on iOS 18). Only the exact
-            // target present in the validated current-build catalog is an
-            // independently replaceable clock slot. LockClock.ttf is a
-            // registered system resource, but is not the PosterKit time face.
+            // iOS 16 PosterKit uses ADTTime. iOS 17+ uses ADTNumeric (which
+            // itself moves from Watch/ to Core/ on iOS 18), while ADTTime
+            // remains installed for Watch time faces. Prefer ADTNumeric when
+            // both exist; LockClock.ttf is not the PosterKit time face.
             @"dedicatedClockPolicy" : @YES,
             // PosterKit's default SF Pro and Rounded clock styles are backed
             // by the same physical files as system Latin text. Surface that
@@ -92,15 +91,15 @@ NSArray<NSDictionary<NSString *, id> *> *FMResolvedFontSlotsForRelativePaths(
                 [fileNames addObject:@"PingFang.ttc"];
             }
         } else if ([definition[@"dedicatedClockPolicy"] boolValue]) {
-            // The supported builds expose exactly one dedicated PosterKit
-            // clock collection. Fail closed if a malformed or mixed-version
-            // catalog contains both names instead of guessing a target.
+            // ADTTime and ADTNumeric legitimately coexist on iOS 17+. The
+            // Numeric collection owns PosterKit there; Time is the iOS 16
+            // fallback when Numeric is absent.
             NSString *legacy = relativePathByFileName[@"ADTTime.ttc"];
             NSString *modern = relativePathByFileName[@"ADTNumeric.ttc"];
-            if (legacy != nil && modern == nil) {
-                [fileNames addObject:@"ADTTime.ttc"];
-            } else if (modern != nil && legacy == nil) {
+            if (modern != nil) {
                 [fileNames addObject:@"ADTNumeric.ttc"];
+            } else if (legacy != nil) {
+                [fileNames addObject:@"ADTTime.ttc"];
             }
         } else {
             [fileNames addObjectsFromArray:definition[@"fileNames"]];
