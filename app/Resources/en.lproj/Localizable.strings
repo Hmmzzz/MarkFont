@@ -385,8 +385,6 @@
 "混搭方案没有写入字体库。" = "The mix was not written to the font library.";
 "混搭方案已存入字体库" = "Mix saved to font library";
 "已合并 %lu 个字体文件。" = "Merged %lu font files.";
-"稍后" = "Later";
-"立即应用" = "Apply now";
 "选择方案 · %@" = "Choose a scheme · %@";
 "选择兜底方案" = "Choose the fallback scheme";
 "不单独选择 · 使用兜底方案" = "Skip · use the fallback scheme";
@@ -419,4 +417,6 @@
 "来源方案包含缺失或异常的字体文件。" = "A source scheme contains a missing or invalid font file.";
 "来源方案的字体文件与记录不一致。" = "A source scheme font file does not match its recorded hash.";
 "创建混搭方案" = "Create a mix";
-"锁屏时间的 SF Pro 与圆角样式会和系统英文共用字体文件；两处选择不同时，共用文件以锁屏方案为准。" = "SF Pro and Rounded lock-screen clocks share font files with system Latin text. If the two selections differ, the lock-screen scheme takes precedence for shared files.";
+"该方案仅含共享锁屏样式，请在英文字体中选择" = "This scheme only contains shared lock-screen styles. Select it under English font.";
+"仅含共享锁屏样式 · 由英文字体控制" = "Shared lock-screen styles only · controlled by English font";
+"锁屏时间槽位只管理可独立替换的 ADT Numeric 和 LockClock；SF Pro、圆角等共用系统英文字体的样式会跟随英文字体方案。" = "The lock-screen slot only manages independently replaceable ADT Numeric and LockClock files. SF Pro, Rounded, and other styles that share system Latin fonts follow the English-font scheme.";

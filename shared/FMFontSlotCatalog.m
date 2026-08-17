@@ -7,21 +7,19 @@ NSString *const FMFontSlotIdentifierChinese = @"chinese";
 NSString *const FMFontSlotIdentifierLatin = @"latin";
 NSString *const FMFontSlotIdentifierLockScreen = @"lockscreen";
 
-// Declaration order is the precedence order used to keep slot file sets
-// disjoint. The Chinese entry is a placeholder; its single target is resolved
-// by the build-specific layout policy instead of a plain file-name lookup.
+// Declaration order is used to keep slot file sets disjoint. The Chinese entry
+// is a placeholder; its single target is resolved by the build-specific layout
+// policy instead of a plain file-name lookup.
 static NSArray<NSDictionary<NSString *, id> *> *FMFontSlotDefinitions(void) {
     return @[
         @{
             @"slotID" : FMFontSlotIdentifierChinese,
             @"name" : @"中文字体",
             @"chinesePolicy" : @YES,
-            @"mergePriority" : @300,
         },
         @{
             @"slotID" : FMFontSlotIdentifierLatin,
             @"name" : @"英文字体",
-            @"mergePriority" : @100,
             @"fileNames" : @[
                 @"SFUI.ttf",
                 @"SFUIItalic.ttf",
@@ -34,24 +32,18 @@ static NSArray<NSDictionary<NSString *, id> *> *FMFontSlotDefinitions(void) {
         @{
             @"slotID" : FMFontSlotIdentifierLockScreen,
             @"name" : @"锁屏时间字体",
-            // iOS 16-26 PosterKit time-font identifiers resolve into these
-            // catalog files. SFUI/SFUIRounded are shared with general UI text;
-            // ADTNumeric and SFCompact move from Watch/ to Core/ on iOS 18,
-            // but filename-based catalog resolution remains stable.
-            @"mergePriority" : @200,
+            // Only dedicated clock assets belong to this independently
+            // replaceable slot. ADTNumeric moves from Watch/ to Core/ on iOS
+            // 18, but filename-based catalog resolution remains stable.
             @"fileNames" : @[
-                @"SFUI.ttf",
-                @"SFUIRounded.ttf",
                 @"ADTNumeric.ttc",
-                @"NewYork.ttf",
-                @"SFArabic.ttf",
-                @"SFArabicRounded.ttf",
-                @"SFHebrew.ttf",
-                @"SFHebrewRounded.ttf",
-                @"SFCompact.ttf",
-                @"SFCompactRounded.ttf",
                 @"LockClock.ttf",
             ],
+            // PosterKit's default SF Pro and Rounded clock styles are backed
+            // by the same physical files as system Latin text. Surface that
+            // relationship to the UI without making the paths overlap.
+            @"sharedStyleFileNames" : @[ @"SFUI.ttf", @"SFUIRounded.ttf" ],
+            @"sharedStyleOwnerSlotID" : FMFontSlotIdentifierLatin,
         },
     ];
 }
@@ -87,6 +79,7 @@ NSArray<NSDictionary<NSString *, id> *> *FMResolvedFontSlotsForRelativePaths(
 
     NSMutableArray<NSMutableDictionary<NSString *, id> *> *slots =
         [NSMutableArray array];
+    NSMutableSet<NSString *> *claimedPaths = [NSMutableSet set];
     for (NSDictionary<NSString *, id> *definition in FMFontSlotDefinitions()) {
         NSMutableArray<NSString *> *fileNames = [NSMutableArray array];
         if ([definition[@"chinesePolicy"] boolValue]) {
@@ -103,37 +96,39 @@ NSArray<NSDictionary<NSString *, id> *> *FMResolvedFontSlotsForRelativePaths(
             [fileNames addObjectsFromArray:definition[@"fileNames"]];
         }
 
-        NSMutableArray<NSString *> *relativePaths = [NSMutableArray array];
+        NSMutableArray<NSString *> *slotRelativePaths = [NSMutableArray array];
         for (NSString *fileName in fileNames) {
             NSString *relativePath = relativePathByFileName[fileName];
-            if (relativePath == nil) continue;
-            [relativePaths addObject:relativePath];
+            if (relativePath == nil || [claimedPaths containsObject:relativePath]) {
+                continue;
+            }
+            [slotRelativePaths addObject:relativePath];
+            [claimedPaths addObject:relativePath];
         }
-        if (relativePaths.count == 0) continue;
-        [slots addObject:[@{
+        if (slotRelativePaths.count == 0) continue;
+        NSMutableDictionary<NSString *, id> *slot = [@{
             @"slotID" : definition[@"slotID"],
             @"name" : FMLocalized(definition[@"name"]),
-            @"relativePaths" : relativePaths,
-            @"mergePriority" : definition[@"mergePriority"] ?: @0,
-        } mutableCopy]];
-    }
-
-    NSMutableDictionary<NSString *, NSNumber *> *pathUseCounts =
-        [NSMutableDictionary dictionary];
-    for (NSDictionary<NSString *, id> *slot in slots) {
-        for (NSString *relativePath in slot[@"relativePaths"]) {
-            pathUseCounts[relativePath] = @([pathUseCounts[relativePath]
-                unsignedIntegerValue] + 1);
-        }
-    }
-    for (NSMutableDictionary<NSString *, id> *slot in slots) {
-        NSMutableArray<NSString *> *sharedPaths = [NSMutableArray array];
-        for (NSString *relativePath in slot[@"relativePaths"]) {
-            if ([pathUseCounts[relativePath] unsignedIntegerValue] > 1) {
-                [sharedPaths addObject:relativePath];
+            @"relativePaths" : slotRelativePaths,
+        } mutableCopy];
+        NSArray<NSString *> *sharedStyleFileNames =
+            [definition[@"sharedStyleFileNames"] isKindOfClass:NSArray.class]
+                ? definition[@"sharedStyleFileNames"]
+                : @[];
+        NSMutableArray<NSString *> *sharedStyleRelativePaths =
+            [NSMutableArray array];
+        for (NSString *fileName in sharedStyleFileNames) {
+            NSString *relativePath = relativePathByFileName[fileName];
+            if (relativePath != nil) {
+                [sharedStyleRelativePaths addObject:relativePath];
             }
         }
-        slot[@"sharedRelativePaths"] = sharedPaths;
+        if (sharedStyleRelativePaths.count > 0) {
+            slot[@"sharedStyleRelativePaths"] = sharedStyleRelativePaths;
+            slot[@"sharedStyleOwnerSlotID"] =
+                definition[@"sharedStyleOwnerSlotID"];
+        }
+        [slots addObject:slot];
     }
     return slots;
 }
@@ -142,19 +137,12 @@ NSString *FMFontSlotIdentifierForRelativePath(
     NSArray<NSDictionary<NSString *, id> *> *resolvedSlots,
     NSString *relativePath) {
     if (![relativePath isKindOfClass:NSString.class]) return nil;
-    NSString *owner = nil;
-    NSInteger ownerPriority = NSIntegerMin;
     for (NSDictionary<NSString *, id> *slot in resolvedSlots) {
         NSArray<NSString *> *paths =
             [slot[@"relativePaths"] isKindOfClass:NSArray.class]
                 ? slot[@"relativePaths"]
                 : nil;
-        NSInteger priority = [slot[@"mergePriority"] integerValue];
-        if ([paths containsObject:relativePath] &&
-            (owner == nil || priority > ownerPriority)) {
-            owner = slot[@"slotID"];
-            ownerPriority = priority;
-        }
+        if ([paths containsObject:relativePath]) return slot[@"slotID"];
     }
-    return owner;
+    return nil;
 }

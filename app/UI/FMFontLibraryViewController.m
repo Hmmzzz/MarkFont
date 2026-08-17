@@ -607,8 +607,7 @@ static NSString *FMFriendlyMirrorRole(NSString *relativePath) {
     FMMixFontViewController *composer =
         [[FMMixFontViewController alloc] initWithWorkspace:self.workspace
                                                   mixRecipe:recipe
-                                         replacingProfileID:profileID
-                                                applyHandler:self.applyHandler];
+                                         replacingProfileID:profileID];
     [self.navigationController pushViewController:composer animated:YES];
 }
 
@@ -1331,8 +1330,7 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
     FMMixFontViewController *composer =
         [[FMMixFontViewController alloc] initWithWorkspace:self.workspace
                                                   mixRecipe:nil
-                                         replacingProfileID:nil
-                                                applyHandler:self.applyHandler];
+                                         replacingProfileID:nil];
     [self.navigationController pushViewController:composer animated:YES];
 }
 

@@ -162,21 +162,9 @@ static BOOL FMMixBuildMerge(
     }
 
     NSMutableSet<NSString *> *claimedPaths = [NSMutableSet set];
-    NSMutableDictionary<NSString *, NSString *> *claimingSlotByPath =
-        [NSMutableDictionary dictionary];
     NSMutableDictionary<NSString *, NSArray<NSString *> *> *slotReplacedPaths =
         [NSMutableDictionary dictionary];
-    NSArray<NSDictionary<NSString *, id> *> *mergeOrderedSlots =
-        [resolvedSlots sortedArrayUsingComparator:^NSComparisonResult(
-            NSDictionary<NSString *, id> *left,
-            NSDictionary<NSString *, id> *right) {
-        NSInteger leftPriority = [left[@"mergePriority"] integerValue];
-        NSInteger rightPriority = [right[@"mergePriority"] integerValue];
-        if (leftPriority > rightPriority) return NSOrderedAscending;
-        if (leftPriority < rightPriority) return NSOrderedDescending;
-        return [left[@"slotID"] compare:right[@"slotID"]];
-    }];
-    for (NSDictionary<NSString *, id> *slot in mergeOrderedSlots) {
+    for (NSDictionary<NSString *, id> *slot in resolvedSlots) {
         NSString *slotID = slot[@"slotID"];
         NSString *slotProfileID = slotAssignments[slotID];
         NSMutableArray<NSString *> *replacedPaths = [NSMutableArray array];
@@ -194,7 +182,6 @@ static BOOL FMMixBuildMerge(
                 [merged addObject:FMMixMergedEntry(relativePath, replacement,
                                                    slotProfileID)];
                 [claimedPaths addObject:relativePath];
-                claimingSlotByPath[relativePath] = slotID;
                 [replacedPaths addObject:relativePath];
             }
         }
@@ -227,13 +214,8 @@ static BOOL FMMixBuildMerge(
             slotProfileID.length > 0 ? sourceProfiles[slotProfileID] : nil;
         NSMutableArray<NSString *> *fallbackPathsForSlot = [NSMutableArray array];
         NSMutableArray<NSString *> *stockPathsForSlot = [NSMutableArray array];
-        NSMutableArray<NSString *> *otherSlotPaths = [NSMutableArray array];
         for (NSString *relativePath in slot[@"relativePaths"]) {
             if ([slotReplacedPaths[slotID] containsObject:relativePath]) {
-                continue;
-            }
-            if (claimingSlotByPath[relativePath] != nil) {
-                [otherSlotPaths addObject:relativePath];
                 continue;
             }
             if ([fallbackPaths containsObject:relativePath]) {
@@ -250,7 +232,6 @@ static BOOL FMMixBuildMerge(
             @"replacedRelativePaths" : slotReplacedPaths[slotID] ?: @[],
             @"fallbackRelativePaths" : fallbackPathsForSlot,
             @"stockRelativePaths" : stockPathsForSlot,
-            @"otherSlotRelativePaths" : otherSlotPaths,
         }];
     }
     return YES;

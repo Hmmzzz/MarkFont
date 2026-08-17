@@ -2,7 +2,6 @@
 
 #import "FMDesignSystem.h"
 #import "FMFloatingActionDockView.h"
-#import "FMFontLibraryViewController.h"
 #import "FMFontSlotCatalog.h"
 #import "FMProfileWorkspace.h"
 
@@ -13,6 +12,22 @@ static NSString *FMMixSlotSymbolName(NSString *slotID) {
     if ([slotID isEqual:FMFontSlotIdentifierLatin]) return @"textformat.abc";
     if ([slotID isEqual:FMFontSlotIdentifierLockScreen]) return @"lock.fill";
     return @"doc.text.fill";
+}
+
+static NSUInteger FMMixCoveredPathCount(
+    NSDictionary<NSString *, id> *scheme, NSArray<NSString *> *relativePaths) {
+    NSSet<NSString *> *schemePaths = [scheme[@"paths"] isKindOfClass:NSSet.class]
+        ? scheme[@"paths"]
+        : nil;
+    if (schemePaths == nil ||
+        ![relativePaths isKindOfClass:NSArray.class]) {
+        return 0;
+    }
+    NSUInteger covered = 0;
+    for (NSString *relativePath in relativePaths) {
+        if ([schemePaths containsObject:relativePath]) covered++;
+    }
+    return covered;
 }
 
 // One saved scheme with everything the composer needs: which catalog files it
@@ -31,7 +46,6 @@ static NSString *FMMixSlotSymbolName(NSString *slotID) {
 @property(nonatomic, strong) id<FMProfileWorkspace> workspace;
 @property(nonatomic, copy, nullable) NSDictionary<NSString *, id> *mixRecipe;
 @property(nonatomic, copy, nullable) NSString *replacingProfileID;
-@property(nonatomic, copy, nullable) FMFontLibraryApplyHandler applyHandler;
 @property(nonatomic, copy) NSArray<NSDictionary<NSString *, id> *> *slots;
 @property(nonatomic, copy) NSArray<NSDictionary<NSString *, id> *> *schemes;
 @property(nonatomic, strong) NSMutableDictionary<NSString *, NSString *> *slotAssignments;
@@ -46,14 +60,12 @@ static NSString *FMMixSlotSymbolName(NSString *slotID) {
 
 - (instancetype)initWithWorkspace:(id<FMProfileWorkspace>)workspace
                          mixRecipe:(nullable NSDictionary<NSString *, id> *)mixRecipe
-                replacingProfileID:(nullable NSString *)replacingProfileID
-                       applyHandler:(nullable FMFontLibraryApplyHandler)applyHandler {
+                replacingProfileID:(nullable NSString *)replacingProfileID {
     self = [super initWithStyle:UITableViewStyleInsetGrouped];
     if (self != nil) {
         _workspace = workspace;
         _mixRecipe = [mixRecipe copy];
         _replacingProfileID = [replacingProfileID copy];
-        _applyHandler = [applyHandler copy];
         _slots = @[];
         _schemes = @[];
         _slotAssignments = [NSMutableDictionary dictionary];
@@ -177,8 +189,11 @@ static NSString *FMMixSlotSymbolName(NSString *slotID) {
         NSString *profileID = [source isKindOfClass:NSDictionary.class]
             ? source[@"profileID"]
             : nil;
-        if ([profileID isKindOfClass:NSString.class] &&
-            [self schemeForProfileID:profileID].count > 0) {
+        if (![profileID isKindOfClass:NSString.class]) continue;
+        NSDictionary<NSString *, id> *slot = [self slotForIdentifier:slotID];
+        NSDictionary<NSString *, id> *scheme = [self schemeForProfileID:profileID];
+        if (scheme.count > 0 &&
+            FMMixCoveredPathCount(scheme, slot[@"relativePaths"]) > 0) {
             self.slotAssignments[slotID] = profileID;
         }
     }
@@ -215,39 +230,14 @@ static NSString *FMMixSlotSymbolName(NSString *slotID) {
 // How many files inside the slot the assigned scheme actually replaces.
 - (NSUInteger)coveredPathCountForSlot:(NSDictionary<NSString *, id> *)slot {
     if (![slot isKindOfClass:NSDictionary.class]) return 0;
-    NSDictionary<NSString *, id> *scheme = [self schemeAssignedToSlot:slot];
-    if (scheme.count == 0) return 0;
-    NSUInteger covered = 0;
-    for (NSString *relativePath in slot[@"relativePaths"]) {
-        if ([scheme[@"paths"] containsObject:relativePath]) covered++;
-    }
-    return covered;
+    return FMMixCoveredPathCount([self schemeAssignedToSlot:slot],
+                                 slot[@"relativePaths"]);
 }
 
-- (NSArray<NSDictionary<NSString *, id> *> *)slotsByMergePriority {
-    return [self.slots sortedArrayUsingComparator:^NSComparisonResult(
-        NSDictionary<NSString *, id> *left,
-        NSDictionary<NSString *, id> *right) {
-        NSInteger leftPriority = [left[@"mergePriority"] integerValue];
-        NSInteger rightPriority = [right[@"mergePriority"] integerValue];
-        if (leftPriority > rightPriority) return NSOrderedAscending;
-        if (leftPriority < rightPriority) return NSOrderedDescending;
-        return [left[@"slotID"] compare:right[@"slotID"]];
-    }];
-}
-
-// Mirrors the materializer's precedence for paths shared by more than one
-// visible slot. The lock-screen slot wins SFUI/SFUIRounded only when its chosen
-// scheme actually provides that file; otherwise the Latin choice can provide
-// it, followed by the fallback scheme and finally Stock.
-- (NSDictionary<NSString *, id> *)schemeProvidingRelativePath:(NSString *)relativePath {
-    for (NSDictionary<NSString *, id> *slot in [self slotsByMergePriority]) {
-        if (![slot[@"relativePaths"] containsObject:relativePath]) continue;
-        NSDictionary<NSString *, id> *scheme = [self schemeAssignedToSlot:slot];
-        if ([scheme[@"paths"] containsObject:relativePath]) return scheme;
-    }
-    NSDictionary<NSString *, id> *fallback = [self fallbackScheme];
-    return [fallback[@"paths"] containsObject:relativePath] ? fallback : @{};
+- (NSUInteger)sharedStylePathCountForSlot:(NSDictionary<NSString *, id> *)slot {
+    if (![slot isKindOfClass:NSDictionary.class]) return 0;
+    return FMMixCoveredPathCount([self schemeAssignedToSlot:slot],
+                                 slot[@"sharedStyleRelativePaths"]);
 }
 
 - (BOOL)hasAnyReplacement {
@@ -274,40 +264,43 @@ static NSString *FMMixSlotSymbolName(NSString *slotID) {
 - (UIFont *)effectivePreviewFontForSlot:(NSDictionary<NSString *, id> *)slot
                                    latin:(BOOL)latin {
     if (![slot isKindOfClass:NSDictionary.class]) return nil;
-    for (NSString *relativePath in slot[@"relativePaths"]) {
-        NSDictionary<NSString *, id> *scheme =
-            [self schemeProvidingRelativePath:relativePath];
-        NSString *path = [scheme[@"filePathByRelativePath"]
-            isKindOfClass:NSDictionary.class]
-                ? scheme[@"filePathByRelativePath"][relativePath]
-                : nil;
-        UIFont *font = FMPreviewFontAtPath(path, latin ? 19 : 28);
-        if (font != nil) return font;
+    for (NSDictionary<NSString *, id> *scheme in
+             @[ [self schemeAssignedToSlot:slot], [self fallbackScheme] ]) {
+        NSDictionary<NSString *, NSString *> *paths =
+            [scheme[@"filePathByRelativePath"] isKindOfClass:NSDictionary.class]
+                ? scheme[@"filePathByRelativePath"]
+                : @{};
+        for (NSString *relativePath in slot[@"relativePaths"]) {
+            UIFont *font = FMPreviewFontAtPath(paths[relativePath], latin ? 19 : 28);
+            if (font != nil) return font;
+        }
     }
     return nil;
 }
 
 - (UIFont *)effectiveClockPreviewFontForSlot:(NSDictionary<NSString *, id> *)slot {
     if (![slot isKindOfClass:NSDictionary.class]) return nil;
-    for (NSString *relativePath in slot[@"relativePaths"]) {
-        NSDictionary<NSString *, id> *scheme =
-            [self schemeProvidingRelativePath:relativePath];
-        NSString *path = [scheme[@"filePathByRelativePath"]
-            isKindOfClass:NSDictionary.class]
-                ? scheme[@"filePathByRelativePath"][relativePath]
-                : nil;
-        UIFont *font = FMPreviewFontAtPath(path, 38);
-        if (font != nil) return font;
+    for (NSDictionary<NSString *, id> *scheme in
+             @[ [self schemeAssignedToSlot:slot], [self fallbackScheme] ]) {
+        NSDictionary<NSString *, NSString *> *paths =
+            [scheme[@"filePathByRelativePath"] isKindOfClass:NSDictionary.class]
+                ? scheme[@"filePathByRelativePath"]
+                : @{};
+        for (NSString *relativePath in slot[@"relativePaths"]) {
+            UIFont *font = FMPreviewFontAtPath(paths[relativePath], 38);
+            if (font != nil) return font;
+        }
     }
     return nil;
 }
 
 - (NSString *)effectiveSchemeNameForSlot:(NSDictionary<NSString *, id> *)slot {
     if (![slot isKindOfClass:NSDictionary.class]) return FMLocalized(@"系统默认");
-    for (NSString *relativePath in slot[@"relativePaths"]) {
-        NSDictionary<NSString *, id> *scheme =
-            [self schemeProvidingRelativePath:relativePath];
-        if (scheme.count > 0) return scheme[@"name"];
+    for (NSDictionary<NSString *, id> *scheme in
+             @[ [self schemeAssignedToSlot:slot], [self fallbackScheme] ]) {
+        if (FMMixCoveredPathCount(scheme, slot[@"relativePaths"]) > 0) {
+            return scheme[@"name"];
+        }
     }
     return FMLocalized(@"系统默认");
 }
@@ -576,48 +569,20 @@ static NSString *FMMixSlotSymbolName(NSString *slotID) {
 }
 
 - (void)presentSavedAlertForProfile:(NSDictionary<NSString *, id> *)saved {
-    NSString *profileID = saved[@"id"];
     NSUInteger count = [saved[@"replacementCount"] unsignedIntegerValue];
     UIAlertController *done =
         [UIAlertController alertControllerWithTitle:FMLocalized(@"混搭方案已存入字体库")
                                             message:[NSString stringWithFormat:FMLocalized(@"已合并 %lu 个字体文件。"), (unsigned long)count]
                                      preferredStyle:UIAlertControllerStyleAlert];
     __weak typeof(self) weakSelf = self;
-    [done addAction:[UIAlertAction actionWithTitle:FMLocalized(@"稍后")
-                                             style:UIAlertActionStyleCancel
+    [done addAction:[UIAlertAction actionWithTitle:FMLocalized(@"好")
+                                             style:UIAlertActionStyleDefault
                                            handler:^(__unused UIAlertAction *action) {
         typeof(self) strongSelf = weakSelf;
         if (strongSelf == nil) return;
         [strongSelf.navigationController popToRootViewControllerAnimated:YES];
     }]];
-    [done addAction:[UIAlertAction actionWithTitle:FMLocalized(@"立即应用")
-                                             style:UIAlertActionStyleDefault
-                                           handler:^(__unused UIAlertAction *action) {
-        [weakSelf applySavedProfileID:profileID];
-    }]];
     [self presentViewController:done animated:YES completion:nil];
-}
-
-- (void)applySavedProfileID:(NSString *)profileID {
-    NSError *error = nil;
-    if (!self.workspace.allowsChanges ||
-        ![self.workspace stageProfileID:profileID error:&error]) {
-        UIAlertController *failure =
-            [UIAlertController alertControllerWithTitle:FMLocalized(@"暂时无法应用")
-                                                message:error.localizedDescription ?: FMLocalized(@"字体切换没有完成，请稍后重试。")
-                                         preferredStyle:UIAlertControllerStyleAlert];
-        [failure addAction:[UIAlertAction actionWithTitle:FMLocalized(@"好")
-                                                   style:UIAlertActionStyleDefault
-                                                 handler:nil]];
-        [self presentViewController:failure animated:YES completion:nil];
-        return;
-    }
-    [[[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleMedium]
-        impactOccurred];
-    FMFontLibraryApplyHandler applyHandler = self.applyHandler;
-    [self.navigationController dismissViewControllerAnimated:YES completion:^{
-        if (applyHandler != nil) applyHandler(profileID);
-    }];
 }
 
 #pragma mark - Table view
@@ -650,9 +615,9 @@ static NSString *FMMixSlotSymbolName(NSString *slotID) {
         @"为每个主要字体选择一个方案；方案未包含的文件会自动使用兜底方案。");
     NSDictionary<NSString *, id> *lockSlot =
         [self slotForIdentifier:FMFontSlotIdentifierLockScreen];
-    if ([lockSlot[@"sharedRelativePaths"] count] == 0) return guidance;
+    if ([lockSlot[@"sharedStyleRelativePaths"] count] == 0) return guidance;
     return [NSString stringWithFormat:@"%@\n\n%@", guidance,
-        FMLocalized(@"锁屏时间的 SF Pro 与圆角样式会和系统英文共用字体文件；两处选择不同时，共用文件以锁屏方案为准。")];
+        FMLocalized(@"锁屏时间槽位只管理可独立替换的 ADT Numeric 和 LockClock；SF Pro、圆角等共用系统英文字体的样式会跟随英文字体方案。")];
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView
@@ -674,8 +639,12 @@ static NSString *FMMixSlotSymbolName(NSString *slotID) {
         NSDictionary<NSString *, id> *assigned = [self schemeAssignedToSlot:slot];
         NSUInteger total = [slot[@"relativePaths"] count];
         NSUInteger covered = [self coveredPathCountForSlot:slot];
+        NSUInteger sharedStyleCovered = [self sharedStylePathCountForSlot:slot];
         if (assigned.count == 0) {
             content.secondaryText = FMLocalized(@"未选择 · 使用兜底方案");
+        } else if (covered == 0 && sharedStyleCovered > 0) {
+            content.secondaryText =
+                FMLocalized(@"该方案仅含共享锁屏样式，请在英文字体中选择");
         } else if (covered == 0) {
             content.secondaryText = FMLocalized(@"该方案不含此字体，将使用兜底");
         } else if (covered < total) {
@@ -806,9 +775,14 @@ static NSString *FMMixSlotSymbolName(NSString *slotID) {
 - (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {
     (void)tableView;
     (void)section;
-    return self.slot != nil
-        ? FMLocalized(@"所选方案未包含的槽位文件，会使用兜底方案。")
-        : FMLocalized(@"选择「系统默认」时，未覆盖的字体保持本机原生内容。");
+    if (self.slot == nil) {
+        return FMLocalized(@"选择「系统默认」时，未覆盖的字体保持本机原生内容。");
+    }
+    NSString *guidance =
+        FMLocalized(@"所选方案未包含的槽位文件，会使用兜底方案。");
+    if ([self.slot[@"sharedStyleRelativePaths"] count] == 0) return guidance;
+    return [NSString stringWithFormat:@"%@\n\n%@", guidance,
+        FMLocalized(@"锁屏时间槽位只管理可独立替换的 ADT Numeric 和 LockClock；SF Pro、圆角等共用系统英文字体的样式会跟随英文字体方案。")];
 }
 
 - (NSString *)pickerCoverageSummaryForScheme:(NSDictionary<NSString *, id> *)scheme {
@@ -819,12 +793,22 @@ static NSString *FMMixSlotSymbolName(NSString *slotID) {
             if ([scheme[@"paths"] containsObject:relativePath]) covered++;
         }
         if (total == 0) return FMLocalized(@"该槽位在当前系统不可用");
+        if (covered == 0 &&
+            FMMixCoveredPathCount(scheme,
+                                  self.slot[@"sharedStyleRelativePaths"]) > 0) {
+            return FMLocalized(@"仅含共享锁屏样式 · 由英文字体控制");
+        }
         if (covered == 0) return FMLocalized(@"不含此槽位字体");
         return [NSString stringWithFormat:FMLocalized(@"包含 %lu/%lu 个槽位文件"),
                 (unsigned long)covered, (unsigned long)total];
     }
     NSUInteger count = [scheme[@"paths"] count];
     return [NSString stringWithFormat:FMLocalized(@"共 %lu 个字体文件"), (unsigned long)count];
+}
+
+- (BOOL)schemeRowIsSelectable:(NSDictionary<NSString *, id> *)row {
+    if (![row[@"id"] isKindOfClass:NSString.class] || self.slot == nil) return YES;
+    return FMMixCoveredPathCount(row, self.slot[@"relativePaths"]) > 0;
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView
@@ -834,6 +818,7 @@ static NSString *FMMixSlotSymbolName(NSString *slotID) {
     NSDictionary<NSString *, id> *row = self.pickerRows[(NSUInteger)indexPath.row];
     UIListContentConfiguration *content = [UIListContentConfiguration subtitleCellConfiguration];
     BOOL isNullRow = ![row[@"id"] isKindOfClass:NSString.class];
+    BOOL selectable = [self schemeRowIsSelectable:row];
     if (isNullRow) {
         content.text = row[@"name"];
         content.image = [UIImage systemImageNamed:self.slot != nil
@@ -863,16 +848,20 @@ static NSString *FMMixSlotSymbolName(NSString *slotID) {
     cell.contentConfiguration = content;
     NSString *rowID = isNullRow ? @"" : row[@"id"];
     NSString *selectedID = self.currentSelection ?: @"";
-    cell.accessoryType = [rowID isEqual:selectedID]
+    cell.accessoryType = selectable && [rowID isEqual:selectedID]
         ? UITableViewCellAccessoryCheckmark
         : UITableViewCellAccessoryNone;
-    cell.selectionStyle = UITableViewCellSelectionStyleDefault;
+    cell.selectionStyle = selectable
+        ? UITableViewCellSelectionStyleDefault
+        : UITableViewCellSelectionStyleNone;
+    cell.contentView.alpha = selectable ? 1.0 : 0.55;
     return cell;
 }
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
     NSDictionary<NSString *, id> *row = self.pickerRows[(NSUInteger)indexPath.row];
+    if (![self schemeRowIsSelectable:row]) return;
     FMMixSelectionHandler handler = self.selectionHandler;
     NSString *profileID = [row[@"id"] isKindOfClass:NSString.class] ? row[@"id"] : nil;
     [self.navigationController popViewControllerAnimated:YES];

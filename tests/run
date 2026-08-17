@@ -726,11 +726,19 @@ if [[ $(rg -cF 'action:@selector(openMixComposer:)' \
       "$font_library_ui_source" || \
    ! rg -qF 'if ([profileID isEqual:self.replacingProfileID]) continue;' \
       "$mix_font_ui_source" || \
-   [[ $(rg -cF '[self schemeForProfileID:profileID].count > 0' \
+   [[ $(rg -cF 'if (scheme.count > 0 &&' \
            "$mix_font_ui_source" || true) -ne 1 ]] || \
    [[ $(rg -cF '[self schemeForProfileID:fallbackID].count > 0' \
-           "$mix_font_ui_source" || true) -ne 1 ]]; then
-  printf 'FAIL: the mix editor selector or source-profile safety contract is missing.\n' >&2
+           "$mix_font_ui_source" || true) -ne 1 ]] || \
+   rg -q 'applySavedProfileID|FMLocalized\(@"立即应用"\)' \
+      "$mix_font_ui_source" || \
+   [[ $(rg -cF '[done addAction:' "$mix_font_ui_source" || true) -ne 1 ]] || \
+   ! rg -qF '[strongSelf.navigationController popToRootViewControllerAnimated:YES];' \
+      "$mix_font_ui_source" || \
+   ! rg -qF 'sharedStyleRelativePaths' "$mix_font_ui_source" || \
+   [[ $(rg -cF '[self schemeRowIsSelectable:row]' \
+           "$mix_font_ui_source" || true) -ne 2 ]]; then
+  printf 'FAIL: the mix editor safety, slot guidance, or save-return contract is missing.\n' >&2
   exit 1
 fi
 

@@ -15,8 +15,7 @@ NS_ASSUME_NONNULL_BEGIN
 // no longer active.
 - (instancetype)initWithWorkspace:(id<FMProfileWorkspace>)workspace
                         mixRecipe:(nullable NSDictionary<NSString *, id> *)mixRecipe
-               replacingProfileID:(nullable NSString *)replacingProfileID
-                      applyHandler:(nullable void (^)(NSString *_Nullable profileID))applyHandler NS_DESIGNATED_INITIALIZER;
+               replacingProfileID:(nullable NSString *)replacingProfileID NS_DESIGNATED_INITIALIZER;
 - (instancetype)initWithStyle:(UITableViewStyle)style NS_UNAVAILABLE;
 - (instancetype)initWithNibName:(nullable NSString *)nibNameOrNil
                          bundle:(nullable NSBundle *)nibBundleOrNil NS_UNAVAILABLE;
