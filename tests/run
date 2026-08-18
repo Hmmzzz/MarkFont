@@ -556,7 +556,7 @@ if [[ $(rg -o 'THEOS_PACKAGE_SCHEME="\$scheme"' \
    rg -q 'DEBUG=0|FINALPACKAGE=1' \
       "$font_manager_root/scripts/build-packages" || \
    ! rg -q '^DEBUG := 1$' "$font_manager_root/Config.mk" || \
-   ! rg -F -q "^0\\.3\\.6(-[1-9][0-9]*)?(\\+debug)?$" \
+   ! rg -F -q "^0\\.3\\.7(-[1-9][0-9]*)?(\\+debug)?$" \
       "$font_manager_root/scripts/verify-package"; then
   printf 'FAIL: normal dual-scheme builds are not pinned to debug metadata.\n' >&2
   exit 1

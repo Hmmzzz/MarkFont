@@ -54,7 +54,7 @@ runner 需要 macOS/Xcode 与 `rg`。默认入口会使用本地工作区的 `..
 - mount/backend compatibility、auto-mount、自动 Respring 和 restart evidence；
 - secure directory、helper/CLI/App 权限边界，以及 package lifecycle 的静态契约。
 
-截至 `v0.3.6`，正常宿主权限下完整运行输出 42 条 `PASS`。受控导入用例会通过
+截至 `v0.3.7`，正常宿主权限下完整运行输出 42 条 `PASS`。受控导入用例会通过
 `NSFileCoordinator` 读取当前用户的临时目录；极严格的自动化 sandbox 可能在这一步返回
 `NSCocoaErrorDomain Code=256`。这种情况下应在普通终端或允许该临时目录文件协调的环境中
 重跑，以区分执行环境限制与真实产品回归。

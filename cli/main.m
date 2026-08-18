@@ -10,7 +10,7 @@ static void FMPrintUsage(FILE *stream) {
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
         if (argc == 2 && strcmp(argv[1], "--version") == 0) {
-            fprintf(stdout, "fontmanagerctl 0.3.6\n");
+            fprintf(stdout, "fontmanagerctl 0.3.7\n");
             return 0;
         }
 
