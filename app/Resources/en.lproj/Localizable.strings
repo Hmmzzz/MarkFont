@@ -419,3 +419,4 @@
 "该方案仅含共享锁屏样式，请在英文字体中选择" = "This scheme only contains shared lock-screen styles. Select it under English font.";
 "仅含共享锁屏样式 · 由英文字体控制" = "Shared lock-screen styles only · controlled by English font";
 "锁屏时间槽位在 iOS 16 使用 ADTTime，在 iOS 17–26 使用 ADTNumeric；SF Pro、圆角等共用系统英文字体的样式会跟随英文字体方案。" = "The lock-screen slot uses ADTTime on iOS 16 and ADTNumeric on iOS 17–26. SF Pro, Rounded, and other styles that share system Latin fonts follow the English-font scheme.";
+"%@\n已按标点宽度自动选择包内专版" = "%@\nAuto-selected the punctuation-optimized variant from the package";

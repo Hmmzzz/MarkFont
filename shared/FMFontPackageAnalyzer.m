@@ -12,6 +12,7 @@
 
 #import "FMDataModel.h"
 #import "FMFontCatalog.h"
+#import "FMFontPackageContentRefinement.h"
 #import "FMFontPackageMatcher.h"
 
 NSString *const FMFontPackageAnalyzerErrorDomain =
@@ -283,6 +284,72 @@ static BOOL FMSyncFontPayloadDirectory(NSString *path, NSError **error) {
     return YES;
 }
 
+// Second-pass content probe for the refinement step. Re-reads only the
+// requested entries; unreadable or changed entries simply produce no probe,
+// which leaves the affected source unmatched. Selection is still protected by
+// the save-time re-analysis and the materializer's SHA-256 verification.
+static NSDictionary<NSString *, NSDictionary<NSString *, id> *> *
+FMProbeArchiveFontContents(NSString *sourcePath, NSArray<NSString *> *probePaths) {
+    if (probePaths.count == 0) return @{};
+    NSSet<NSString *> *wanted = [NSSet setWithArray:probePaths];
+    FMArchiveAPI api;
+    if (!FMLoadArchiveAPI(&api, NULL)) return @{};
+    FMArchive *archive = api.readNew();
+    if (archive == NULL) {
+        FMCloseArchiveAPI(&api);
+        return @{};
+    }
+    static const int FMArchiveOK = 0;
+    static const int FMArchiveEOF = 1;
+    static const int FMArchiveWarn = -20;
+    BOOL supportReady = api.readSupportFilterAll(archive) >= FMArchiveWarn &&
+                        api.readSupportFormatZip(archive) >= FMArchiveWarn;
+    if (!supportReady ||
+        api.readOpenFilename(archive, sourcePath.fileSystemRepresentation,
+                             64 * 1024) != FMArchiveOK) {
+        api.readFree(archive);
+        FMCloseArchiveAPI(&api);
+        return @{};
+    }
+
+    NSMutableDictionary<NSString *, NSDictionary<NSString *, id> *> *probes =
+        [NSMutableDictionary dictionary];
+    NSUInteger entryCount = 0;
+    while (probes.count < wanted.count) {
+        FMArchiveEntry *entry = NULL;
+        int nextResult = api.readNextHeader(archive, &entry);
+        if (nextResult == FMArchiveEOF) break;
+        if (nextResult != FMArchiveOK) break;
+        if (++entryCount > FMMaximumArchiveEntries) break;
+
+        const char *pathBytes = api.entryPathnameUTF8(entry);
+        if (pathBytes == NULL) pathBytes = api.entryPathname(entry);
+        NSString *rawPath =
+            pathBytes == NULL ? nil : [NSString stringWithUTF8String:pathBytes];
+        NSString *relativePath = FMNormalizedArchiveRelativePath(rawPath);
+        if (relativePath == nil || ![wanted containsObject:relativePath] ||
+            api.entryFiletype(entry) != S_IFREG ||
+            api.entryIsEncrypted(entry) > 0) {
+            api.readDataSkip(archive);
+            continue;
+        }
+        int64_t declaredSize = api.entrySize(entry);
+        if (declaredSize <= 0 ||
+            (unsigned long long)declaredSize > FMMaximumFontBytes) {
+            api.readDataSkip(archive);
+            continue;
+        }
+        NSData *fontData = FMReadArchiveFontData(&api, archive, declaredSize, NULL);
+        if (fontData == nil) break;
+        NSDictionary<NSString *, id> *probe =
+            FMProbeFontDataForContentSelection(fontData);
+        if (probe != nil) probes[relativePath] = probe;
+    }
+    api.readFree(archive);
+    FMCloseArchiveAPI(&api);
+    return probes;
+}
+
 static NSDictionary<NSString *, id> *FMAnalyzeRawFont(
     NSString *sourcePath,
     NSDictionary<NSString *, id> *catalog,
@@ -318,6 +385,13 @@ static NSDictionary<NSString *, id> *FMAnalyzeRawFont(
         }
     ], catalog, error);
     if (matching == nil) return nil;
+    matching = FMRefineLegacyChineseTargetSelection(
+        matching,
+        [FMContentSelectionProbeRelativePaths(matching, catalog)
+            containsObject:fileName]
+            ? @{fileName : FMProbeFontDataForContentSelection(data) ?: @{}}
+            : @{},
+        catalog);
     NSMutableDictionary *result = [matching mutableCopy];
     result[@"packageName"] = fileName.stringByDeletingPathExtension;
     result[@"sourceKind"] = @"fontFile";
@@ -486,6 +560,11 @@ static NSDictionary<NSString *, id> *FMAnalyzeZipArchive(
 
     NSDictionary *matching = FMMatchFontPackageFilesToCatalog(packageFiles, catalog, error);
     if (matching == nil) return nil;
+    matching = FMRefineLegacyChineseTargetSelection(
+        matching,
+        FMProbeArchiveFontContents(
+            sourcePath, FMContentSelectionProbeRelativePaths(matching, catalog)),
+        catalog);
     NSMutableDictionary *result = [matching mutableCopy];
     result[@"packageName"] = sourcePath.lastPathComponent.stringByDeletingPathExtension;
     result[@"sourceKind"] = @"zipArchive";

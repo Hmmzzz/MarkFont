@@ -46,11 +46,15 @@ runner 需要 macOS/Xcode 与 `rg`。默认入口会使用本地工作区的 `..
   `PingFang.ttc` / `PingFangUI.ttc` 大小写敏感的精确同名选择与跨名拒绝；另一系统版本文件只作为
   不含 target ID/path 的忽略项，测试还使用两份不同字体内容确认不会跨名保存 replacement；
   同时覆盖字体包解析、受控导入会话和 Profile 持久化；
+- iOS 16–17 旧版中文字体的内容优选：包内多个含 `PingFangSC-Regular` face 的候选（如
+  `PingFang.ttc` 与不同名的“iOS17专用”改逗号版）按全角逗号 advance 最小者自动入选，
+  落选源回到未使用列表；仅含不同名候选的包也能导入；modern 布局与无关 face 不介入，
+  物化字节与被选源一致；
 - Profile adoption、stage、Stock mirror、legacy takeover 与中断恢复；
 - mount/backend compatibility、auto-mount、自动 Respring 和 restart evidence；
 - secure directory、helper/CLI/App 权限边界，以及 package lifecycle 的静态契约。
 
-截至 `v0.3.6`，正常宿主权限下完整运行输出 41 条 `PASS`。受控导入用例会通过
+截至 `v0.3.6`，正常宿主权限下完整运行输出 42 条 `PASS`。受控导入用例会通过
 `NSFileCoordinator` 读取当前用户的临时目录；极严格的自动化 sandbox 可能在这一步返回
 `NSCocoaErrorDomain Code=256`。这种情况下应在普通终端或允许该临时目录文件协调的环境中
 重跑，以区分执行环境限制与真实产品回归。

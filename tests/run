@@ -121,6 +121,7 @@ xcrun clang \
   "$font_manager_root/shared/FMDataModel.m" \
   "$font_manager_root/shared/FMFileStore.m" \
   "$font_manager_root/shared/FMFontCatalog.m" \
+  "$font_manager_root/shared/FMFontPackageContentRefinement.m" \
   "$font_manager_root/shared/FMFontPackageMatcher.m" \
   "$font_manager_root/shared/FMFontPackageAnalyzer.m" \
   "$font_manager_root/shared/FMFontPackageImportSession.m" \
@@ -158,6 +159,7 @@ xcrun clang \
   "$font_manager_root/shared/FMDataModel.m" \
   "$font_manager_root/shared/FMFileStore.m" \
   "$font_manager_root/shared/FMFontCatalog.m" \
+  "$font_manager_root/shared/FMFontPackageContentRefinement.m" \
   "$font_manager_root/shared/FMFontPackageMatcher.m" \
   "$font_manager_root/shared/FMFontPackageAnalyzer.m" \
   "$font_manager_root/shared/FMFontProfileStore.m" \
@@ -404,6 +406,19 @@ if rg -n 'FMFontCatalogPingFangUIRelativePath|compatibilityAlias|aliasApplied|se
    rg -n 'LanguageSupport/PingFangUI\.ttc|FontServicesCorePrivate/PingFang\.ttc' \
       "$font_manager_root/shared" "$font_manager_root/app"; then
   printf 'FAIL: an obsolete cross-name or wrong-path implementation remains.\n' >&2
+  exit 1
+fi
+
+if ! rg -q 'FMRefineLegacyChineseTargetSelection' \
+      "$font_manager_root/shared/FMFontPackageAnalyzer.m" || \
+   ! rg -q 'FMContentSelectionProbeRelativePaths' \
+      "$font_manager_root/shared/FMFontPackageAnalyzer.m" || \
+   ! rg -qF 'FMFontContentSelectionReasonLegacyChinesePunctuationCompact' \
+      "$font_manager_root/app/UI/FMFontLibraryViewController.m" || \
+   ! rg -qF 'FMFontPackageContentRefinement.m' "$font_manager_root/app/Makefile" || \
+   rg -n 'FMWrite|O_WRONLY|O_RDWR|rename|unlink|removeItem|mount_bindfs|posix_spawn|unmount' \
+      "$font_manager_root/shared/FMFontPackageContentRefinement.m"; then
+  printf 'FAIL: the legacy Chinese content-selection refinement is unwired or gained a write primitive.\n' >&2
   exit 1
 fi
 

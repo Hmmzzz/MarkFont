@@ -1,8 +1,10 @@
 #import <Foundation/Foundation.h>
+#import <CommonCrypto/CommonDigest.h>
 #import <sys/stat.h>
 
 #import "FMFontCatalog.h"
 #import "FMFontPackageAnalyzer.h"
+#import "FMFontPackageContentRefinement.h"
 #import "FMFontPackageImportSession.h"
 #import "FMFontProfileStore.h"
 
@@ -163,6 +165,174 @@ static NSDictionary<NSString *, id> *FMFixtureCatalog(NSError **error) {
             @"sha256" : @"1111111111111111111111111111111111111111111111111111111111111111",
         },
     ], @"TEST-BUILD", error);
+}
+
+static void FMAppendBE16(NSMutableData *data, uint16_t value) {
+    uint8_t bytes[] = { (uint8_t)(value >> 8), (uint8_t)(value & 0xFF) };
+    [data appendBytes:bytes length:sizeof(bytes)];
+}
+
+static void FMAppendBE32(NSMutableData *data, uint32_t value) {
+    uint8_t bytes[] = {
+        (uint8_t)(value >> 24), (uint8_t)(value >> 16),
+        (uint8_t)(value >> 8), (uint8_t)(value & 0xFF),
+    };
+    [data appendBytes:bytes length:sizeof(bytes)];
+}
+
+static void FMAppendUTF16BE(NSMutableData *data, NSString *string) {
+    for (NSUInteger index = 0; index < string.length; index++) {
+        FMAppendBE16(data, [string characterAtIndex:index]);
+    }
+}
+
+// Minimal single-face TrueType font accepted by CoreText: parameterized
+// PostScript name, cmap maps U+FF0C to glyph 1, and glyph 1 carries the
+// parameterized advance so the content probe measures it directly.
+static NSData *FMEmitMinimalTrueTypeFont(NSString *postScriptName,
+                                         uint16_t commaAdvance) {
+    NSMutableData *head = [NSMutableData data];
+    FMAppendBE32(head, 0x00010000);  // version
+    FMAppendBE32(head, 0x00010000);  // fontRevision
+    FMAppendBE32(head, 0);           // checkSumAdjustment
+    FMAppendBE32(head, 0x5F0F3CF5);  // magicNumber
+    FMAppendBE16(head, 0);           // flags
+    FMAppendBE16(head, 1000);        // unitsPerEm
+    FMAppendBE32(head, 0); FMAppendBE32(head, 0);  // created
+    FMAppendBE32(head, 0); FMAppendBE32(head, 0);  // modified
+    FMAppendBE16(head, 0); FMAppendBE16(head, 0);  // xMin yMin
+    FMAppendBE16(head, 1000); FMAppendBE16(head, 1000);  // xMax yMax
+    FMAppendBE16(head, 0);           // macStyle
+    FMAppendBE16(head, 8);           // lowestRecPPEM
+    FMAppendBE16(head, 2);           // fontDirectionHint
+    FMAppendBE16(head, 0);           // indexToLocFormat (short)
+    FMAppendBE16(head, 0);           // glyphDataFormat
+
+    NSMutableData *hhea = [NSMutableData data];
+    FMAppendBE32(hhea, 0x00010000);
+    FMAppendBE16(hhea, 800); FMAppendBE16(hhea, (uint16_t)-200); FMAppendBE16(hhea, 0);
+    FMAppendBE16(hhea, 1000);        // advanceWidthMax
+    FMAppendBE16(hhea, 0); FMAppendBE16(hhea, 0); FMAppendBE16(hhea, 1000);
+    FMAppendBE16(hhea, 1); FMAppendBE16(hhea, 0); FMAppendBE16(hhea, 0);
+    for (NSUInteger index = 0; index < 4; index++) FMAppendBE16(hhea, 0);
+    FMAppendBE16(hhea, 0);           // metricDataFormat
+    FMAppendBE16(hhea, 2);           // numberOfHMetrics
+
+    NSMutableData *maxp = [NSMutableData data];
+    FMAppendBE32(maxp, 0x00010000);
+    FMAppendBE16(maxp, 2);           // numGlyphs
+    for (NSUInteger index = 0; index < 13; index++) FMAppendBE16(maxp, 0);
+
+    NSMutableData *hmtx = [NSMutableData data];
+    FMAppendBE16(hmtx, 500); FMAppendBE16(hmtx, 0);
+    FMAppendBE16(hmtx, commaAdvance); FMAppendBE16(hmtx, 0);
+
+    NSMutableData *cmap = [NSMutableData data];
+    FMAppendBE16(cmap, 0); FMAppendBE16(cmap, 1);
+    FMAppendBE16(cmap, 3); FMAppendBE16(cmap, 1); FMAppendBE32(cmap, 12);
+    FMAppendBE16(cmap, 4); FMAppendBE16(cmap, 32); FMAppendBE16(cmap, 0);
+    FMAppendBE16(cmap, 4); FMAppendBE16(cmap, 4); FMAppendBE16(cmap, 1); FMAppendBE16(cmap, 0);
+    FMAppendBE16(cmap, 0xFF0C); FMAppendBE16(cmap, 0xFFFF);  // endCode
+    FMAppendBE16(cmap, 0);                                    // reservedPad
+    FMAppendBE16(cmap, 0xFF0C); FMAppendBE16(cmap, 0xFFFF);  // startCode
+    FMAppendBE16(cmap, 0x00F5); FMAppendBE16(cmap, 0x0001);  // idDelta -> glyphs 1, 0
+    FMAppendBE16(cmap, 0); FMAppendBE16(cmap, 0);
+
+    NSMutableData *glyf = [NSMutableData data];
+    FMAppendBE16(glyf, 0);           // numberOfContours = 0
+    FMAppendBE16(glyf, 0); FMAppendBE16(glyf, (uint16_t)-200);
+    FMAppendBE16(glyf, 300); FMAppendBE16(glyf, 0);
+
+    NSMutableData *loca = [NSMutableData data];
+    FMAppendBE16(loca, 0); FMAppendBE16(loca, 0); FMAppendBE16(loca, 5);
+
+    NSArray<NSNumber *> *nameIDs = @[ @1, @2, @4, @6 ];
+    NSString *familyName = [postScriptName componentsSeparatedByString:@"-"].firstObject;
+    NSArray<NSString *> *nameValues = @[ familyName, @"Regular",
+                                         postScriptName, postScriptName ];
+    NSMutableData *name = [NSMutableData data];
+    FMAppendBE16(name, 0); FMAppendBE16(name, (uint16_t)nameIDs.count);
+    FMAppendBE16(name, (uint16_t)(6 + 12 * nameIDs.count));
+    NSUInteger stringOffset = 0;
+    NSMutableArray<NSData *> *nameStrings = [NSMutableArray array];
+    for (NSUInteger index = 0; index < nameIDs.count; index++) {
+        NSMutableData *value = [NSMutableData data];
+        FMAppendUTF16BE(value, nameValues[index]);
+        [nameStrings addObject:value];
+        FMAppendBE16(name, 3); FMAppendBE16(name, 1); FMAppendBE16(name, 0x409);
+        FMAppendBE16(name, nameIDs[index].unsignedShortValue);
+        FMAppendBE16(name, (uint16_t)value.length);
+        FMAppendBE16(name, (uint16_t)stringOffset);
+        stringOffset += value.length;
+    }
+    for (NSData *value in nameStrings) [name appendData:value];
+
+    NSMutableData *post = [NSMutableData data];
+    FMAppendBE32(post, 0x00030000);
+    FMAppendBE32(post, 0);
+    FMAppendBE16(post, (uint16_t)-100); FMAppendBE16(post, 50);
+    FMAppendBE32(post, 0);
+    for (NSUInteger index = 0; index < 4; index++) FMAppendBE32(post, 0);
+
+    NSMutableData *os2 = [NSMutableData data];
+    FMAppendBE16(os2, 4); FMAppendBE16(os2, 500); FMAppendBE16(os2, 400);
+    FMAppendBE16(os2, 5); FMAppendBE16(os2, 0);
+    for (NSUInteger index = 0; index < 8; index++) FMAppendBE16(os2, 0);
+    FMAppendBE16(os2, 50); FMAppendBE16(os2, 250); FMAppendBE16(os2, 0);
+    for (NSUInteger index = 0; index < 10; index++) [os2 appendBytes:"\0" length:1];
+    for (NSUInteger index = 0; index < 4; index++) FMAppendBE32(os2, 0);
+    [os2 appendBytes:"TEST" length:4];
+    FMAppendBE16(os2, 0x0040); FMAppendBE16(os2, 0x2C); FMAppendBE16(os2, 0xFF0C);
+    FMAppendBE16(os2, 800); FMAppendBE16(os2, (uint16_t)-200); FMAppendBE16(os2, 0);
+    FMAppendBE16(os2, 800); FMAppendBE16(os2, 200);
+    FMAppendBE32(os2, 0); FMAppendBE32(os2, 0);
+    FMAppendBE16(os2, 0); FMAppendBE16(os2, 700);
+    FMAppendBE16(os2, 0); FMAppendBE16(os2, 0x20); FMAppendBE16(os2, 1);
+
+    NSArray<NSDictionary<NSString *, id> *> *tables = @[
+        @{ @"tag" : @"OS/2", @"data" : os2 },
+        @{ @"tag" : @"cmap", @"data" : cmap },
+        @{ @"tag" : @"glyf", @"data" : glyf },
+        @{ @"tag" : @"head", @"data" : head },
+        @{ @"tag" : @"hhea", @"data" : hhea },
+        @{ @"tag" : @"hmtx", @"data" : hmtx },
+        @{ @"tag" : @"loca", @"data" : loca },
+        @{ @"tag" : @"maxp", @"data" : maxp },
+        @{ @"tag" : @"name", @"data" : name },
+        @{ @"tag" : @"post", @"data" : post },
+    ];
+    NSUInteger tableCount = tables.count;
+    NSUInteger entrySelector = 3;
+    NSUInteger searchRange = 16 << entrySelector;
+    NSMutableData *font = [NSMutableData data];
+    FMAppendBE32(font, 0x00010000);
+    FMAppendBE16(font, (uint16_t)tableCount);
+    FMAppendBE16(font, (uint16_t)searchRange);
+    FMAppendBE16(font, (uint16_t)entrySelector);
+    FMAppendBE16(font, (uint16_t)(tableCount * 16 - searchRange));
+    NSUInteger offset = 12 + 16 * tableCount;
+    NSMutableData *body = [NSMutableData data];
+    for (NSDictionary<NSString *, id> *table in tables) {
+        NSData *data = table[@"data"];
+        [font appendBytes:[table[@"tag"] UTF8String] length:4];
+        FMAppendBE32(font, 0);
+        FMAppendBE32(font, (uint32_t)(offset + body.length));
+        FMAppendBE32(font, (uint32_t)data.length);
+        [body appendData:data];
+        while (body.length % 4 != 0) [body appendBytes:"\0" length:1];
+    }
+    [font appendData:body];
+    return font;
+}
+
+static NSString *FMFixtureSHA256(NSData *data) {
+    unsigned char digest[CC_SHA256_DIGEST_LENGTH] = { 0 };
+    CC_SHA256(data.bytes, (CC_LONG)data.length, digest);
+    NSMutableString *hex = [NSMutableString stringWithCapacity:CC_SHA256_DIGEST_LENGTH * 2];
+    for (NSUInteger index = 0; index < CC_SHA256_DIGEST_LENGTH; index++) {
+        [hex appendFormat:@"%02x", digest[index]];
+    }
+    return hex;
 }
 
 static void FMRunImportSessionTests(NSString *temporaryRoot) {
@@ -412,6 +582,197 @@ static void FMRunFixtureTests(NSString *temporaryRoot) {
               @"archive analyzer accepted a symlink font entry");
 }
 
+static void FMRunContentSelectionTests(NSString *temporaryRoot) {
+    NSError *error = nil;
+    NSData *tight = FMEmitMinimalTrueTypeFont(@"PingFangSC-Regular", 216);
+    NSData *wide = FMEmitMinimalTrueTypeFont(@"PingFangSC-Regular", 900);
+    NSData *other = FMEmitMinimalTrueTypeFont(@"SomeOtherFont", 500);
+    FMRequire(tight.length > 0 && wide.length > 0 && other.length > 0,
+              @"content-selection font fixtures could not be emitted");
+
+    NSDictionary *tightProbe = FMProbeFontDataForContentSelection(tight);
+    NSDictionary *wideProbe = FMProbeFontDataForContentSelection(wide);
+    NSDictionary *otherProbe = FMProbeFontDataForContentSelection(other);
+    FMRequire([tightProbe[@"hasLegacyPingFangRegular"] boolValue] &&
+                  fabs([tightProbe[@"commaAdvanceRatio"] doubleValue] - 0.216) < 0.001,
+              @"tight fixture probe did not report the comma advance ratio");
+    FMRequire([wideProbe[@"hasLegacyPingFangRegular"] boolValue] &&
+                  fabs([wideProbe[@"commaAdvanceRatio"] doubleValue] - 0.9) < 0.001,
+              @"wide fixture probe did not report the comma advance ratio");
+    FMRequire(otherProbe != nil &&
+                  ![otherProbe[@"hasLegacyPingFangRegular"] boolValue],
+              @"foreign face fixture unexpectedly qualified as a PingFang candidate");
+
+    NSDictionary *legacyCatalog = FMCatalogForPaths(@[
+        @{
+            @"path" : @"LanguageSupport/PingFang.ttc",
+            @"sha256" : @"1111111111111111111111111111111111111111111111111111111111111111",
+        },
+    ], @"TEST-BUILD", &error);
+    FMRequire(legacyCatalog != nil,
+              [NSString stringWithFormat:@"legacy catalog fixture failed: %@", error]);
+    NSDictionary *modernCatalog = FMCatalogForPaths(@[
+        @{
+            @"path" : @"FontServicesCorePrivate/PingFangUI.ttc",
+            @"sha256" : @"1111111111111111111111111111111111111111111111111111111111111111",
+        },
+    ], @"TEST-BUILD", &error);
+    FMRequire(modernCatalog != nil,
+              [NSString stringWithFormat:@"modern catalog fixture failed: %@", error]);
+
+    NSString *tightSHA = FMFixtureSHA256(tight);
+
+    // Two candidates under different filenames: the punctuation-tuned
+    // variant must replace the exact-name match automatically.
+    NSString *dualPath =
+        [temporaryRoot stringByAppendingPathComponent:@"content-selection-dual.zip"];
+    FMRequire(FMWriteStoredZIP(dualPath, @[
+        @{ @"name" : @"PingFang.ttc", @"data" : wide },
+        @{ @"name" : @"iOS17专用PingFang.ttc", @"data" : tight },
+    ], &error), @"content-selection dual ZIP fixture write failed");
+    NSDictionary *dual = FMAnalyzeFontPackageAtPath(dualPath, legacyCatalog, &error);
+    FMRequire(dual != nil,
+              [NSString stringWithFormat:@"content-selection dual preview failed: %@", error]);
+    FMRequire([dual[@"matchedTargetCount"] integerValue] == 1 &&
+                  [dual[@"unmatchedSourceCount"] integerValue] == 1 &&
+                  [dual[@"conflictTargetCount"] integerValue] == 0,
+              @"content-selection dual counts are wrong");
+    NSDictionary *dualMatch = dual[@"matches"][0];
+    FMRequire([dualMatch[@"selectedSourceRelativePath"]
+                  isEqual:@"iOS17专用PingFang.ttc"] &&
+                  [dualMatch[@"sourceSHA256"] isEqual:tightSHA] &&
+                  [dualMatch[@"selectionReason"]
+                      isEqual:FMFontContentSelectionReasonLegacyChinesePunctuationCompact],
+              @"content-selection did not pick the punctuation-tight variant");
+    FMRequire([dual[@"unmatched"][0][@"sourceRelativePath"] isEqual:@"PingFang.ttc"] &&
+                  [dual[@"unmatched"][0][@"sourceSHA256"] isEqual:FMFixtureSHA256(wide)],
+              @"displaced exact-name source was not reported as unmatched");
+    FMRequire([dual[@"contentSelection"][@"candidates"] count] == 2 &&
+                  [dual[@"contentSelection"][@"selectedSourceRelativePath"]
+                      isEqual:@"iOS17专用PingFang.ttc"],
+              @"content-selection summary is missing candidates");
+
+    // The displaced package must still materialize the tight bytes only.
+    NSString *profilesRoot =
+        [temporaryRoot stringByAppendingPathComponent:@"content-selection-profiles"];
+    NSDictionary *saved = FMImportFontPackageProfile(
+        dualPath, legacyCatalog, profilesRoot,
+        @"import-content-dual", @"Content Dual", &error);
+    FMRequire(saved != nil && [saved[@"replacementCount"] integerValue] == 1,
+              [NSString stringWithFormat:@"content-selection Profile save failed: %@", error]);
+    NSDictionary *details = FMFontProfileDetailsAtRoot(
+        profilesRoot, @"import-content-dual", @"TEST-BUILD", &error);
+    NSString *materializedPath =
+        details[@"filePathByRelativePath"][@"LanguageSupport/PingFang.ttc"];
+    NSData *materialized = materializedPath.length > 0
+        ? [NSData dataWithContentsOfFile:materializedPath] : nil;
+    FMRequire(materialized != nil && [materialized isEqual:tight],
+              @"content-selection Profile did not persist the tight variant bytes");
+    FMRequire(FMDeleteFontProfileAtRoot(profilesRoot, @"import-content-dual",
+                                        @"TEST-BUILD", &error),
+              @"content-selection Profile cleanup failed");
+
+    // A package carrying only the differently named variant still imports.
+    NSString *onlyPath =
+        [temporaryRoot stringByAppendingPathComponent:@"content-selection-only.zip"];
+    FMRequire(FMWriteStoredZIP(onlyPath, @[
+        @{ @"name" : @"iOS17专用PingFang.ttc", @"data" : tight },
+    ], &error), @"content-selection only ZIP fixture write failed");
+    NSDictionary *only = FMAnalyzeFontPackageAtPath(onlyPath, legacyCatalog, &error);
+    FMRequire(only != nil &&
+                  [only[@"matchedTargetCount"] integerValue] == 1 &&
+                  [only[@"unmatchedSourceCount"] integerValue] == 0 &&
+                  [only[@"matches"][0][@"selectedSourceRelativePath"]
+                      isEqual:@"iOS17专用PingFang.ttc"],
+              @"lone differently named variant was not promoted to a match");
+
+    // Modern layouts keep ignoring legacy-named content candidates.
+    NSString *modernPath =
+        [temporaryRoot stringByAppendingPathComponent:@"content-selection-modern.zip"];
+    FMRequire(FMWriteStoredZIP(modernPath, @[
+        @{ @"name" : @"PingFangUI.ttc", @"data" : wide },
+        @{ @"name" : @"iOS17专用PingFang.ttc", @"data" : tight },
+    ], &error), @"content-selection modern ZIP fixture write failed");
+    NSDictionary *modern = FMAnalyzeFontPackageAtPath(modernPath, modernCatalog, &error);
+    FMRequire(modern != nil &&
+                  [modern[@"matchedTargetCount"] integerValue] == 1 &&
+                  [modern[@"unmatchedSourceCount"] integerValue] == 1 &&
+                  [modern[@"matches"][0][@"selectedSourceRelativePath"]
+                      isEqual:@"PingFangUI.ttc"] &&
+                  modern[@"matches"][0][@"selectionReason"] == nil &&
+                  modern[@"contentSelection"] == nil,
+              @"modern layout unexpectedly refined the legacy Chinese target");
+
+    // Sources without the PingFangSC-Regular face never become candidates.
+    NSString *foreignPath =
+        [temporaryRoot stringByAppendingPathComponent:@"content-selection-foreign.zip"];
+    FMRequire(FMWriteStoredZIP(foreignPath, @[
+        @{ @"name" : @"PingFang.ttc", @"data" : wide },
+        @{ @"name" : @"SomeOtherFont.ttf", @"data" : other },
+    ], &error), @"content-selection foreign ZIP fixture write failed");
+    NSDictionary *foreign = FMAnalyzeFontPackageAtPath(foreignPath, legacyCatalog, &error);
+    FMRequire(foreign != nil &&
+                  [foreign[@"matchedTargetCount"] integerValue] == 1 &&
+                  [foreign[@"matches"][0][@"selectedSourceRelativePath"]
+                      isEqual:@"PingFang.ttc"] &&
+                  foreign[@"matches"][0][@"selectionReason"] == nil &&
+                  foreign[@"contentSelection"] == nil,
+              @"foreign unmatched font changed the exact-name selection");
+
+    // When the exact-name source is already the tightest one, nothing changes.
+    NSString *incumbentPath =
+        [temporaryRoot stringByAppendingPathComponent:@"content-selection-incumbent.zip"];
+    FMRequire(FMWriteStoredZIP(incumbentPath, @[
+        @{ @"name" : @"PingFang.ttc", @"data" : tight },
+        @{ @"name" : @"旧版PingFang.ttc", @"data" : wide },
+    ], &error), @"content-selection incumbent ZIP fixture write failed");
+    NSDictionary *incumbent =
+        FMAnalyzeFontPackageAtPath(incumbentPath, legacyCatalog, &error);
+    FMRequire(incumbent != nil &&
+                  [incumbent[@"matchedTargetCount"] integerValue] == 1 &&
+                  [incumbent[@"unmatchedSourceCount"] integerValue] == 1 &&
+                  [incumbent[@"matches"][0][@"selectedSourceRelativePath"]
+                      isEqual:@"PingFang.ttc"] &&
+                  [incumbent[@"matches"][0][@"sourceSHA256"] isEqual:tightSHA] &&
+                  incumbent[@"contentSelection"] == nil,
+              @"tight exact-name incumbent was unexpectedly rewritten");
+
+    // A differently named single font file also promotes through the probe.
+    NSString *rawTightPath =
+        [temporaryRoot stringByAppendingPathComponent:@"iOS17专用PingFang.ttc"];
+    FMRequire([tight writeToFile:rawTightPath options:NSDataWritingAtomic
+                            error:&error],
+              @"raw tight font fixture write failed");
+    NSDictionary *rawTight = FMAnalyzeFontPackageAtPath(rawTightPath, legacyCatalog, &error);
+    FMRequire(rawTight != nil &&
+                  [rawTight[@"matchedTargetCount"] integerValue] == 1 &&
+                  [rawTight[@"unmatchedSourceCount"] integerValue] == 0 &&
+                  [rawTight[@"matches"][0][@"selectedSourceRelativePath"]
+                      isEqual:@"iOS17专用PingFang.ttc"],
+              @"raw differently named variant was not promoted to a match");
+    FMRequire(FMImportFontPackageProfile(
+                  rawTightPath, legacyCatalog, profilesRoot,
+                  @"import-raw-tight", @"Raw Tight", &error) != nil &&
+                  FMDeleteFontProfileAtRoot(profilesRoot, @"import-raw-tight",
+                                            @"TEST-BUILD", &error),
+              @"raw tight variant did not round-trip through a Profile");
+
+    // A single foreign font file without the PingFang face stays unimportable.
+    NSString *rawForeignPath =
+        [temporaryRoot stringByAppendingPathComponent:@"SomeOtherFont.ttf"];
+    FMRequire([other writeToFile:rawForeignPath options:NSDataWritingAtomic
+                            error:&error],
+              @"raw foreign font fixture write failed");
+    NSDictionary *rawForeign =
+        FMAnalyzeFontPackageAtPath(rawForeignPath, legacyCatalog, &error);
+    FMRequire(rawForeign != nil &&
+                  [rawForeign[@"matchedTargetCount"] integerValue] == 0 &&
+                  [rawForeign[@"unmatchedSourceCount"] integerValue] == 1,
+              @"raw foreign font unexpectedly matched a Stock target");
+
+    printf("PASS: legacy Chinese content selection picks the punctuation-optimized candidate\n");
+}
+
 static void FMRunSampleProbe(NSString *hashListPath,
                              NSArray<NSString *> *archivePaths,
                              NSString *temporaryRoot) {
@@ -478,6 +839,7 @@ int main(int argc, const char *argv[]) {
         @try {
             FMRunImportSessionTests(temporaryRoot);
             FMRunFixtureTests(temporaryRoot);
+            FMRunContentSelectionTests(temporaryRoot);
             if (argc >= 3) {
                 NSString *hashListPath = [NSString stringWithUTF8String:argv[1]];
                 NSMutableArray<NSString *> *archivePaths = [NSMutableArray array];

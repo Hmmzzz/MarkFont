@@ -6,6 +6,7 @@
 
 #import "FMDesignSystem.h"
 #import "FMFloatingActionDockView.h"
+#import "FMFontPackageContentRefinement.h"
 #import "FMFontPackageImportSession.h"
 #import "FMFontSlotCatalog.h"
 #import "FMMixFontViewController.h"
@@ -983,10 +984,16 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
     switch ((FMFontPackagePreviewSection)indexPath.section) {
         case FMFontPackagePreviewSectionMatches: {
             content.text = item[@"fileName"];
-            content.secondaryText = [NSString stringWithFormat:FMLocalized(@"镜像  %@\n包内  %@"),
-                                                               item[@"targetRelativePath"],
-                                                               FMLibraryCompactPackagePath(
-                                                                   item[@"selectedSourceRelativePath"])];
+            NSString *pathText =
+                [NSString stringWithFormat:FMLocalized(@"镜像  %@\n包内  %@"),
+                                           item[@"targetRelativePath"],
+                                           FMLibraryCompactPackagePath(
+                                               item[@"selectedSourceRelativePath"])];
+            content.secondaryText =
+                [item[@"selectionReason"]
+                    isEqual:FMFontContentSelectionReasonLegacyChinesePunctuationCompact]
+                    ? [NSString stringWithFormat:FMLocalized(@"%@\n已按标点宽度自动选择包内专版"), pathText]
+                    : pathText;
             symbol = @"checkmark.circle.fill";
             color = FMSuccessColor();
             break;

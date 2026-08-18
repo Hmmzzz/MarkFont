@@ -8,7 +8,8 @@ FontManager_FILES = main.m FMAppDelegate.m FMDeviceProfileWorkspace.m \
     UI/FMFontLibraryViewController.m UI/FMMixFontViewController.m \
     UI/FMSettingsViewController.m UI/FMCompatibilityViewController.m \
     ../shared/FMStatusContract.m ../shared/FMDataModel.m \
-    ../shared/FMFontCatalog.m ../shared/FMFontPackageMatcher.m \
+    ../shared/FMFontCatalog.m ../shared/FMFontPackageContentRefinement.m \
+    ../shared/FMFontPackageMatcher.m \
     ../shared/FMFontPackageAnalyzer.m ../shared/FMFontPackageImportSession.m \
     ../shared/FMFontProfileStore.m ../shared/FMSystemFontLayout.m \
     ../shared/FMFileStore.m ../shared/FMHelperClient.m \
