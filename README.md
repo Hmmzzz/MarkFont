@@ -4,7 +4,7 @@ MarkFont 是一款面向 iOS 16–26 越狱设备的全局字体管理器，支�
 RootHide。它将字体应用到与当前系统 build 绑定的工作镜像，再通过只读 bindfs mapping 提供给
 系统，不直接覆盖原始系统字体文件。
 
-当前版本为 [`v0.3.5`](https://github.com/Hmmzzz/MarkFont/tree/v0.3.5)，可从
+当前版本为 [`v0.3.6`](https://github.com/Hmmzzz/MarkFont/tree/v0.3.6)，可从
 [Hmmzzz 软件源](https://hmmzzz.github.io/repo/)安装。两种越狱环境使用不同软件包，请勿混装。
 
 ## 截图
@@ -18,6 +18,7 @@ RootHide。它将字体应用到与当前系统 build 绑定的工作镜像，�
 
 - 导入 ZIP、TTF、TTC 或 OTF，按当前设备的 Stock 字体清单预览精确匹配结果
 - 保存、预览、切换和删除多套字体方案，或恢复系统默认字体
+- 将中文、英文字体和锁屏时间字体拆分组合为新的混搭方案
 - 使用固定路径的只读字体镜像，不直接修改 `/System` 中的原始字体文件
 - 重新越狱后自动恢复受管理的 mapping；可选仅在挂载晚于 SpringBoard 时自动 Respring 一次
 - 在 App 内检查组件、字体连接和恢复准备状态
@@ -38,8 +39,8 @@ RootHide。它将字体应用到与当前系统 build 绑定的工作镜像，�
 
 > 兼容范围代表当前代码策略，不代表所有设备与越狱版本都已完成实机矩阵验证。维护基线为
 > iPhone 15 Pro、iOS 17.3.1、Relaxin 0.4.2 / RootHide；iOS 18 中文字体路径已有实机反馈，
-> iOS 16 conventional rootless 与其他组合仍欢迎社区验证。`v0.3.5` 的文件选择器修复已通过
-> 回归和双包审计，开启“粗体文本”的实机复测仍待完成。
+> iOS 16 conventional rootless 与其他组合仍欢迎社区验证。`v0.3.6` 的混搭方案与版本匹配
+> 锁屏时间槽位已通过回归和双包审计；`v0.3.5` 的文件选择器修复仍待开启“粗体文本”的实机复测。
 
 ### 中文字体规则
 

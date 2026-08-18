@@ -33,36 +33,6 @@ static BOOL FMLibraryShouldShowIOS18To26ChineseImportTip(void) {
         FMSystemFontLayoutFontServicesCorePrivate;
 }
 
-// Keep the two related library actions together when their localized titles
-// fit. At narrow widths or Accessibility Dynamic Type sizes, stack them so
-// neither action is truncated or forced to shrink.
-@interface FMFontLibraryActionStackView : UIStackView
-@end
-
-@implementation FMFontLibraryActionStackView
-
-- (void)layoutSubviews {
-    CGFloat requiredWidth = self.spacing;
-    for (UIView *view in self.arrangedSubviews) {
-        CGFloat intrinsicWidth = view.intrinsicContentSize.width;
-        if (intrinsicWidth > 0) requiredWidth += intrinsicWidth;
-    }
-    BOOL usesAccessibilityText = UIContentSizeCategoryIsAccessibilityCategory(
-        self.traitCollection.preferredContentSizeCategory);
-    UILayoutConstraintAxis desiredAxis = usesAccessibilityText ||
-        (self.bounds.size.width > 0 && requiredWidth > self.bounds.size.width)
-            ? UILayoutConstraintAxisVertical
-            : UILayoutConstraintAxisHorizontal;
-    if (self.axis != desiredAxis) {
-        self.axis = desiredAxis;
-        [self invalidateIntrinsicContentSize];
-        [self.superview setNeedsLayout];
-    }
-    [super layoutSubviews];
-}
-
-@end
-
 static UIImage *FMCircularDeleteActionImage(UITraitCollection *traits) {
     CGSize size = CGSizeMake(44, 44);
     UIGraphicsImageRenderer *renderer =
@@ -1376,9 +1346,8 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
     [button addTarget:self action:@selector(importFont:) forControlEvents:UIControlEventTouchUpInside];
     [button.heightAnchor constraintGreaterThanOrEqualToConstant:44].active = YES;
 
-    // The header action row pairs package import with mix creation when the
-    // workspace supports saving mixed profiles; otherwise import keeps the
-    // full-width row.
+    // Keep each localized action on its own full-width row so long titles and
+    // Dynamic Type never make the two buttons compete for horizontal space.
     UIView *actionRow = nil;
     if ([self canSaveMixedProfiles]) {
         UIButton *mixButton = [UIButton buttonWithType:UIButtonTypeSystem];
@@ -1397,11 +1366,10 @@ typedef void (^FMFontPackageSavedHandler)(NSDictionary<NSString *, id> *profile)
             forControlEvents:UIControlEventTouchUpInside];
         [mixButton.heightAnchor constraintGreaterThanOrEqualToConstant:44].active = YES;
 
-        FMFontLibraryActionStackView *stack =
-            [[FMFontLibraryActionStackView alloc]
-                initWithArrangedSubviews:@[ button, mixButton ]];
+        UIStackView *stack =
+            [[UIStackView alloc] initWithArrangedSubviews:@[ button, mixButton ]];
         stack.translatesAutoresizingMaskIntoConstraints = NO;
-        stack.axis = UILayoutConstraintAxisHorizontal;
+        stack.axis = UILayoutConstraintAxisVertical;
         stack.spacing = 10;
         stack.distribution = UIStackViewDistributionFillEqually;
         actionRow = stack;
